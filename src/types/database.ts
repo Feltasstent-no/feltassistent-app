@@ -187,22 +187,29 @@ export interface FieldFigure {
   name: string;
   description: string | null;
   svg_data: string | null;
-  distance_m: number;
-  target_width_cm: number;
-  target_height_cm: number;
-  scoring_zone_cm: number;
+  svg_content: string | null;
   image_url: string | null;
-  category_id: string | null;
+  file_type: string | null;
   category: string | null;
+  category_id: string | null;
   difficulty: number | null;
+  distance_m: number;
   normal_distance: number | null;
   max_distance: number | null;
   normal_distance_m: number | null;
   max_distance_m: number | null;
   ag3_hk416_max_distance_m: number | null;
   short_code: string | null;
-  display_order: number;
+  width_mm: number | null;
+  height_mm: number | null;
+  shape_type: string | null;
+  aim_points: unknown[] | null;
+  usage_notes: string | null;
+  notes: string | null;
+  order_index: number | null;
+  sort_order: number;
   is_active: boolean;
+  is_standard: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -212,7 +219,6 @@ export interface FieldFigureCategory {
   name: string;
   description: string | null;
   display_order: number;
-  is_active: boolean;
   created_at: string;
 }
 
@@ -305,10 +311,9 @@ export interface AmmoProfile {
   name: string;
   caliber: string;
   manufacturer: string | null;
-  product_line: string | null;
-  bullet_weight_grains: number;
-  muzzle_velocity_ms: number;
-  description: string | null;
+  bullet_weight_gr: number;
+  ballistic_coefficient_g1: number;
+  default_muzzle_velocity: number;
   is_active: boolean;
   created_at: string;
 }
