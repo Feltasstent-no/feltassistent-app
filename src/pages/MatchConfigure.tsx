@@ -306,7 +306,7 @@ export function MatchConfigure() {
 
   return (
     <Layout>
-      <div className="max-w-4xl mx-auto pb-56 md:pb-8">
+      <div className="max-w-4xl mx-auto pb-40 md:pb-8">
         <div className="flex items-center gap-4 mb-6">
           <button
             onClick={() => navigate('/match/setup')}
