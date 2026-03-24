@@ -1,0 +1,554 @@
+import { useState, useEffect } from 'react';
+import { Layout } from '../components/Layout';
+import { useAuth } from '../contexts/AuthContext';
+import { FieldFigure, BallisticProfile } from '../types/database';
+import {
+  getFieldFigures,
+  calculateShotRecommendation,
+  logShot,
+  ShotRecommendation
+} from '../lib/field-assistant';
+import { logWeaponShots } from '../lib/weapon-shot-service';
+import { supabase } from '../lib/supabase';
+import { FieldFigureCard } from '../components/FieldFigureCard';
+import { ShotRecommendationDisplay } from '../components/ShotRecommendationDisplay';
+import { ShotLogDialog } from '../components/ShotLogDialog';
+import { Target, Wind, Settings, CheckCircle, Plus, Crosshair } from 'lucide-react';
+
+interface WeaponWithBarrel {
+  id: string;
+  weapon_name: string;
+  weapon_number: string;
+  total_shots_fired: number;
+  active_barrel?: {
+    id: string;
+    barrel_name: string;
+    total_shots_fired: number;
+  };
+}
+
+export function QuickAssistant() {
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [figures, setFigures] = useState<FieldFigure[]>([]);
+  const [profiles, setProfiles] = useState<BallisticProfile[]>([]);
+
+  // Selection state
+  const [selectedFigure, setSelectedFigure] = useState<FieldFigure | null>(null);
+  const [selectedProfile, setSelectedProfile] = useState<BallisticProfile | null>(null);
+  const [distance, setDistance] = useState<number>(300);
+  const [windSpeed, setWindSpeed] = useState<number>(0);
+  const [windDirection, setWindDirection] = useState<string>('');
+
+  // Recommendation state
+  const [recommendation, setRecommendation] = useState<ShotRecommendation | null>(null);
+  const [calculating, setCalculating] = useState(false);
+
+  // Shot logging state
+  const [showLogDialog, setShowLogDialog] = useState(false);
+  const [logSuccess, setLogSuccess] = useState(false);
+
+  // Weapon shot counter state
+  const [weapons, setWeapons] = useState<WeaponWithBarrel[]>([]);
+  const [showShotInput, setShowShotInput] = useState<string | null>(null);
+  const [shotInputValue, setShotInputValue] = useState('');
+  const [shotInputDate, setShotInputDate] = useState(new Date().toISOString().split('T')[0]);
+  const [shotInputComment, setShotInputComment] = useState('');
+
+  useEffect(() => {
+    loadData();
+  }, [user]);
+
+  async function loadData() {
+    if (!user) return;
+
+    try {
+      setLoading(true);
+
+      // Load field figures
+      const figuresData = await getFieldFigures();
+      setFigures(figuresData);
+
+      // Load user's ballistic profiles
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('ballistic_profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (profilesError) throw profilesError;
+      setProfiles(profilesData || []);
+
+      // Auto-select first profile if available
+      if (profilesData && profilesData.length > 0) {
+        setSelectedProfile(profilesData[0]);
+      }
+
+      // Load weapons with active barrels
+      const { data: weaponsData, error: weaponsError } = await supabase
+        .from('weapons')
+        .select('id, weapon_name, weapon_number, total_shots_fired')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (weaponsError) throw weaponsError;
+
+      if (weaponsData) {
+        const weaponsWithBarrels = await Promise.all(
+          weaponsData.map(async (weapon) => {
+            const { data: barrel } = await supabase
+              .from('weapon_barrels')
+              .select('id, barrel_name, total_shots_fired')
+              .eq('weapon_id', weapon.id)
+              .eq('is_active', true)
+              .maybeSingle();
+
+            return {
+              ...weapon,
+              active_barrel: barrel || undefined,
+            };
+          })
+        );
+        setWeapons(weaponsWithBarrels);
+      }
+
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleCalculate() {
+    if (!selectedFigure || !selectedProfile) return;
+
+    try {
+      setCalculating(true);
+      const rec = await calculateShotRecommendation(
+        distance,
+        selectedFigure,
+        selectedProfile,
+        windSpeed > 0 ? windSpeed : undefined,
+        windDirection || undefined
+      );
+      setRecommendation(rec);
+      setLogSuccess(false);
+    } catch (error) {
+      console.error('Error calculating recommendation:', error);
+    } finally {
+      setCalculating(false);
+    }
+  }
+
+  async function handleLogShot(data: {
+    actual_clicks: number;
+    actual_wind_clicks?: number;
+    result: 'hit' | 'miss' | 'near_miss';
+    notes?: string;
+  }) {
+    if (!user || !recommendation) return;
+
+    try {
+      await logShot(user.id, {
+        ballistic_profile_id: recommendation.profile.id,
+        field_figure_id: recommendation.figure.id,
+        distance_m: recommendation.distance_m,
+        recommended_clicks: recommendation.elevation_clicks,
+        actual_clicks: data.actual_clicks,
+        wind_direction: recommendation.wind_direction || null,
+        wind_speed_ms: recommendation.wind_speed_ms || null,
+        recommended_wind_clicks: recommendation.wind_clicks || null,
+        actual_wind_clicks: data.actual_wind_clicks || null,
+        result: data.result,
+        notes: data.notes || null
+      });
+
+      setShowLogDialog(false);
+      setLogSuccess(true);
+
+      // Auto-hide success message after 3 seconds
+      setTimeout(() => setLogSuccess(false), 3000);
+    } catch (error) {
+      console.error('Error logging shot:', error);
+    }
+  }
+
+  async function handleUpdateShots(weaponId: string, shots: number, date: string, comment: string) {
+    if (!user) return;
+
+    try {
+      await logWeaponShots({
+        userId: user.id,
+        weaponId,
+        shotsFired: shots,
+        shotDate: date,
+        comment: comment || undefined,
+        source: 'quick_assistant',
+      });
+
+      await loadData();
+      setShowShotInput(null);
+      setShotInputValue('');
+      setShotInputDate(new Date().toISOString().split('T')[0]);
+      setShotInputComment('');
+    } catch (error) {
+      console.error('Error updating shots:', error);
+      alert('Kunne ikke oppdatere skuddteller. Vennligst prøv igjen.');
+    }
+  }
+
+  async function handleQuickUpdate(weaponId: string, shots: number) {
+    await handleUpdateShots(weaponId, shots, new Date().toISOString().split('T')[0], '');
+  }
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Laster...</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  return (
+    <Layout>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Feltassistent</h1>
+          <p className="text-gray-600">
+            Velg figur, avstand og profil for å få knepp-anbefaling
+          </p>
+        </div>
+
+        {/* Success message */}
+        {logSuccess && (
+          <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
+            <CheckCircle className="w-5 h-5 text-green-600" />
+            <span className="text-green-900 font-medium">Skudd lagret!</span>
+          </div>
+        )}
+
+        <div className="grid lg:grid-cols-3 gap-8">
+          {/* Left column: Configuration */}
+          <div className="lg:col-span-1 space-y-6">
+            {/* Profile selection */}
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <Settings className="w-5 h-5" />
+                Ballistisk profil
+              </h2>
+
+              {profiles.length === 0 ? (
+                <p className="text-sm text-gray-600">
+                  Du har ingen ballistiske profiler ennå.
+                  <a href="/ballistics" className="text-blue-600 hover:underline ml-1">
+                    Opprett en profil
+                  </a>
+                </p>
+              ) : (
+                <select
+                  value={selectedProfile?.id || ''}
+                  onChange={(e) => {
+                    const profile = profiles.find(p => p.id === e.target.value);
+                    setSelectedProfile(profile || null);
+                    setRecommendation(null);
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {profiles.map(profile => (
+                    <option key={profile.id} value={profile.id}>
+                      {profile.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            {/* Distance and wind */}
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <Target className="w-5 h-5" />
+                Skyteparametere
+              </h2>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Avstand (m)
+                  </label>
+                  <input
+                    type="number"
+                    value={distance}
+                    onChange={(e) => {
+                      setDistance(parseInt(e.target.value));
+                      setRecommendation(null);
+                    }}
+                    min="50"
+                    max="800"
+                    step="5"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <Wind className="w-4 h-4 inline mr-1" />
+                    Vind (m/s) - valgfritt
+                  </label>
+                  <input
+                    type="number"
+                    value={windSpeed}
+                    onChange={(e) => {
+                      setWindSpeed(parseFloat(e.target.value));
+                      setRecommendation(null);
+                    }}
+                    min="0"
+                    max="20"
+                    step="0.5"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {windSpeed > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Vindretning
+                    </label>
+                    <select
+                      value={windDirection}
+                      onChange={(e) => {
+                        setWindDirection(e.target.value);
+                        setRecommendation(null);
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Velg retning</option>
+                      <option value="N">Nord</option>
+                      <option value="NE">Nordøst</option>
+                      <option value="E">Øst</option>
+                      <option value="SE">Sørøst</option>
+                      <option value="S">Sør</option>
+                      <option value="SW">Sørvest</option>
+                      <option value="W">Vest</option>
+                      <option value="NW">Nordvest</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Calculate button */}
+            <button
+              onClick={handleCalculate}
+              disabled={!selectedFigure || !selectedProfile || calculating}
+              className="w-full px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
+            >
+              {calculating ? 'Beregner...' : 'Beregn anbefaling'}
+            </button>
+          </div>
+
+          {/* Middle column: Figure selection */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Velg figur</h2>
+
+              {figures.length === 0 ? (
+                <p className="text-sm text-gray-600">Ingen figurer tilgjengelig.</p>
+              ) : (
+                <div className="space-y-3 max-h-[600px] overflow-y-auto">
+                  {figures.map(figure => (
+                    <FieldFigureCard
+                      key={figure.id}
+                      figure={figure}
+                      onClick={(fig) => {
+                        setSelectedFigure(fig);
+                        setRecommendation(null);
+                      }}
+                      selected={selectedFigure?.id === figure.id}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right column: Recommendation */}
+          <div className="lg:col-span-1">
+            {recommendation ? (
+              <div className="space-y-4">
+                <ShotRecommendationDisplay recommendation={recommendation} />
+
+                <button
+                  onClick={() => setShowLogDialog(true)}
+                  className="w-full px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-medium"
+                >
+                  Logg skudd
+                </button>
+              </div>
+            ) : (
+              <div className="bg-gray-50 rounded-lg p-8 text-center">
+                <Target className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600">
+                  Velg figur, sett parametere og klikk "Beregn anbefaling" for å se knepp-forslag
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Weapon Shot Counter Section */}
+        {weapons.length > 0 && (
+          <div className="mt-12">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">Skuddteller</h2>
+              <a
+                href="/weapons"
+                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+              >
+                Administrer
+              </a>
+            </div>
+
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {weapons.map((weapon) => (
+                <div key={weapon.id} className="bg-white rounded-lg shadow-md p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center">
+                        <Crosshair className="w-5 h-5 text-slate-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-slate-900">{weapon.weapon_name}</h3>
+                        <p className="text-xs text-slate-500">
+                          {weapon.weapon_number}
+                          {weapon.active_barrel && ` • ${weapon.active_barrel.barrel_name}`}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-slate-900">{weapon.total_shots_fired}</p>
+                      <p className="text-xs text-slate-500">totalt skudd</p>
+                      {weapon.active_barrel && (
+                        <p className="text-xs text-slate-500 mt-1">
+                          Løp: {weapon.active_barrel.total_shots_fired} skudd
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {showShotInput === weapon.id ? (
+                    <div className="bg-slate-50 p-4 rounded-lg space-y-3">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                          Antall skudd *
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={shotInputValue}
+                          onChange={(e) => setShotInputValue(e.target.value)}
+                          placeholder="F.eks. 50"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                          autoFocus
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                          Dato
+                        </label>
+                        <input
+                          type="date"
+                          value={shotInputDate}
+                          onChange={(e) => setShotInputDate(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                          Kommentar
+                        </label>
+                        <textarea
+                          value={shotInputComment}
+                          onChange={(e) => setShotInputComment(e.target.value)}
+                          rows={2}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none"
+                          placeholder="F.eks. Trening på 200m"
+                        />
+                      </div>
+                      <div className="flex space-x-2 pt-1">
+                        <button
+                          onClick={() => {
+                            const shots = parseInt(shotInputValue);
+                            if (!isNaN(shots) && shots > 0) {
+                              handleUpdateShots(weapon.id, shots, shotInputDate, shotInputComment);
+                            }
+                          }}
+                          className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium"
+                        >
+                          Legg til
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowShotInput(null);
+                            setShotInputValue('');
+                            setShotInputDate(new Date().toISOString().split('T')[0]);
+                            setShotInputComment('');
+                          }}
+                          className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-sm font-medium"
+                        >
+                          Avbryt
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => handleQuickUpdate(weapon.id, 10)}
+                        className="px-4 py-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 rounded-lg text-sm font-medium transition"
+                      >
+                        +10
+                      </button>
+                      <button
+                        onClick={() => handleQuickUpdate(weapon.id, 20)}
+                        className="px-4 py-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 rounded-lg text-sm font-medium transition"
+                      >
+                        +20
+                      </button>
+                      <button
+                        onClick={() => handleQuickUpdate(weapon.id, 50)}
+                        className="px-4 py-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 rounded-lg text-sm font-medium transition"
+                      >
+                        +50
+                      </button>
+                      <button
+                        onClick={() => setShowShotInput(weapon.id)}
+                        className="px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg text-sm font-medium transition flex items-center gap-1"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Egendefinert
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Shot logging dialog */}
+      {showLogDialog && recommendation && (
+        <ShotLogDialog
+          recommendation={recommendation}
+          onLog={handleLogShot}
+          onCancel={() => setShowLogDialog(false)}
+        />
+      )}
+    </Layout>
+  );
+}

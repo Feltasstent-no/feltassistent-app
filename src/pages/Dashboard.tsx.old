@@ -1,0 +1,523 @@
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Layout } from '../components/Layout';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
+import { TrainingEntry, Discipline } from '../types/database';
+import { Plus, Clock, TrendingUp, Target, Calendar, Trophy, Crosshair, Minus, History } from 'lucide-react';
+import { logWeaponShots } from '../lib/weapon-shot-service';
+
+interface WeaponWithBarrel {
+  id: string;
+  weapon_name: string;
+  weapon_number: string;
+  total_shots_fired: number;
+  active_barrel?: {
+    id: string;
+    barrel_name: string;
+    total_shots_fired: number;
+  };
+}
+
+interface WeaponShotLog {
+  id: string;
+  weapon_id: string;
+  barrel_id: string | null;
+  shots_fired: number;
+  shot_date: string;
+  comment: string | null;
+  source: string;
+  created_at: string;
+  weapons?: {
+    weapon_name: string;
+    weapon_number: string;
+  };
+  weapon_barrels?: {
+    barrel_name: string;
+  };
+}
+
+export function Dashboard() {
+  const { user } = useAuth();
+  const [entries, setEntries] = useState<TrainingEntry[]>([]);
+  const [disciplines, setDisciplines] = useState<Discipline[]>([]);
+  const [weapons, setWeapons] = useState<WeaponWithBarrel[]>([]);
+  const [shotLogs, setShotLogs] = useState<WeaponShotLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    totalEntries: 0,
+    totalShots: 0,
+    avgScore: 0,
+  });
+  const [showShotInput, setShowShotInput] = useState<string | null>(null);
+  const [shotInputValue, setShotInputValue] = useState('');
+  const [shotInputDate, setShotInputDate] = useState(new Date().toISOString().split('T')[0]);
+  const [shotInputComment, setShotInputComment] = useState('');
+
+  useEffect(() => {
+    fetchData();
+  }, [user]);
+
+  const fetchData = async () => {
+    if (!user) return;
+
+    const [entriesRes, disciplinesRes, weaponsRes, shotLogsRes] = await Promise.all([
+      supabase
+        .from('training_entries')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('entry_date', { ascending: false })
+        .limit(5),
+      supabase
+        .from('disciplines')
+        .select('*')
+        .eq('is_active', true),
+      supabase
+        .from('weapons')
+        .select('id, weapon_name, weapon_number, total_shots_fired')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('weapon_shot_logs')
+        .select(`
+          *,
+          weapons:weapon_id(weapon_name, weapon_number),
+          weapon_barrels:barrel_id(barrel_name)
+        `)
+        .eq('user_id', user.id)
+        .order('shot_date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(10),
+    ]);
+
+    if (entriesRes.data) {
+      setEntries(entriesRes.data);
+
+      const totalShots = entriesRes.data.reduce((sum, e) => sum + (e.shots_total || 0), 0);
+      const totalScore = entriesRes.data.reduce((sum, e) => sum + (e.score || 0), 0);
+      const entriesWithScore = entriesRes.data.filter(e => e.score !== null && e.score > 0);
+
+      setStats({
+        totalEntries: entriesRes.data.length,
+        totalShots,
+        avgScore: entriesWithScore.length > 0
+          ? Math.round(totalScore / entriesWithScore.length)
+          : 0,
+      });
+    }
+
+    if (disciplinesRes.data) {
+      setDisciplines(disciplinesRes.data);
+    }
+
+    if (weaponsRes.data) {
+      const weaponsWithBarrels = await Promise.all(
+        weaponsRes.data.map(async (weapon) => {
+          const { data: barrel } = await supabase
+            .from('weapon_barrels')
+            .select('id, barrel_name, total_shots_fired')
+            .eq('weapon_id', weapon.id)
+            .eq('is_active', true)
+            .maybeSingle();
+
+          return {
+            ...weapon,
+            active_barrel: barrel || undefined,
+          };
+        })
+      );
+      setWeapons(weaponsWithBarrels);
+    }
+
+    if (shotLogsRes.data) {
+      setShotLogs(shotLogsRes.data);
+    }
+
+    setLoading(false);
+  };
+
+  const getDisciplineName = (disciplineId: string | null) => {
+    if (!disciplineId) return 'Ukjent';
+    const discipline = disciplines.find(d => d.id === disciplineId);
+    return discipline?.name || 'Ukjent';
+  };
+
+  const handleUpdateShots = async (weaponId: string, shots: number, date?: string, comment?: string) => {
+    if (!user || shots === 0 || isNaN(shots)) {
+      alert('Ugyldig antall skudd');
+      return;
+    }
+
+    try {
+      await logWeaponShots({
+        userId: user.id,
+        weaponId,
+        shotsFired: shots,
+        shotDate: date || new Date().toISOString().split('T')[0],
+        comment: comment || undefined,
+        source: 'dashboard',
+      });
+
+      await fetchData();
+      setShowShotInput(null);
+      setShotInputValue('');
+      setShotInputDate(new Date().toISOString().split('T')[0]);
+      setShotInputComment('');
+    } catch (error: any) {
+      console.error('Error updating shots:', error);
+      alert('Feil ved lagring av skudd: ' + (error?.message || 'Ukjent feil'));
+    }
+  };
+
+  const handleQuickUpdate = async (weaponId: string, shots: number) => {
+    try {
+      await handleUpdateShots(weaponId, shots);
+    } catch (error: any) {
+      console.error('handleQuickUpdate error:', error);
+      alert('Feil ved lagring av skudd: ' + (error?.message || 'Ukjent feil'));
+    }
+  };
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+        </div>
+      </Layout>
+    );
+  }
+
+  return (
+    <Layout>
+      <div className="pb-20 md:pb-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-slate-900">Oversikt</h1>
+          <p className="text-slate-600 mt-1">Velkommen tilbake!</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <div className="bg-white rounded-xl p-6 border border-slate-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-slate-600">Treningsøkter</p>
+                <p className="text-3xl font-bold text-slate-900 mt-1">{stats.totalEntries}</p>
+              </div>
+              <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center">
+                <Calendar className="w-6 h-6 text-emerald-600" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl p-6 border border-slate-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-slate-600">Totalt skudd</p>
+                <p className="text-3xl font-bold text-slate-900 mt-1">{stats.totalShots}</p>
+              </div>
+              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                <Target className="w-6 h-6 text-blue-600" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl p-6 border border-slate-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-slate-600">Gj.snitt poeng</p>
+                <p className="text-3xl font-bold text-slate-900 mt-1">{stats.avgScore}</p>
+              </div>
+              <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center">
+                <TrendingUp className="w-6 h-6 text-amber-600" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <Link
+            to="/training/new"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl p-6 flex items-center justify-center space-x-3 transition shadow-lg shadow-emerald-600/20 active:scale-95"
+          >
+            <Plus className="w-6 h-6" />
+            <span className="text-base sm:text-lg font-semibold">Ny treningsøkt</span>
+          </Link>
+
+          <Link
+            to="/competitions/new"
+            className="bg-amber-600 hover:bg-amber-700 text-white rounded-xl p-6 flex items-center justify-center space-x-3 transition shadow-lg shadow-amber-600/20 active:scale-95"
+          >
+            <Trophy className="w-6 h-6" />
+            <span className="text-base sm:text-lg font-semibold">Nytt stevne</span>
+          </Link>
+
+          <Link
+            to="/competitions"
+            className="bg-slate-600 hover:bg-slate-700 text-white rounded-xl p-6 flex items-center justify-center space-x-3 transition shadow-lg shadow-slate-600/20 active:scale-95"
+          >
+            <Trophy className="w-6 h-6" />
+            <span className="text-base sm:text-lg font-semibold">Mine stevner</span>
+          </Link>
+
+          <Link
+            to="/field-clock"
+            className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl p-6 flex items-center justify-center space-x-3 transition shadow-lg shadow-blue-600/20 active:scale-95"
+          >
+            <Clock className="w-6 h-6" />
+            <span className="text-base sm:text-lg font-semibold">Feltklokke</span>
+          </Link>
+        </div>
+
+        {weapons.length > 0 && (
+          <div className="bg-white rounded-xl border border-slate-200 mb-8">
+            <div className="p-6 border-b border-slate-200">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-slate-900">Skuddteller</h2>
+                <Link to="/weapons" className="text-emerald-600 hover:text-emerald-700 font-medium text-sm">
+                  Administrer
+                </Link>
+              </div>
+            </div>
+            <div className="divide-y divide-slate-200">
+              {weapons.map((weapon) => (
+                <div key={weapon.id} className="p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-start space-x-3">
+                      <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <Crosshair className="w-5 h-5 text-slate-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-slate-900">{weapon.weapon_name}</h3>
+                        <p className="text-sm text-slate-500">{weapon.weapon_number}</p>
+                        {weapon.active_barrel && (
+                          <p className="text-xs text-slate-500 mt-1">
+                            Løp: {weapon.active_barrel.barrel_name}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-slate-900">{weapon.total_shots_fired}</p>
+                      <p className="text-xs text-slate-500">totalt skudd</p>
+                      {weapon.active_barrel && (
+                        <p className="text-xs text-slate-500 mt-1">
+                          Løp: {weapon.active_barrel.total_shots_fired} skudd
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {showShotInput === weapon.id ? (
+                    <div className="bg-slate-50 p-4 rounded-lg space-y-3">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                          Antall skudd *
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={shotInputValue}
+                          onChange={(e) => setShotInputValue(e.target.value)}
+                          placeholder="F.eks. 50"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                          autoFocus
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                          Dato
+                        </label>
+                        <input
+                          type="date"
+                          value={shotInputDate}
+                          onChange={(e) => setShotInputDate(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                          Kommentar
+                        </label>
+                        <textarea
+                          value={shotInputComment}
+                          onChange={(e) => setShotInputComment(e.target.value)}
+                          rows={2}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none"
+                          placeholder="F.eks. Trening på 200m"
+                        />
+                      </div>
+                      <div className="flex space-x-2 pt-1">
+                        <button
+                          onClick={() => {
+                            const shots = parseInt(shotInputValue);
+                            if (!isNaN(shots) && shots > 0) {
+                              handleUpdateShots(weapon.id, shots, shotInputDate, shotInputComment);
+                            }
+                          }}
+                          className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium"
+                        >
+                          Legg til
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowShotInput(null);
+                            setShotInputValue('');
+                            setShotInputDate(new Date().toISOString().split('T')[0]);
+                            setShotInputComment('');
+                          }}
+                          className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-sm font-medium"
+                        >
+                          Avbryt
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => handleQuickUpdate(weapon.id, 10)}
+                        className="px-4 py-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 rounded-lg text-sm font-medium transition"
+                      >
+                        +10
+                      </button>
+                      <button
+                        onClick={() => handleQuickUpdate(weapon.id, 20)}
+                        className="px-4 py-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 rounded-lg text-sm font-medium transition"
+                      >
+                        +20
+                      </button>
+                      <button
+                        onClick={() => handleQuickUpdate(weapon.id, 50)}
+                        className="px-4 py-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 rounded-lg text-sm font-medium transition"
+                      >
+                        +50
+                      </button>
+                      <button
+                        onClick={() => setShowShotInput(weapon.id)}
+                        className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition"
+                      >
+                        Egendefinert
+                      </button>
+                      <button
+                        onClick={() => handleQuickUpdate(weapon.id, -10)}
+                        className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-sm font-medium transition"
+                      >
+                        <Minus className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="bg-white rounded-xl border border-slate-200 mb-8">
+          <div className="p-6 border-b border-slate-200">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-slate-900">Siste økter</h2>
+              <Link to="/training" className="text-emerald-600 hover:text-emerald-700 font-medium text-sm">
+                Se alle
+              </Link>
+            </div>
+          </div>
+
+          {entries.length === 0 ? (
+            <div className="p-8 text-center">
+              <Target className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+              <p className="text-slate-600">Ingen treningsøkter ennå</p>
+              <Link
+                to="/training/new"
+                className="inline-block mt-4 text-emerald-600 hover:text-emerald-700 font-medium"
+              >
+                Opprett din første økt
+              </Link>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-200">
+              {entries.map((entry) => (
+                <Link
+                  key={entry.id}
+                  to={`/training/${entry.id}`}
+                  className="block p-6 hover:bg-slate-50 transition"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-3 mb-2">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+                          {getDisciplineName(entry.discipline_id)}
+                        </span>
+                        {entry.location && (
+                          <span className="text-sm text-slate-600">{entry.location}</span>
+                        )}
+                      </div>
+                      <div className="flex items-center space-x-4 text-sm text-slate-600">
+                        <span>{new Date(entry.entry_date).toLocaleDateString('nb-NO')}</span>
+                        {entry.shots_total && <span>{entry.shots_total} skudd</span>}
+                        {entry.score && <span className="font-semibold text-slate-900">{entry.score} poeng</span>}
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {shotLogs.length > 0 && (
+          <div className="bg-white rounded-xl border border-slate-200">
+            <div className="p-6 border-b border-slate-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <History className="w-5 h-5 text-slate-600" />
+                  <h2 className="text-xl font-bold text-slate-900">Skuddhistorikk</h2>
+                </div>
+                <Link to="/weapons" className="text-emerald-600 hover:text-emerald-700 font-medium text-sm">
+                  Se alle
+                </Link>
+              </div>
+            </div>
+
+            <div className="divide-y divide-slate-200">
+              {shotLogs.map((log) => (
+                <div key={log.id} className="p-4 hover:bg-slate-50 transition">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-medium text-slate-900">
+                          {log.weapons?.weapon_name || 'Ukjent våpen'}
+                        </span>
+                        {log.weapon_barrels?.barrel_name && (
+                          <span className="text-sm text-slate-500">
+                            ({log.weapon_barrels.barrel_name})
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 text-sm text-slate-600">
+                        <span>{new Date(log.shot_date).toLocaleDateString('nb-NO')}</span>
+                        <span className="font-semibold text-emerald-600">
+                          {log.shots_fired > 0 ? '+' : ''}{log.shots_fired} skudd
+                        </span>
+                        {log.source === 'dashboard' && (
+                          <span className="text-xs text-slate-400">Hurtigknapp</span>
+                        )}
+                        {log.source === 'weapons_page' && (
+                          <span className="text-xs text-slate-400">Våpensiden</span>
+                        )}
+                      </div>
+                      {log.comment && (
+                        <p className="text-sm text-slate-600 mt-1 truncate">
+                          {log.comment}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </Layout>
+  );
+}
