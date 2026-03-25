@@ -34,6 +34,8 @@ export function Profile() {
   const fetchProfile = async () => {
     if (!user) return;
 
+    setLoading(true);
+
     const { data } = await supabase
       .from('profiles')
       .select('*')
@@ -50,6 +52,8 @@ export function Profile() {
         shooter_class_id: data.shooter_class_id || '',
         birth_year: data.birth_year?.toString() || '',
       });
+    } else {
+      setProfile(null);
     }
 
     setLoading(false);
@@ -110,6 +114,8 @@ export function Profile() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) return;
+
     setSaving(true);
     setMessage(null);
 
@@ -117,22 +123,22 @@ export function Profile() {
 
     const { error } = await supabase
       .from('profiles')
-      .update({
-        full_name: formData.full_name,
-        phone: formData.phone,
-        dfs_shooter_id: formData.dfs_shooter_id,
-        club_name: formData.club_name,
+      .upsert({
+        id: user.id,
+        full_name: formData.full_name || null,
+        phone: formData.phone || null,
+        dfs_shooter_id: formData.dfs_shooter_id || null,
+        club_name: formData.club_name || null,
         shooter_class_id: formData.shooter_class_id || null,
         shooter_class: selectedClass?.code || null,
         birth_year: formData.birth_year ? parseInt(formData.birth_year) : null,
-      })
-      .eq('id', user?.id);
+      });
 
     if (error) {
       setMessage({ type: 'error', text: 'Kunne ikke lagre profil' });
     } else {
       setMessage({ type: 'success', text: 'Profil lagret!' });
-      fetchProfile();
+      await fetchProfile();
     }
 
     setSaving(false);
