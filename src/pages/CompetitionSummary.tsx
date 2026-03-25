@@ -9,7 +9,7 @@ import {
   CompetitionStageImage,
   FieldFigure,
 } from '../types/database';
-import { ArrowLeft, Target, TrendingUp, Sparkles, AlertCircle, CheckCircle, HelpCircle, Trash2, MoreVertical } from 'lucide-react';
+import { ArrowLeft, Target, TrendingUp, Sparkles, AlertCircle, CheckCircle, HelpCircle, Trash2, MoreVertical, X, ZoomIn } from 'lucide-react';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { deleteCompetitionEntry } from '../lib/deletion-service';
 
@@ -29,6 +29,7 @@ export function CompetitionSummary() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState<{ url: string; alt: string } | null>(null);
 
   useEffect(() => {
     if (entryId) {
@@ -292,11 +293,25 @@ export function CompetitionSummary() {
                         <Target className="w-4 h-4" />
                         Gravlapp
                       </h4>
-                      <img
-                        src={stageImage.image_url}
-                        alt={`Gravlapp hold ${stage.stage_number}`}
-                        className="w-full rounded-lg border border-slate-200"
-                      />
+                      <button
+                        type="button"
+                        onClick={() => setLightboxImage({
+                          url: stageImage.image_url!,
+                          alt: `Gravlapp hold ${stage.stage_number}`,
+                        })}
+                        className="relative group w-full rounded-lg border border-slate-200 overflow-hidden cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <img
+                          src={stageImage.image_url}
+                          alt={`Gravlapp hold ${stage.stage_number}`}
+                          className="w-full"
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 rounded-full p-2 shadow">
+                            <ZoomIn className="w-5 h-5 text-slate-700" />
+                          </div>
+                        </div>
+                      </button>
                     </div>
                   )}
 
@@ -516,6 +531,26 @@ export function CompetitionSummary() {
           </p>
         </div>
       </div>
+
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setLightboxImage(null)}
+        >
+          <button
+            onClick={() => setLightboxImage(null)}
+            className="absolute top-4 right-4 p-2 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition z-10"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img
+            src={lightboxImage.url}
+            alt={lightboxImage.alt}
+            className="max-w-full max-h-[90vh] object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }
