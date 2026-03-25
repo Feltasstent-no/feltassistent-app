@@ -228,7 +228,7 @@ export function Profile() {
                 type="text"
                 value={formData.full_name}
                 onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+                className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition text-base"
                 placeholder="Ola Nordmann"
               />
             </div>
@@ -256,7 +256,7 @@ export function Profile() {
                 type="tel"
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+                className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition text-base"
                 placeholder="+47 123 45 678"
               />
             </div>
@@ -270,7 +270,7 @@ export function Profile() {
                 type="text"
                 value={formData.dfs_shooter_id}
                 onChange={(e) => setFormData({ ...formData, dfs_shooter_id: e.target.value })}
-                className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+                className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition text-base"
                 placeholder="123456"
               />
             </div>
@@ -284,7 +284,7 @@ export function Profile() {
                 type="text"
                 value={formData.club_name}
                 onChange={(e) => setFormData({ ...formData, club_name: e.target.value })}
-                className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+                className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition text-base"
                 placeholder="Oslo Skytterlag"
               />
             </div>
@@ -297,7 +297,7 @@ export function Profile() {
                 id="shooter_class"
                 value={formData.shooter_class_id}
                 onChange={(e) => setFormData({ ...formData, shooter_class_id: e.target.value })}
-                className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+                className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition text-base appearance-none bg-white bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22%2364748b%22%3E%3Cpath%20fill-rule%3D%22evenodd%22%20d%3D%22M5.23%207.21a.75.75%200%20011.06.02L10%2011.168l3.71-3.938a.75.75%200%20111.08%201.04l-4.25%204.5a.75.75%200%2001-1.08%200l-4.25-4.5a.75.75%200%2001.02-1.06z%22%20clip-rule%3D%22evenodd%22%2F%3E%3C%2Fsvg%3E')] bg-[length:20px] bg-[right_12px_center] bg-no-repeat pr-10"
               >
                 <option value="">Velg klasse</option>
                 {shooterClasses.map((sc) => (
@@ -317,7 +317,7 @@ export function Profile() {
                 type="number"
                 value={formData.birth_year}
                 onChange={(e) => setFormData({ ...formData, birth_year: e.target.value })}
-                className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+                className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition text-base"
                 placeholder="1990"
                 min="1900"
                 max={new Date().getFullYear()}

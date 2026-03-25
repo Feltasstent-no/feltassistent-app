@@ -18,31 +18,31 @@ const sizeClasses = {
 };
 
 function normalizeSvg(raw: string): string {
-  let svg = raw;
+  let svg = raw.replace(/<\?xml[^?]*\?>\s*/g, '');
 
-  const viewBoxMatch = svg.match(/viewBox="([^"]*)"/);
+  const svgTagMatch = svg.match(/<svg([^>]*)>/);
+  if (!svgTagMatch) return svg;
+
+  let svgAttrs = svgTagMatch[1];
+  const originalAttrs = svgAttrs;
+
+  const viewBoxMatch = svgAttrs.match(/viewBox="([^"]*)"/);
   const viewBox = viewBoxMatch ? viewBoxMatch[1] : null;
 
-  svg = svg.replace(/\s*width="[^"]*"/g, '');
-  svg = svg.replace(/\s*height="[^"]*"/g, '');
+  const wMatch = svgAttrs.match(/\bwidth="(\d+(?:\.\d+)?)"/);
+  const hMatch = svgAttrs.match(/\bheight="(\d+(?:\.\d+)?)"/);
 
-  if (!viewBox) {
-    const wMatch = raw.match(/width="(\d+(?:\.\d+)?)"/);
-    const hMatch = raw.match(/height="(\d+(?:\.\d+)?)"/);
-    if (wMatch && hMatch) {
-      svg = svg.replace(/<svg/, `<svg viewBox="0 0 ${wMatch[1]} ${hMatch[1]}"`);
-    }
+  svgAttrs = svgAttrs.replace(/\s*\bwidth="[^"]*"/g, '');
+  svgAttrs = svgAttrs.replace(/\s*\bheight="[^"]*"/g, '');
+  svgAttrs = svgAttrs.replace(/\s*preserveAspectRatio="[^"]*"/g, '');
+
+  if (!viewBox && wMatch && hMatch) {
+    svgAttrs += ` viewBox="0 0 ${wMatch[1]} ${hMatch[1]}"`;
   }
 
-  svg = svg.replace(
-    /preserveAspectRatio="[^"]*"/g,
-    ''
-  );
+  svgAttrs = ` preserveAspectRatio="xMidYMid meet" width="100%" height="100%"` + svgAttrs;
 
-  svg = svg.replace(
-    /<svg/,
-    '<svg preserveAspectRatio="xMidYMid meet" width="100%" height="100%"'
-  );
+  svg = svg.replace(`<svg${originalAttrs}>`, `<svg${svgAttrs}>`);
 
   return svg;
 }
