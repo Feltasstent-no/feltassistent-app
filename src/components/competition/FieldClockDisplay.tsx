@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Clock, Target } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
+import { Clock, Target, Pause, Play } from 'lucide-react';
 import { FieldFigure, CompetitionStage } from '../../types/database';
 
 interface FieldClockDisplayProps {
@@ -13,20 +13,9 @@ export function FieldClockDisplay({ stage, figure, holdStartedAt, onTimeUp }: Fi
   const timeLimit = stage?.time_limit_seconds ?? 15;
   const [timeLeft, setTimeLeft] = useState(timeLimit);
   const [hasCalledTimeUp, setHasCalledTimeUp] = useState(false);
-
-  console.log('[FieldClockDisplay] ========== RENDERING CLOCK ==========');
-  console.log('[FieldClockDisplay] Stage:', {
-    stage_number: stage.stage_number,
-    time_limit: stage.time_limit_seconds,
-    field_figure_id: stage.field_figure_id
-  });
-  console.log('[FieldClockDisplay] Figure:', figure ? {
-    id: figure.id,
-    code: figure.code,
-    name: figure.name
-  } : 'NO FIGURE');
-  console.log('[FieldClockDisplay] Hold started at:', holdStartedAt);
-  console.log('[FieldClockDisplay] Time left:', timeLeft);
+  const [isPaused, setIsPaused] = useState(false);
+  const pausedAtRef = useRef<number | null>(null);
+  const totalPausedMsRef = useRef(0);
 
   useEffect(() => {
     const safeTimeLimit = stage?.time_limit_seconds ?? 15;
@@ -36,31 +25,29 @@ export function FieldClockDisplay({ stage, figure, holdStartedAt, onTimeUp }: Fi
       return;
     }
 
+    if (isPaused) return;
+
     const updateTimer = () => {
       try {
         const startTime = new Date(holdStartedAt).getTime();
 
         if (isNaN(startTime)) {
-          console.error('Invalid holdStartedAt:', holdStartedAt);
           setTimeLeft(safeTimeLimit);
           return;
         }
 
         const now = Date.now();
-        const elapsedSeconds = Math.floor((now - startTime) / 1000);
+        const effectiveElapsed = now - startTime - totalPausedMsRef.current;
+        const elapsedSeconds = Math.floor(effectiveElapsed / 1000);
         const remaining = Math.max(0, safeTimeLimit - elapsedSeconds);
 
         setTimeLeft(remaining);
 
         if (remaining === 0 && !hasCalledTimeUp) {
-          console.log('[FieldClockDisplay] ========== TIMEOUT REACHED ==========');
-          console.log('[FieldClockDisplay] Calling onTimeUp handler');
-          console.log('[FieldClockDisplay] Stage number:', stage.stage_number);
           setHasCalledTimeUp(true);
           onTimeUp();
         }
       } catch (error) {
-        console.error('Timer error:', error);
         setTimeLeft(safeTimeLimit);
       }
     };
@@ -69,13 +56,36 @@ export function FieldClockDisplay({ stage, figure, holdStartedAt, onTimeUp }: Fi
     const timer = setInterval(updateTimer, 100);
 
     return () => clearInterval(timer);
-  }, [holdStartedAt, stage?.time_limit_seconds, onTimeUp, hasCalledTimeUp]);
+  }, [holdStartedAt, stage?.time_limit_seconds, onTimeUp, hasCalledTimeUp, isPaused]);
+
+  const handlePause = () => {
+    pausedAtRef.current = Date.now();
+    setIsPaused(true);
+  };
+
+  const handleResume = () => {
+    if (pausedAtRef.current) {
+      totalPausedMsRef.current += Date.now() - pausedAtRef.current;
+      pausedAtRef.current = null;
+    }
+    setIsPaused(false);
+  };
 
   const safeTimeLimit = stage?.time_limit_seconds ?? 15;
   const progress = ((safeTimeLimit - timeLeft) / safeTimeLimit) * 100;
 
   const isLowTime = timeLeft <= 5;
   const isVeryLowTime = timeLeft <= 3;
+  const isTimedOut = timeLeft === 0;
+
+  const formatCountdown = (seconds: number) => {
+    if (seconds >= 60) {
+      const m = Math.floor(seconds / 60);
+      const s = seconds % 60;
+      return `${m}:${s.toString().padStart(2, '0')}`;
+    }
+    return `${seconds}`;
+  };
 
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-4">
@@ -117,7 +127,11 @@ export function FieldClockDisplay({ stage, figure, holdStartedAt, onTimeUp }: Fi
         <div className="flex flex-col items-center gap-2">
           <div
             className={`relative flex items-center justify-center w-64 h-64 rounded-full transition-all duration-300 ${
-              isVeryLowTime
+              isTimedOut
+                ? 'bg-red-900/40'
+                : isPaused
+                ? 'bg-yellow-900/40'
+                : isVeryLowTime
                 ? 'bg-red-900/40 animate-pulse'
                 : isLowTime
                 ? 'bg-yellow-900/40'
@@ -133,7 +147,11 @@ export function FieldClockDisplay({ stage, figure, holdStartedAt, onTimeUp }: Fi
                 stroke="currentColor"
                 strokeWidth="6"
                 className={`${
-                  isVeryLowTime
+                  isTimedOut
+                    ? 'text-red-600'
+                    : isPaused
+                    ? 'text-yellow-500'
+                    : isVeryLowTime
                     ? 'text-red-600'
                     : isLowTime
                     ? 'text-yellow-600'
@@ -145,38 +163,80 @@ export function FieldClockDisplay({ stage, figure, holdStartedAt, onTimeUp }: Fi
             </svg>
 
             <div className="flex flex-col items-center z-10">
-              <Clock
-                className={`w-14 h-14 mb-2 ${
-                  isVeryLowTime
-                    ? 'text-red-400'
-                    : isLowTime
-                    ? 'text-yellow-400'
-                    : 'text-blue-400'
-                }`}
-              />
+              {!isTimedOut && (
+                <Clock
+                  className={`w-10 h-10 mb-1 ${
+                    isPaused
+                      ? 'text-yellow-400'
+                      : isVeryLowTime
+                      ? 'text-red-400'
+                      : isLowTime
+                      ? 'text-yellow-400'
+                      : 'text-blue-400'
+                  }`}
+                />
+              )}
               <span
                 className={`text-8xl font-bold tabular-nums ${
-                  isVeryLowTime
+                  isTimedOut
+                    ? 'text-red-400'
+                    : isPaused
+                    ? 'text-yellow-300'
+                    : isVeryLowTime
                     ? 'text-red-400'
                     : isLowTime
                     ? 'text-yellow-400'
                     : 'text-white'
                 }`}
               >
-                {timeLeft}
+                {formatCountdown(timeLeft)}
               </span>
-              <span className="text-xl text-gray-400 mt-1">sek</span>
+              {!isTimedOut && (
+                <span className="text-lg text-gray-400 mt-0.5">
+                  {isPaused ? 'PAUSET' : `av ${safeTimeLimit} sek`}
+                </span>
+              )}
             </div>
           </div>
 
-          {timeLeft === 0 && (
+          {isTimedOut && (
             <div className="text-center">
               <p className="text-2xl font-bold text-red-400 animate-pulse">
                 TID UTE
               </p>
             </div>
           )}
+
+          {isPaused && !isTimedOut && (
+            <div className="text-center">
+              <p className="text-lg font-semibold text-yellow-400">
+                Klokken er pauset
+              </p>
+            </div>
+          )}
         </div>
+
+        {!isTimedOut && holdStartedAt && (
+          <div className="flex justify-center pt-2">
+            {isPaused ? (
+              <button
+                onClick={handleResume}
+                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold px-6 py-3 rounded-full transition active:scale-95 shadow-lg"
+              >
+                <Play className="w-5 h-5" />
+                <span>Gjenoppta</span>
+              </button>
+            ) : (
+              <button
+                onClick={handlePause}
+                className="flex items-center gap-2 bg-yellow-600 hover:bg-yellow-700 text-white font-semibold px-6 py-3 rounded-full transition active:scale-95 shadow-lg"
+              >
+                <Pause className="w-5 h-5" />
+                <span>Pause</span>
+              </button>
+            )}
+          </div>
+        )}
 
         {stage.distance_m && (
           <div className="text-center bg-gray-800 rounded-lg py-2 px-4">

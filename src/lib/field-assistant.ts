@@ -8,6 +8,7 @@
 import { supabase } from './supabase';
 import { FieldFigure, FieldFigureCategory, ShotLog, BallisticProfile, ClickTable, ClickTableRow } from '../types/database';
 import { generateDistanceTable, getClickRecommendation, calculateWindTable, getWindClickRecommendation } from './ballistics';
+import { dfsWindFloor } from './ballistics-dfs';
 import { resolveClickSource, getElevationFromResolver, getWindFromResolver } from './click-table-resolver';
 
 /**
@@ -239,7 +240,7 @@ export async function calculateShotRecommendationFromClickTable(
     console.log('effective_crosswind / 10 (factor):', effective_crosswind / 10);
     console.log('Calculation: round((' + effective_crosswind + ' / 10) * ' + windClicksPer10ms + ')');
 
-    const wind_clicks = Math.round((effective_crosswind / 10) * windClicksPer10ms);
+    const wind_clicks = dfsWindFloor((effective_crosswind / 10) * windClicksPer10ms);
 
     console.log('FINAL wind_clicks:', wind_clicks);
     console.log('=== END WIND CALCULATION DEBUG ===');

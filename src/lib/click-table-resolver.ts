@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import type { ClickTableRow } from '../types/database';
 import { generateDistanceTable, calculateWindTable, getClickRecommendation, getWindClickRecommendation } from './ballistics';
+import { dfsWindFloor } from './ballistics-dfs';
 
 export type ResolvedSource =
   | 'active_click_table'
@@ -199,7 +200,7 @@ export async function getWindFromResolver(
     if (ct && ct.wind_clicks_per_10ms_100m > 0) {
       const windClicksPer10ms = ct.wind_clicks_per_10ms_100m * (distance_m / 100);
       return {
-        clicks: Math.round((effectiveCrosswind_ms / 10) * windClicksPer10ms),
+        clicks: dfsWindFloor((effectiveCrosswind_ms / 10) * windClicksPer10ms),
         source: resolved.source,
         sourceName: resolved.sourceName,
       };
@@ -256,5 +257,5 @@ export async function getWindForClickTable(
   }
 
   const windClicksPer10ms = ct.wind_clicks_per_10ms_100m * (distance_m / 100);
-  return Math.round((effectiveCrosswind_ms / 10) * windClicksPer10ms);
+  return dfsWindFloor((effectiveCrosswind_ms / 10) * windClicksPer10ms);
 }

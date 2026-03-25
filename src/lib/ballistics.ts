@@ -30,6 +30,7 @@ import {
 import {
   convertDropToClicksDFS,
   convertWindToClicksDFS,
+  dfsWindFloor,
   type DFSSightType
 } from './ballistics-dfs';
 
@@ -408,7 +409,7 @@ export function getWindClickRecommendation(
     const interpolated_clicks = lower.wind_clicks + ratio * (upper.wind_clicks - lower.wind_clicks);
 
     return {
-      clicks: Math.round(interpolated_clicks * 10) / 10,
+      clicks: dfsWindFloor(interpolated_clicks),
       type: 'interpolated',
       distance_m: target_distance_m,
       interpolation_range: { lower: lower.distance_m, upper: upper.distance_m }

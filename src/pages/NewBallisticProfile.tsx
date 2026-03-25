@@ -32,8 +32,8 @@ export function NewBallisticProfile() {
     altitude_m: '100',
     sight_type: 'busk_standard',
     sight_height_mm: '34',
-    sight_radius_cm: '90',
-    front_sight_height_mm: '34',
+    sight_radius_cm: '85',
+    front_sight_height_mm: '3',
     weapon_id: '',
     barrel_id: '',
   });
@@ -457,10 +457,10 @@ export function NewBallisticProfile() {
                       value={formData.sight_radius_cm}
                       onChange={(e) => setFormData({ ...formData, sight_radius_cm: e.target.value })}
                       className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                      placeholder="90"
+                      placeholder="85"
                     />
                     <p className="mt-1 text-xs text-slate-500">
-                      Avstand mellom bakhull og frontkorn. Vanlig Sauer/Busk oppsett med 72cm løp er: ca 82 cm (legg inn din verdi her)
+                      Avstand mellom bakhull og frontkorn. Vanlig Sauer/Busk oppsett med 72cm løp er: ca 85 cm (legg inn din verdi her)
                     </p>
                   </div>
 
@@ -474,7 +474,7 @@ export function NewBallisticProfile() {
                       value={formData.front_sight_height_mm}
                       onChange={(e) => setFormData({ ...formData, front_sight_height_mm: e.target.value })}
                       className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                      placeholder="34"
+                      placeholder="3"
                     />
                     <p className="mt-1 text-xs text-slate-500">
                       Hullkorn i mm. Vanlig Felt oppsett er ca 3 mm uten adler (legg inn din verdi her)
@@ -570,7 +570,7 @@ export function NewBallisticProfile() {
               <strong>Forhåndsutfylte verdier:</strong>
             </p>
             <p className="text-sm text-slate-600">
-              Skjemaet er forhåndsutfylt med vanlige verdier for Sauer/Busk oppsett (siktehøyde 34 mm, hullavstand 90 cm, Busk Standard).
+              Skjemaet er forhåndsutfylt med vanlige verdier for Sauer/Busk oppsett (siktehøyde 34 mm, hullavstand 85 cm, hullkorn 3 mm, Busk Standard).
               Endre disse til dine egne verdier.
             </p>
           </div>

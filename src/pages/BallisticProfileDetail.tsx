@@ -162,6 +162,24 @@ export function BallisticProfileDetail() {
     return acc;
   }, {} as Record<number, BallisticWindTable[]>);
 
+  const DISPLAY_WIND_SPEEDS = [0.5, 1, 1.5, 2, 3, 4, 5, 6, 8, 10];
+
+  const getWindClicksForSpeed = (
+    entries: BallisticWindTable[],
+    targetSpeed: number
+  ): { value: number; isStored: boolean } | null => {
+    const exact = entries.find(e => e.wind_speed === targetSpeed);
+    if (exact) return { value: exact.wind_clicks, isStored: true };
+
+    if (entries.length === 0) return null;
+
+    const base = entries[0];
+    if (base.wind_speed === 0) return null;
+
+    const scaled = base.wind_clicks * (targetSpeed / base.wind_speed);
+    return { value: Math.round(scaled * 10) / 10, isStored: false };
+  };
+
   return (
     <Layout>
       <div className="pb-20 md:pb-8 max-w-6xl mx-auto">
@@ -405,28 +423,22 @@ export function BallisticProfileDetail() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-200">
-                      <th className="text-left py-3 px-2 font-semibold text-slate-900 sticky left-0 bg-white">Avst.(m)</th>
-                      <th className="text-center py-3 px-2 font-semibold text-slate-900">0.5 m/s</th>
-                      <th className="text-center py-3 px-2 font-semibold text-slate-900">1 m/s</th>
-                      <th className="text-center py-3 px-2 font-semibold text-slate-900">1.5 m/s</th>
-                      <th className="text-center py-3 px-2 font-semibold text-slate-900">2 m/s</th>
-                      <th className="text-center py-3 px-2 font-semibold text-slate-900">3 m/s</th>
-                      <th className="text-center py-3 px-2 font-semibold text-slate-900">4 m/s</th>
-                      <th className="text-center py-3 px-2 font-semibold text-slate-900">5 m/s</th>
-                      <th className="text-center py-3 px-2 font-semibold text-slate-900">6 m/s</th>
-                      <th className="text-center py-3 px-2 font-semibold text-slate-900">8 m/s</th>
-                      <th className="text-center py-3 px-2 font-semibold text-slate-900">10 m/s</th>
+                      <th className="text-left py-3 px-2 font-semibold text-slate-900 sticky left-0 z-10 bg-white">Avst.(m)</th>
+                      {DISPLAY_WIND_SPEEDS.map((speed) => (
+                        <th key={speed} className="text-center py-3 px-2 font-semibold text-slate-900">{speed} m/s</th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
                     {Object.keys(groupedWindTable).map((distance) => (
                       <tr key={distance} className="border-b border-slate-100 hover:bg-slate-50">
-                        <td className="py-3 px-2 font-medium text-slate-900 sticky left-0 bg-white">{distance}</td>
-                        {[0.5, 1, 1.5, 2, 3, 4, 5, 6, 8, 10].map((speed) => {
-                          const entry = groupedWindTable[Number(distance)].find(e => e.wind_speed === speed);
+                        <td className="py-3 px-2 font-medium text-slate-900 sticky left-0 z-10 bg-white">{distance}</td>
+                        {DISPLAY_WIND_SPEEDS.map((speed) => {
+                          const result = getWindClicksForSpeed(groupedWindTable[Number(distance)], speed);
+                          const floored = result ? Math.floor(result.value) : null;
                           return (
-                            <td key={speed} className="py-3 px-2 text-center text-slate-900">
-                              {entry ? entry.wind_clicks.toFixed(1) : '-'}
+                            <td key={speed} className={`py-3 px-2 text-center ${result?.isStored ? 'text-slate-900' : 'text-slate-500'}`}>
+                              {floored !== null && floored > 0 ? floored : '-'}
                             </td>
                           );
                         })}

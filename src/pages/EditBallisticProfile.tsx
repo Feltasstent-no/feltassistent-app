@@ -434,10 +434,10 @@ export function EditBallisticProfile() {
                       value={formData.sight_radius_cm}
                       onChange={(e) => setFormData({ ...formData, sight_radius_cm: e.target.value })}
                       className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                      placeholder="90"
+                      placeholder="85"
                     />
                     <p className="mt-1 text-xs text-slate-500">
-                      Avstand mellom bakhull og frontkorn. Vanlig Sauer/Busk oppsett med 72cm løp er: ca 82 cm (legg inn din verdi her)
+                      Avstand mellom bakhull og frontkorn. Vanlig Sauer/Busk oppsett med 72cm løp er: ca 85 cm (legg inn din verdi her)
                     </p>
                   </div>
 
@@ -451,7 +451,7 @@ export function EditBallisticProfile() {
                       value={formData.front_sight_height_mm}
                       onChange={(e) => setFormData({ ...formData, front_sight_height_mm: e.target.value })}
                       className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                      placeholder="34"
+                      placeholder="3"
                     />
                     <p className="mt-1 text-xs text-slate-500">
                       Hullkorn i mm. Vanlig Felt oppsett er ca 3 mm uten adler (legg inn din verdi her)

@@ -43,7 +43,7 @@ export function Layout({ children }: LayoutProps) {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <header className="bg-white border-b border-slate-200 sticky top-0 z-50 flex-shrink-0">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="px-4 sm:px-6 lg:px-8 md:ml-64">
           <div className="flex items-center justify-between h-16">
             <Link to="/match" className="flex items-center space-x-2">
               <ApertureIconBadge size="md" />
@@ -116,12 +116,12 @@ export function Layout({ children }: LayoutProps) {
         </div>
       </header>
 
-      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 pb-20 md:pb-8 md:ml-64">
+      <main className="flex-1 px-4 sm:px-6 lg:px-8 py-4 sm:py-8 pb-20 md:pb-8 md:ml-64">
         {children}
       </main>
 
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 md:hidden z-40">
-        <div className={`grid gap-1 px-2 py-2 ${isAdmin ? 'grid-cols-8' : 'grid-cols-7'}`}>
+        <div className="flex justify-around gap-1 px-2 py-2">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname.startsWith(item.path);
@@ -129,14 +129,14 @@ export function Layout({ children }: LayoutProps) {
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg transition active:scale-95 ${
+                className={`flex flex-col items-center justify-center py-2 px-1 min-w-0 flex-1 rounded-lg transition active:scale-95 ${
                   isActive
                     ? 'bg-emerald-50 text-emerald-600'
                     : 'text-slate-600 active:bg-slate-100'
                 }`}
               >
-                <Icon className="w-5 h-5 sm:w-6 sm:h-6" />
-                <span className="text-[10px] sm:text-xs mt-1 font-medium leading-tight">{item.label}</span>
+                <Icon className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
+                <span className="text-[10px] sm:text-xs mt-1 font-medium leading-tight truncate w-full text-center">{item.label}</span>
               </Link>
             );
           })}

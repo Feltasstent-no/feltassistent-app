@@ -46,6 +46,15 @@
  * - Any empirical fudge factors or distance-dependent corrections
  */
 
+/**
+ * DFS wind clicks are always rounded DOWN (floor) to the nearest whole click.
+ * This ensures the app never recommends more wind correction than DFS tables show.
+ * Applies to final wind click output only -- internal precision is preserved.
+ */
+export function dfsWindFloor(rawWindClicks: number): number {
+  return Math.floor(Math.abs(rawWindClicks));
+}
+
 export type DFSSightType = 'busk_standard' | 'busk_finknepp';
 
 interface DFSSightModel {
@@ -138,7 +147,7 @@ export function convertWindToClicksDFS(
 
   const mm_per_click = (model.click_size_mm * distance_m * 1000) / sight_radius_mm;
 
-  return Math.round(Math.abs(deflection_mm / mm_per_click) * 10) / 10;
+  return dfsWindFloor(deflection_mm / mm_per_click);
 }
 
 /**

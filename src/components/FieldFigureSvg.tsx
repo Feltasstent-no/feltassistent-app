@@ -62,6 +62,15 @@ export function FieldFigureSvg({
     [raw]
   );
 
+  if (raw) {
+    return (
+      <div
+        className={`${sizeClasses[size]} ${className} flex items-center justify-center overflow-hidden`}
+        dangerouslySetInnerHTML={{ __html: processedSvg }}
+      />
+    );
+  }
+
   if (imageUrl) {
     return (
       <div className={`${sizeClasses[size]} ${className} flex items-center justify-center overflow-hidden`}>
@@ -74,21 +83,12 @@ export function FieldFigureSvg({
     );
   }
 
-  if (!raw) {
-    return (
-      <div
-        className={`${sizeClasses[size]} ${className} flex items-center justify-center bg-slate-200 rounded-lg`}
-      >
-        <span className="text-slate-500 font-bold text-lg">{fallbackText}</span>
-      </div>
-    );
-  }
-
   return (
     <div
-      className={`${sizeClasses[size]} ${className} flex items-center justify-center overflow-hidden`}
-      dangerouslySetInnerHTML={{ __html: processedSvg }}
-    />
+      className={`${sizeClasses[size]} ${className} flex items-center justify-center bg-slate-200 rounded-lg`}
+    >
+      <span className="text-slate-500 font-bold text-lg">{fallbackText}</span>
+    </div>
   );
 }
 

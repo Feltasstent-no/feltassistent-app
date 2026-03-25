@@ -58,9 +58,9 @@ export function WindTest() {
     steps.push(`Step 6: Calculate raw wind clicks`);
     steps.push(`  raw_wind_clicks = ${wind_factor.toFixed(6)} * ${windClicksPer10ms.toFixed(2)} = ${raw_wind_clicks.toFixed(6)}`);
 
-    const wind_clicks = Math.round(raw_wind_clicks);
-    steps.push(`Step 7: Round to nearest integer`);
-    steps.push(`  wind_clicks = round(${raw_wind_clicks.toFixed(6)}) = ${wind_clicks}`);
+    const wind_clicks = Math.floor(Math.abs(raw_wind_clicks));
+    steps.push(`Step 7: DFS floor (round down)`);
+    steps.push(`  wind_clicks = floor(|${raw_wind_clicks.toFixed(6)}|) = ${wind_clicks}`);
 
     setResult({
       effective_crosswind,
@@ -240,7 +240,7 @@ export function WindTest() {
                   <br />
                   Knepp per 10 m/s = 4.4 × (250 / 100) = 11
                   <br />
-                  Vindkorreksjon = round((10 / 10) × 11) = <strong>11 knepp</strong>
+                  Vindkorreksjon = floor((10 / 10) × 11) = <strong>11 knepp</strong>
                   <br />
                   <br />
                   Dette matcher DFS-vindtabeller for typisk 6.5mm oppsett.

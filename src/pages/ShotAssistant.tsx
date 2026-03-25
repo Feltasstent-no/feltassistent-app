@@ -102,7 +102,7 @@ export function ShotAssistant() {
   if (loading) {
     return (
       <Layout>
-        <div className="container mx-auto px-4 py-8 pb-24 md:pb-8">
+        <div className="max-w-4xl mx-auto pb-24 md:pb-8">
           <h1 className="text-2xl sm:text-3xl font-bold mb-6">Kneppassistent</h1>
           <p>Laster...</p>
         </div>
@@ -131,7 +131,7 @@ export function ShotAssistant() {
 
   return (
     <Layout>
-      <div className="container mx-auto px-4 py-8 pb-24 md:pb-8">
+      <div className="max-w-4xl mx-auto pb-24 md:pb-8">
         <div className="mb-6">
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Kneppassistent</h1>
           <p className="text-slate-600 mt-2">
