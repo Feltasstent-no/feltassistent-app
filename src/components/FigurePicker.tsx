@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { X, Target } from 'lucide-react';
+import { X } from 'lucide-react';
 import { FieldFigure } from '../types/database';
+import { FieldFigureSvg } from './FieldFigureSvg';
 
 interface FigurePickerProps {
   figures: FieldFigure[];
@@ -25,17 +26,12 @@ export function FigurePicker({ figures, selectedFigure, onSelect }: FigurePicker
         <div className="flex items-center space-x-3">
           {selectedFigure ? (
             <>
-              {selectedFigure.image_url ? (
-                <img
-                  src={selectedFigure.image_url}
-                  alt={selectedFigure.name}
-                  className="w-10 h-10 object-contain rounded"
-                />
-              ) : (
-                <div className="w-10 h-10 bg-slate-200 rounded flex items-center justify-center">
-                  <Target className="h-6 w-6 text-slate-500" />
-                </div>
-              )}
+              <FieldFigureSvg
+                svgData={selectedFigure.svg_data}
+                imageUrl={selectedFigure.image_url}
+                size="sm"
+                fallbackText={selectedFigure.short_code || selectedFigure.code}
+              />
               <div>
                 <div className="font-medium">{selectedFigure.name}</div>
                 <div className="text-sm text-slate-500">
@@ -94,17 +90,14 @@ export function FigurePicker({ figures, selectedFigure, onSelect }: FigurePicker
                     }`}
                   >
                     <div className="flex flex-col items-center space-y-2">
-                      {figure.image_url ? (
-                        <img
-                          src={figure.image_url}
-                          alt={figure.name}
-                          className="w-full h-24 object-contain rounded"
+                      <div className="w-full h-24 bg-slate-50 rounded flex items-center justify-center overflow-hidden">
+                        <FieldFigureSvg
+                          svgData={figure.svg_data}
+                          imageUrl={figure.image_url}
+                          size="lg"
+                          fallbackText={figure.short_code || figure.code}
                         />
-                      ) : (
-                        <div className="w-full h-24 bg-slate-100 rounded flex items-center justify-center">
-                          <Target className="h-12 w-12 text-slate-500" />
-                        </div>
-                      )}
+                      </div>
                       <div className="w-full text-center">
                         <div className="font-medium text-sm text-slate-900">
                           {figure.name}
