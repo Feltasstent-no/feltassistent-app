@@ -85,44 +85,19 @@ export function CompetitionSummary() {
     if (imagesRes.data) {
       setStageImages(imagesRes.data);
 
-      const pathsToSign = imagesRes.data.filter((img) => img.storage_path);
-      if (pathsToSign.length > 0) {
+      const withPaths = imagesRes.data.filter((img) => img.storage_path);
+      if (withPaths.length > 0) {
         const urlMap: Record<string, string> = {};
-
-        const { data: signedData } = await supabase.storage
-          .from('target-images')
-          .createSignedUrls(
-            pathsToSign.map((img) => img.storage_path!),
-            3600
-          );
-
-        if (signedData) {
-          const inputPaths = pathsToSign.map((img) => img.storage_path!);
-          signedData.forEach((item, idx) => {
-            if (item.signedUrl) {
-              const key = inputPaths[idx];
-              if (key) urlMap[key] = item.signedUrl;
-              if (item.path && item.path !== key) {
-                urlMap[item.path] = item.signedUrl;
-              }
+        await Promise.all(
+          withPaths.map(async (img) => {
+            const { data, error } = await supabase.storage
+              .from('target-images')
+              .createSignedUrl(img.storage_path!, 3600);
+            if (data?.signedUrl && !error) {
+              urlMap[img.storage_path!] = data.signedUrl;
             }
-          });
-        }
-
-        const missing = pathsToSign.filter((img) => !urlMap[img.storage_path!]);
-        if (missing.length > 0) {
-          await Promise.all(
-            missing.map(async (img) => {
-              const { data } = await supabase.storage
-                .from('target-images')
-                .createSignedUrl(img.storage_path!, 3600);
-              if (data?.signedUrl) {
-                urlMap[img.storage_path!] = data.signedUrl;
-              }
-            })
-          );
-        }
-
+          })
+        );
         setSignedUrls(urlMap);
       }
     }
@@ -286,8 +261,8 @@ export function CompetitionSummary() {
             const figure = figures.find((f) => f.id === stage.field_figure_id);
             const stageImage = stageImages.find((img) => img.stage_number === stage.stage_number);
             const resolvedImageUrl = stageImage?.storage_path
-              ? signedUrls[stageImage.storage_path] || stageImage.image_url || null
-              : stageImage?.image_url || null;
+              ? signedUrls[stageImage.storage_path] || null
+              : null;
 
             return (
               <div

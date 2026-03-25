@@ -4,7 +4,7 @@ import { Layout } from '../components/Layout';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Competition, CompetitionStage, ClickTable, FieldFigure, Weapon, WeaponBarrel } from '../types/database';
-import { ArrowLeft, Play, Target, Clock, CreditCard, Crosshair } from 'lucide-react';
+import { ArrowLeft, Play, Target, Clock, CreditCard, Crosshair, Pencil } from 'lucide-react';
 
 export function CompetitionStart() {
   const navigate = useNavigate();
@@ -360,14 +360,23 @@ export function CompetitionStart() {
             )}
           </div>
 
-          <button
-            onClick={handleStart}
-            disabled={starting || !selectedTableId || clickTables.length === 0}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-4 px-6 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-lg"
-          >
-            <Play className="w-6 h-6" />
-            <span>{starting ? 'Starter...' : 'Start stevne'}</span>
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={() => navigate(`/competitions/${competitionId}/configure`)}
+              className="px-5 py-4 border border-slate-300 rounded-lg font-semibold text-slate-700 hover:bg-slate-50 transition flex items-center justify-center space-x-2 flex-shrink-0"
+            >
+              <Pencil className="w-5 h-5" />
+              <span>Rediger</span>
+            </button>
+            <button
+              onClick={handleStart}
+              disabled={starting || !selectedTableId || clickTables.length === 0}
+              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-4 px-6 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-lg"
+            >
+              <Play className="w-6 h-6" />
+              <span>{starting ? 'Starter...' : 'Start stevne'}</span>
+            </button>
+          </div>
         </div>
       </div>
     </Layout>
