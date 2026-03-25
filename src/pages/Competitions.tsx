@@ -32,7 +32,7 @@ export function Competitions() {
         .from('competitions')
         .select('*')
         .eq('is_active', true)
-        .or(`created_by.eq.${user.id},is_public.eq.true`)
+        .or(`user_id.eq.${user.id},is_public.eq.true`)
         .order('competition_date', { ascending: false }),
       supabase
         .from('competition_entries')
@@ -112,7 +112,7 @@ export function Competitions() {
 
   const hasEntries = (competitionId: string) => {
     return myEntries.some(e => e.competition_id === competitionId);
-  };;
+  };
 
   if (loading) {
     return (
@@ -151,17 +151,6 @@ export function Competitions() {
               {myEntries.map((entry) => {
                 const competition = competitions.find(c => c.id === entry.competition_id);
                 if (!competition) return null;
-
-                console.log('[Competitions] ========== ENTRY RENDER ==========');
-                console.log('[Competitions] Entry:', {
-                  id: entry.id,
-                  status: entry.status,
-                  completed_at: entry.completed_at,
-                  user_id: entry.user_id
-                });
-                console.log('[Competitions] Is completed:', !!entry.completed_at);
-                console.log('[Competitions] Delete button should show:', !!entry.completed_at);
-                console.log('[Competitions] Delete button location: line 206-214');
 
                 return (
                   <div
@@ -215,19 +204,14 @@ export function Competitions() {
                     </div>
                     </Link>
 
-                    {entry.completed_at ? (
-                      <>
-                        {console.log('[Competitions] DELETE BUTTON RENDERING for entry:', entry.id)}
-                        <button
-                          onClick={(e) => handleDeleteEntryClick(entry.id, e)}
-                          className="absolute top-4 right-4 p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition z-10"
-                          title="Slett deltakelse"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      </>
-                    ) : (
-                      console.log('[Competitions] DELETE BUTTON HIDDEN (not completed) for entry:', entry.id)
+                    {entry.completed_at && (
+                      <button
+                        onClick={(e) => handleDeleteEntryClick(entry.id, e)}
+                        className="absolute top-4 right-4 p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition z-10"
+                        title="Slett deltakelse"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
                     )}
                   </div>
                 );

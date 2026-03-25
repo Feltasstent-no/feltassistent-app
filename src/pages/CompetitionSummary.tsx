@@ -43,15 +43,26 @@ export function CompetitionSummary() {
 
     setLoading(true);
 
-    const [entryRes, stagesRes, imagesRes, figuresRes, summaryRes] = await Promise.all([
-      supabase
-        .from('competition_entries')
-        .select('*, competitions(*)')
-        .eq('id', entryId)
-        .maybeSingle(),
+    const { data: entryData } = await supabase
+      .from('competition_entries')
+      .select('*, competitions(*)')
+      .eq('id', entryId)
+      .maybeSingle();
+
+    if (!entryData) {
+      setLoading(false);
+      return;
+    }
+
+    setEntry(entryData);
+    const comp = entryData.competitions as Competition;
+    if (comp) setCompetition(comp);
+
+    const [stagesRes, imagesRes, figuresRes, summaryRes] = await Promise.all([
       supabase
         .from('competition_stages')
         .select('*')
+        .eq('competition_id', entryData.competition_id)
         .order('stage_number'),
       supabase
         .from('competition_stage_images')
@@ -67,17 +78,9 @@ export function CompetitionSummary() {
         .maybeSingle(),
     ]);
 
-    if (entryRes.data) {
-      setEntry(entryRes.data);
-      if (entryRes.data.competitions) {
-        setCompetition(entryRes.data.competitions as Competition);
-
-        const stagesFiltered = stagesRes.data?.filter(
-          (s) => s.competition_id === entryRes.data.competitions.id
-        );
-        setStages(stagesFiltered || []);
-      }
-    }
+    if (stagesRes.data) setStages(stagesRes.data);
+    if (figuresRes.data) setFigures(figuresRes.data);
+    if (summaryRes.data) setAiSummary(summaryRes.data.summary_json);
 
     if (imagesRes.data) {
       setStageImages(imagesRes.data);
@@ -85,23 +88,21 @@ export function CompetitionSummary() {
       const pathsToSign = imagesRes.data.filter((img) => img.storage_path);
       if (pathsToSign.length > 0) {
         const paths = pathsToSign.map((img) => img.storage_path!);
-        const { data: signedData } = await supabase.storage
+        const { data: signedData, error: signError } = await supabase.storage
           .from('target-images')
           .createSignedUrls(paths, 3600);
 
-        if (signedData) {
+        if (signedData && !signError) {
           const urlMap: Record<string, string> = {};
-          signedData.forEach((item) => {
-            if (item.signedUrl && item.path) {
-              urlMap[item.path] = item.signedUrl;
+          signedData.forEach((item, idx) => {
+            if (item.signedUrl) {
+              urlMap[paths[idx]] = item.signedUrl;
             }
           });
           setSignedUrls(urlMap);
         }
       }
     }
-    if (figuresRes.data) setFigures(figuresRes.data);
-    if (summaryRes.data) setAiSummary(summaryRes.data.summary_json);
 
     setLoading(false);
   };
@@ -185,26 +186,6 @@ export function CompetitionSummary() {
       </div>
     );
   }
-
-  console.log('[CompetitionSummary] ========== RENDERING SUMMARY ==========');
-  console.log('[CompetitionSummary] Entry:', {
-    id: entry.id,
-    status: entry.status,
-    current_stage_state: entry.current_stage_state,
-    user_id: entry.user_id
-  });
-  console.log('[CompetitionSummary] Competition:', {
-    id: competition.id,
-    name: competition.name,
-    competition_type: competition.competition_type
-  });
-  console.log('[CompetitionSummary] User:', {
-    id: user?.id,
-    is_owner: entry.user_id === user?.id
-  });
-  console.log('[CompetitionSummary] DELETE BUTTON locations:');
-  console.log('[CompetitionSummary] - Three-dot menu (top right): lines 201-223');
-  console.log('[CompetitionSummary] - Bottom full-width button: lines 486-497');
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -302,7 +283,7 @@ export function CompetitionSummary() {
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <div className="text-white text-xl sm:text-2xl font-bold">{stage.distance}m</div>
+                      <div className="text-white text-xl sm:text-2xl font-bold">{stage.distance_m}m</div>
                       {stage.clicks !== null && stage.clicks !== 0 && (
                         <div className="text-blue-100 text-sm">{stage.clicks} knepp</div>
                       )}
