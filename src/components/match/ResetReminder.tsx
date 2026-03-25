@@ -159,7 +159,7 @@ export function ResetReminder({
                 : 'Husk å skru tilbake til nullpunkt etter siste hold'
               : hasWindDelta
                 ? 'Nullstill høyde og juster vind før neste hold'
-                : 'Skru kikkertsiktet tilbake til 0 før neste hold'}
+                : 'Skru siktet tilbake til 0 før neste hold'}
           </p>
         </div>
 

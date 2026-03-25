@@ -222,7 +222,7 @@ export function CompetitionDetail() {
                   </Link>
                   {isOwner && (
                     <Link
-                      to={`/competitions/${competitionId}/stages`}
+                      to={`/competitions/${competitionId}/configure`}
                       className="flex-1 px-4 sm:px-6 py-3 border border-slate-300 rounded-lg font-semibold text-slate-700 hover:bg-slate-50 transition text-center"
                     >
                       <Edit2 className="w-4 h-4 inline mr-2" />
