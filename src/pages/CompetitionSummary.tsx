@@ -30,6 +30,7 @@ export function CompetitionSummary() {
   const [deleting, setDeleting] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<{ url: string; alt: string } | null>(null);
+  const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (entryId) {
@@ -78,7 +79,27 @@ export function CompetitionSummary() {
       }
     }
 
-    if (imagesRes.data) setStageImages(imagesRes.data);
+    if (imagesRes.data) {
+      setStageImages(imagesRes.data);
+
+      const pathsToSign = imagesRes.data.filter((img) => img.storage_path);
+      if (pathsToSign.length > 0) {
+        const paths = pathsToSign.map((img) => img.storage_path!);
+        const { data: signedData } = await supabase.storage
+          .from('target-images')
+          .createSignedUrls(paths, 3600);
+
+        if (signedData) {
+          const urlMap: Record<string, string> = {};
+          signedData.forEach((item) => {
+            if (item.signedUrl && item.path) {
+              urlMap[item.path] = item.signedUrl;
+            }
+          });
+          setSignedUrls(urlMap);
+        }
+      }
+    }
     if (figuresRes.data) setFigures(figuresRes.data);
     if (summaryRes.data) setAiSummary(summaryRes.data.summary_json);
 
@@ -260,6 +281,9 @@ export function CompetitionSummary() {
           {stages.map((stage) => {
             const figure = figures.find((f) => f.id === stage.field_figure_id);
             const stageImage = stageImages.find((img) => img.stage_number === stage.stage_number);
+            const resolvedImageUrl = stageImage?.storage_path
+              ? signedUrls[stageImage.storage_path] || null
+              : null;
 
             return (
               <div
@@ -287,7 +311,7 @@ export function CompetitionSummary() {
                 </div>
 
                 <div className="p-4 sm:p-6 space-y-4">
-                  {stageImage?.image_url && (
+                  {resolvedImageUrl && (
                     <div>
                       <h4 className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
                         <Target className="w-4 h-4" />
@@ -296,13 +320,13 @@ export function CompetitionSummary() {
                       <button
                         type="button"
                         onClick={() => setLightboxImage({
-                          url: stageImage.image_url!,
+                          url: resolvedImageUrl,
                           alt: `Gravlapp hold ${stage.stage_number}`,
                         })}
                         className="relative group w-full rounded-lg border border-slate-200 overflow-hidden cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
                         <img
-                          src={stageImage.image_url}
+                          src={resolvedImageUrl}
                           alt={`Gravlapp hold ${stage.stage_number}`}
                           className="w-full"
                         />
@@ -328,7 +352,7 @@ export function CompetitionSummary() {
                     </div>
                   )}
 
-                  {!stageImage?.image_url && !stageImage?.notes && (
+                  {!resolvedImageUrl && !stageImage?.notes && (
                     <p className="text-center text-slate-500 italic py-4">
                       Ingen dokumentasjon fra dette holdet
                     </p>

@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useActiveSetup } from '../contexts/ActiveSetupContext';
 import { ActiveSetupSelector } from '../components/ActiveSetupSelector';
 import { getActiveMatchSession, getMatchHistory, cancelMatchSession } from '../lib/match-service';
-import { History, Play, BookOpen, XCircle, Clock, Crosshair, Minus, CheckCircle, CheckCircle2, Circle, ArrowRight, Target } from 'lucide-react';
+import { History, Play, BookOpen, XCircle, Clock, Crosshair, Minus, CheckCircle, CheckCircle2, ArrowRight, Target } from 'lucide-react';
 import apertureIcon from '../assets/aperture_icon_light.svg';
 import { AmmoStatusCard } from '../components/AmmoStatusCard';
 import type { MatchSession } from '../lib/match-service';
@@ -146,8 +146,7 @@ export function MatchHome() {
     );
   }
 
-  const hasWeapon = activeSetup?.weapon_id;
-  const hasBarrel = activeSetup?.barrel_id;
+  const hasWeaponAndBarrel = activeSetup?.weapon_id && activeSetup?.barrel_id;
   const hasClickTableOrProfile = activeSetup?.click_table_id || activeSetup?.ballistic_profile_id;
 
   return (
@@ -161,38 +160,28 @@ export function MatchHome() {
         {!setupComplete && (
           <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 sm:p-6 mb-8">
             <h2 className="text-lg font-bold text-slate-900 mb-4">Før du kan bruke appen må du sette opp:</h2>
-            <div className="space-y-3 mb-6">
-              <div className="flex items-center space-x-3">
-                {hasWeapon ? (
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+            <ul className="space-y-2 mb-6">
+              <li className="flex items-start gap-2.5">
+                {hasWeaponAndBarrel ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
                 ) : (
-                  <Circle className="w-5 h-5 text-slate-400 flex-shrink-0" />
+                  <Minus className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
                 )}
-                <span className={`text-sm font-medium ${hasWeapon ? 'text-slate-900' : 'text-slate-600'}`}>
-                  Våpen
+                <span className={`text-sm ${hasWeaponAndBarrel ? 'text-slate-900' : 'text-slate-600'}`}>
+                  Våpen og løp
                 </span>
-              </div>
-              <div className="flex items-center space-x-3">
-                {hasBarrel ? (
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
-                ) : (
-                  <Circle className="w-5 h-5 text-slate-400 flex-shrink-0" />
-                )}
-                <span className={`text-sm font-medium ${hasBarrel ? 'text-slate-900' : 'text-slate-600'}`}>
-                  Løp
-                </span>
-              </div>
-              <div className="flex items-center space-x-3">
+              </li>
+              <li className="flex items-start gap-2.5">
                 {hasClickTableOrProfile ? (
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
                 ) : (
-                  <Circle className="w-5 h-5 text-slate-400 flex-shrink-0" />
+                  <Minus className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
                 )}
-                <span className={`text-sm font-medium ${hasClickTableOrProfile ? 'text-slate-900' : 'text-slate-600'}`}>
-                  Knepptabell eller ballistisk profil
+                <span className={`text-sm ${hasClickTableOrProfile ? 'text-slate-900' : 'text-slate-600'}`}>
+                  Knepptabell, enten alene eller generert fra ballistisk profil
                 </span>
-              </div>
-            </div>
+              </li>
+            </ul>
             <button
               onClick={() => navigate('/weapons')}
               className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition flex items-center justify-center space-x-2"

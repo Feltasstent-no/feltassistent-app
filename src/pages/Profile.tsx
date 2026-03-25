@@ -1,18 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Layout } from '../components/Layout';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Profile as ProfileType, ShooterClass } from '../types/database';
-import { Save, User, Crosshair, ArrowRight, Info } from 'lucide-react';
+import { Save, User, Crosshair, ArrowRight, Info, Camera } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export function Profile() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [profile, setProfile] = useState<ProfileType | null>(null);
   const [shooterClasses, setShooterClasses] = useState<ShooterClass[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [formData, setFormData] = useState({
@@ -20,7 +22,7 @@ export function Profile() {
     phone: '',
     dfs_shooter_id: '',
     club_name: '',
-    shooter_class: '',
+    shooter_class_id: '',
     birth_year: '',
   });
 
@@ -45,7 +47,7 @@ export function Profile() {
         phone: data.phone || '',
         dfs_shooter_id: data.dfs_shooter_id || '',
         club_name: data.club_name || '',
-        shooter_class: data.shooter_class || '',
+        shooter_class_id: data.shooter_class_id || '',
         birth_year: data.birth_year?.toString() || '',
       });
     }
@@ -65,10 +67,53 @@ export function Profile() {
     }
   };
 
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    setUploadingAvatar(true);
+    setMessage(null);
+
+    const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+    const filePath = `${user.id}/avatar.${fileExt}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(filePath, file, { upsert: true });
+
+    if (uploadError) {
+      setMessage({ type: 'error', text: 'Kunne ikke laste opp bilde' });
+      setUploadingAvatar(false);
+      return;
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from('avatars')
+      .getPublicUrl(filePath);
+
+    const avatarUrl = `${publicUrlData.publicUrl}?t=${Date.now()}`;
+
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ avatar_url: avatarUrl })
+      .eq('id', user.id);
+
+    if (updateError) {
+      setMessage({ type: 'error', text: 'Kunne ikke oppdatere profil' });
+    } else {
+      setProfile((prev) => prev ? { ...prev, avatar_url: avatarUrl } : prev);
+      setMessage({ type: 'success', text: 'Profilbilde oppdatert!' });
+    }
+
+    setUploadingAvatar(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setMessage(null);
+
+    const selectedClass = shooterClasses.find((sc) => sc.id === formData.shooter_class_id);
 
     const { error } = await supabase
       .from('profiles')
@@ -77,7 +122,8 @@ export function Profile() {
         phone: formData.phone,
         dfs_shooter_id: formData.dfs_shooter_id,
         club_name: formData.club_name,
-        shooter_class: formData.shooter_class,
+        shooter_class_id: formData.shooter_class_id || null,
+        shooter_class: selectedClass?.code || null,
         birth_year: formData.birth_year ? parseInt(formData.birth_year) : null,
       })
       .eq('id', user?.id);
@@ -132,8 +178,37 @@ export function Profile() {
 
         <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6">
           <div className="flex items-center justify-center mb-6">
-            <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center">
-              <User className="w-10 h-10 text-emerald-600" />
+            <div className="relative group">
+              {profile?.avatar_url ? (
+                <img
+                  src={profile.avatar_url}
+                  alt="Profilbilde"
+                  className="w-24 h-24 rounded-full object-cover border-2 border-slate-200"
+                />
+              ) : (
+                <div className="w-24 h-24 bg-emerald-100 rounded-full flex items-center justify-center">
+                  <User className="w-12 h-12 text-emerald-600" />
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingAvatar}
+                className="absolute bottom-0 right-0 w-8 h-8 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full flex items-center justify-center shadow-md transition disabled:opacity-50"
+              >
+                {uploadingAvatar ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Camera className="w-4 h-4" />
+                )}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handleAvatarUpload}
+                className="hidden"
+              />
             </div>
           </div>
 
@@ -214,13 +289,13 @@ export function Profile() {
               </label>
               <select
                 id="shooter_class"
-                value={formData.shooter_class}
-                onChange={(e) => setFormData({ ...formData, shooter_class: e.target.value })}
+                value={formData.shooter_class_id}
+                onChange={(e) => setFormData({ ...formData, shooter_class_id: e.target.value })}
                 className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
               >
                 <option value="">Velg klasse</option>
                 {shooterClasses.map((sc) => (
-                  <option key={sc.id} value={sc.code}>
+                  <option key={sc.id} value={sc.id}>
                     {sc.name}
                   </option>
                 ))}
@@ -273,6 +348,21 @@ export function Profile() {
               <h4 className="text-sm font-semibold text-slate-700 mb-1">Planlagt lisensmodell</h4>
               <p className="text-sm text-slate-600 leading-relaxed">
                 Feltassist app'n er f.t i aktiv utvikling, og det vil i en senere versjon tilkomme en årlig lisens i størrelsesorden 299 kr/år per bruker.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 sm:p-5 mt-4">
+          <div className="flex gap-3">
+            <Info className="w-5 h-5 text-slate-400 mt-0.5 flex-shrink-0" />
+            <div>
+              <h4 className="text-sm font-semibold text-slate-700 mb-1">Om Feltassistent</h4>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                Feltassistent er en frittstående støtteapp for skyttere, med særlig fokus på feltskyting. Appen gir hjelp til ballistikk, knepptabeller, feltfigurer, feltklokke og gjennomføring av stevner og trening.
+              </p>
+              <p className="text-sm text-slate-600 leading-relaxed mt-2">
+                Appen er ikke tilknyttet DFS sine offisielle systemer, og skal brukes som et praktisk hjelpemiddel og supplement for skytteren.
               </p>
             </div>
           </div>

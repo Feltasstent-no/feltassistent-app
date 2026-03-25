@@ -85,6 +85,18 @@ export function MatchConfigure() {
         if (lastClassId) {
           setSelectedShooterClassId(lastClassId);
           await updateMatchShooterClass(sessionData.id, lastClassId);
+        } else if (user) {
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('shooter_class_id')
+            .eq('id', user.id)
+            .maybeSingle();
+
+          if (profileData?.shooter_class_id) {
+            setSelectedShooterClassId(profileData.shooter_class_id);
+            setLastShooterClassId(profileData.shooter_class_id);
+            await updateMatchShooterClass(sessionData.id, profileData.shooter_class_id);
+          }
         }
       }
 

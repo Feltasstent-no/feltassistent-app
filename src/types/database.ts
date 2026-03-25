@@ -6,6 +6,7 @@ export interface Profile {
   dfs_shooter_id: string | null;
   club_name: string | null;
   shooter_class: string | null;
+  shooter_class_id: string | null;
   birth_year: number | null;
   avatar_url: string | null;
   created_at: string;

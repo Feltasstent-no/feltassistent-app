@@ -4,6 +4,14 @@ import { useAuth } from '../../contexts/AuthContext';
 import { CompetitionStageImage } from '../../types/database';
 import { Camera, Upload, X, Check, FileText } from 'lucide-react';
 
+async function getSignedImageUrl(storagePath: string): Promise<string | null> {
+  const { data, error } = await supabase.storage
+    .from('target-images')
+    .createSignedUrl(storagePath, 3600);
+  if (error || !data?.signedUrl) return null;
+  return data.signedUrl;
+}
+
 interface HoldImageUploadProps {
   entryId: string;
   stageNumber: number;
@@ -24,10 +32,23 @@ export function HoldImageUpload({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [notes, setNotes] = useState(existingImage?.notes || '');
   const [savingNotes, setSavingNotes] = useState(false);
+  const [displayUrl, setDisplayUrl] = useState<string | null>(null);
 
   useEffect(() => {
     setNotes(existingImage?.notes || '');
   }, [existingImage]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (existingImage?.storage_path) {
+      getSignedImageUrl(existingImage.storage_path).then((url) => {
+        if (!cancelled) setDisplayUrl(url);
+      });
+    } else {
+      setDisplayUrl(null);
+    }
+    return () => { cancelled = true; };
+  }, [existingImage?.storage_path]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -187,11 +208,11 @@ export function HoldImageUpload({
         </h3>
       </div>
 
-      {existingImage && existingImage.image_url ? (
+      {existingImage && existingImage.storage_path && displayUrl ? (
         <div className="space-y-3">
           <div className="relative rounded-lg overflow-hidden border border-slate-200">
             <img
-              src={existingImage.image_url}
+              src={displayUrl}
               alt="Gravlapp"
               className="w-full h-48 object-cover"
             />
