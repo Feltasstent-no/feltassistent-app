@@ -83,6 +83,22 @@ export function CompetitionSummary() {
 
     if (imagesRes.data) {
       setStageImages(imagesRes.data);
+      console.log('[CompetitionSummary] Stage images loaded:', imagesRes.data.length);
+      imagesRes.data.forEach(img => {
+        console.log('[CompetitionSummary] Image record:', {
+          id: img.id,
+          stage_number: img.stage_number,
+          storage_path: img.storage_path,
+          image_url: img.image_url,
+          notes: img.notes ? img.notes.substring(0, 50) : null,
+        });
+        if (img.storage_path) {
+          const url = supabase.storage.from('monitor-photos').getPublicUrl(img.storage_path).data.publicUrl;
+          console.log('[CompetitionSummary] Public URL for stage', img.stage_number, ':', url);
+        } else {
+          console.log('[CompetitionSummary] Stage', img.stage_number, ': NO storage_path, image will not render');
+        }
+      });
     }
 
     setLoading(false);
@@ -172,8 +188,14 @@ export function CompetitionSummary() {
     <div className="min-h-screen bg-slate-50">
       <div className="max-w-4xl mx-auto px-4 py-8">
         <button
-          onClick={() => navigate('/competitions')}
-          className="flex items-center gap-2 text-slate-600 hover:text-slate-900 mb-6 transition-colors"
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('[CompetitionSummary] Back arrow clicked, navigating to /competitions');
+            navigate('/competitions');
+          }}
+          className="flex items-center gap-2 text-slate-600 hover:text-slate-900 mb-6 transition-colors py-2 -ml-2 pl-2 pr-4"
         >
           <ArrowLeft className="w-5 h-5" />
           Tilbake til stevner
@@ -291,6 +313,8 @@ export function CompetitionSummary() {
                           src={resolvedImageUrl}
                           alt={`Gravlapp hold ${stage.stage_number}`}
                           className="w-full"
+                          onLoad={() => console.log('[CompetitionSummary] Image LOADED for stage', stage.stage_number, resolvedImageUrl)}
+                          onError={(e) => console.error('[CompetitionSummary] Image FAILED for stage', stage.stage_number, 'src:', (e.target as HTMLImageElement).currentSrc)}
                         />
                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
                           <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 rounded-full p-2 shadow">
@@ -534,6 +558,8 @@ export function CompetitionSummary() {
             alt={lightboxImage.alt}
             className="max-w-full max-h-[90vh] object-contain rounded-lg"
             onClick={(e) => e.stopPropagation()}
+            onLoad={() => console.log('[CompetitionSummary] Lightbox image LOADED:', lightboxImage.url)}
+            onError={(e) => console.error('[CompetitionSummary] Lightbox image FAILED:', (e.target as HTMLImageElement).currentSrc)}
           />
         </div>
       )}

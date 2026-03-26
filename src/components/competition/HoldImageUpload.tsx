@@ -93,13 +93,17 @@ export function HoldImageUpload({
       let uploadBlob: Blob;
       try {
         uploadBlob = await convertToJpeg(file);
-      } catch {
+        console.log('[HoldImageUpload] JPEG conversion OK, blob size:', uploadBlob.size, 'type:', uploadBlob.type);
+      } catch (convErr) {
+        console.warn('[HoldImageUpload] JPEG conversion failed, using raw file:', convErr);
         uploadBlob = file;
       }
 
       const timestamp = Date.now();
-      const ext = uploadBlob.type === 'image/jpeg' ? 'jpg' : 'jpg';
-      const storagePath = `${user.id}/entries/${entryId}/stage-${stageNumber}-${timestamp}.${ext}`;
+      const storagePath = `${user.id}/entries/${entryId}/stage-${stageNumber}-${timestamp}.jpg`;
+
+      console.log('[HoldImageUpload] Uploading to monitor-photos:', storagePath);
+      console.log('[HoldImageUpload] Blob size:', uploadBlob.size, 'type:', uploadBlob.type || 'image/jpeg');
 
       const { error: uploadError } = await supabase.storage
         .from('monitor-photos')
@@ -109,12 +113,18 @@ export function HoldImageUpload({
           contentType: uploadBlob.type || 'image/jpeg',
         });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('[HoldImageUpload] Storage upload FAILED:', uploadError.message, uploadError);
+        throw uploadError;
+      }
+
+      console.log('[HoldImageUpload] Storage upload SUCCESS:', storagePath);
 
       const preview = URL.createObjectURL(file);
       setLocalPreview(preview);
 
       if (existingImage) {
+        console.log('[HoldImageUpload] Updating existing record:', existingImage.id);
         const { error: updateError } = await supabase
           .from('competition_stage_images')
           .update({
@@ -124,7 +134,11 @@ export function HoldImageUpload({
           })
           .eq('id', existingImage.id);
 
-        if (updateError) throw updateError;
+        if (updateError) {
+          console.error('[HoldImageUpload] DB update FAILED:', updateError);
+          throw updateError;
+        }
+        console.log('[HoldImageUpload] DB update SUCCESS');
 
         if (existingImage.storage_path) {
           await supabase.storage
@@ -132,6 +146,7 @@ export function HoldImageUpload({
             .remove([existingImage.storage_path]);
         }
       } else {
+        console.log('[HoldImageUpload] Inserting new record for stage:', stageNumber);
         const { error: insertError } = await supabase
           .from('competition_stage_images')
           .insert({
@@ -143,7 +158,11 @@ export function HoldImageUpload({
             uploaded_at: new Date().toISOString(),
           });
 
-        if (insertError) throw insertError;
+        if (insertError) {
+          console.error('[HoldImageUpload] DB insert FAILED:', insertError);
+          throw insertError;
+        }
+        console.log('[HoldImageUpload] DB insert SUCCESS');
       }
 
       setSuccess(true);
@@ -153,7 +172,7 @@ export function HoldImageUpload({
         onImageUploaded();
       }
     } catch (err: any) {
-      console.error('Upload error:', err);
+      console.error('[HoldImageUpload] UPLOAD ERROR:', err);
       setLocalPreview(null);
       setError(err.message || 'Kunne ikke laste opp bilde');
     } finally {

@@ -155,8 +155,14 @@ export function CompetitionStart() {
       <div className="max-w-4xl pb-20 md:pb-8">
         <div className="mb-6">
           <button
-            onClick={() => navigate(`/competitions/${competitionId}`)}
-            className="flex items-center space-x-2 text-slate-600 hover:text-slate-900 mb-4"
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              console.log('[CompetitionStart] Back arrow clicked, navigating to:', `/competitions/${competitionId}`);
+              navigate(`/competitions/${competitionId}`);
+            }}
+            className="flex items-center space-x-2 text-slate-600 hover:text-slate-900 mb-4 py-2 -ml-2 pl-2 pr-4"
           >
             <ArrowLeft className="w-5 h-5" />
             <span>Tilbake</span>
@@ -360,16 +366,26 @@ export function CompetitionStart() {
             )}
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <button
-              onClick={() => navigate(`/competitions/${competitionId}/configure?from=start`)}
-              className="px-5 py-4 border border-slate-300 rounded-lg font-semibold text-slate-700 hover:bg-slate-50 transition flex items-center justify-center space-x-2 flex-shrink-0"
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                console.log('[CompetitionStart] Rediger button clicked, navigating to configure');
+                navigate(`/competitions/${competitionId}/configure?from=start`);
+              }}
+              className="px-5 py-4 border border-slate-300 rounded-lg font-semibold text-slate-700 hover:bg-slate-50 transition flex items-center justify-center space-x-2 w-full sm:w-auto sm:flex-shrink-0"
             >
               <Pencil className="w-5 h-5" />
-              <span>Rediger</span>
+              <span>Rediger hold</span>
             </button>
             <button
-              onClick={handleStart}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                console.log('[CompetitionStart] Start stevne button clicked');
+                handleStart();
+              }}
               disabled={starting || !selectedTableId || clickTables.length === 0}
               className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-4 px-6 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-lg"
             >
