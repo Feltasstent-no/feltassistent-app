@@ -272,13 +272,24 @@ export function MatchActive() {
     if (!e.target.files || e.target.files.length === 0 || !currentHold || !user) return;
 
     const file = e.target.files[0];
-    const { error } = await uploadMonitorPhoto(currentHold.id, user.id, file);
+    console.log('[MatchActive] handlePhotoSelected:', {
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+      holdId: currentHold.id,
+    });
+
+    const { url, error } = await uploadMonitorPhoto(currentHold.id, user.id, file);
 
     if (error) {
-      alert('Kunne ikke laste opp bilde: ' + error.message);
+      console.error('[MatchActive] photo upload error:', error);
+      alert('Kunne ikke laste opp bilde: ' + (error.message || JSON.stringify(error)));
     } else {
+      console.log('[MatchActive] photo upload OK, stored path:', url);
       alert('Bilde lastet opp!');
     }
+
+    e.target.value = '';
   };
 
   if (loading) {

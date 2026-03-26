@@ -283,12 +283,12 @@ export async function uploadMonitorPhoto(
   userId: string,
   imageBlob: Blob
 ): Promise<{ url: string | null; error: any }> {
-  const fileName = `${userId}/${holdId}_${Date.now()}.jpg`;
+  const storagePath = `${userId}/${holdId}_${Date.now()}.jpg`;
 
   console.log('[match-service] uploadMonitorPhoto:', {
     holdId,
     userId,
-    fileName,
+    storagePath,
     blobSize: imageBlob.size,
     blobType: imageBlob.type,
   });
@@ -297,11 +297,11 @@ export async function uploadMonitorPhoto(
     ? imageBlob
     : new Blob([imageBlob], { type: 'image/jpeg' });
 
-  const { data: uploadData, error: uploadError } = await supabase.storage
+  const { error: uploadError } = await supabase.storage
     .from('monitor-photos')
-    .upload(fileName, uploadBlob, {
+    .upload(storagePath, uploadBlob, {
       contentType: 'image/jpeg',
-      upsert: false,
+      upsert: true,
     });
 
   if (uploadError) {
@@ -309,25 +309,20 @@ export async function uploadMonitorPhoto(
     return { url: null, error: uploadError };
   }
 
-  console.log('[match-service] uploadMonitorPhoto storage OK');
-
-  const { data: publicUrlData } = supabase.storage
-    .from('monitor-photos')
-    .getPublicUrl(fileName);
-
-  const publicUrl = publicUrlData.publicUrl;
-  console.log('[match-service] uploadMonitorPhoto publicUrl:', publicUrl);
+  console.log('[match-service] uploadMonitorPhoto storage OK, path:', storagePath);
 
   const { error: dbError } = await supabase
     .from('match_holds')
-    .update({ monitor_image_url: publicUrl })
+    .update({ monitor_image_url: storagePath })
     .eq('id', holdId);
 
   if (dbError) {
     console.error('[match-service] uploadMonitorPhoto DB update FAILED:', dbError);
+    return { url: null, error: dbError };
   }
 
-  return { url: publicUrl, error: null };
+  console.log('[match-service] uploadMonitorPhoto DB saved path:', storagePath);
+  return { url: storagePath, error: null };
 }
 
 export async function getMatchHistory(userId: string, limit: number = 20): Promise<MatchSession[]> {
@@ -678,13 +673,42 @@ export async function getMatchHoldImages(sessionId: string): Promise<Array<{
 
   if (!data) return [];
 
-  return data
-    .filter((h: any) => h.monitor_image_url)
-    .map((h: any) => ({
-      holdId: h.id,
-      orderIndex: h.order_index,
-      imageUrl: h.monitor_image_url,
-      figureName: h.field_figure?.name || 'Ukjent',
-      distanceM: h.distance_m || 0,
-    }));
+  const holdsWithImages = data.filter((h: any) => h.monitor_image_url);
+
+  if (holdsWithImages.length === 0) return [];
+
+  const paths = holdsWithImages.map((h: any) => h.monitor_image_url as string);
+
+  const resolvedUrls = await resolveMonitorImageUrls(paths);
+
+  return holdsWithImages.map((h: any, i: number) => ({
+    holdId: h.id,
+    orderIndex: h.order_index,
+    imageUrl: resolvedUrls[i],
+    figureName: h.field_figure?.name || 'Ukjent',
+    distanceM: h.distance_m || 0,
+  }));
+}
+
+async function resolveMonitorImageUrls(storedValues: string[]): Promise<string[]> {
+  return Promise.all(storedValues.map(async (stored) => {
+    if (stored.startsWith('http://') || stored.startsWith('https://')) {
+      console.log('[match-service] resolveImage: legacy full URL, using as-is:', stored);
+      return stored;
+    }
+
+    const { data, error } = await supabase.storage
+      .from('monitor-photos')
+      .createSignedUrl(stored, 3600);
+
+    if (error || !data?.signedUrl) {
+      console.error('[match-service] resolveImage: signedUrl FAILED for path:', stored, error);
+      const { data: pub } = supabase.storage.from('monitor-photos').getPublicUrl(stored);
+      console.log('[match-service] resolveImage: falling back to publicUrl:', pub.publicUrl);
+      return pub.publicUrl;
+    }
+
+    console.log('[match-service] resolveImage: signedUrl OK for path:', stored);
+    return data.signedUrl;
+  }));
 }
