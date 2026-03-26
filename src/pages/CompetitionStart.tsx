@@ -155,7 +155,7 @@ export function CompetitionStart() {
       <div className="max-w-4xl pb-20 md:pb-8">
         <div className="mb-6">
           <button
-            onClick={() => navigate('/competitions')}
+            onClick={() => navigate(`/competitions/${competitionId}`)}
             className="flex items-center space-x-2 text-slate-600 hover:text-slate-900 mb-4"
           >
             <ArrowLeft className="w-5 h-5" />

@@ -30,7 +30,6 @@ export function CompetitionSummary() {
   const [deleting, setDeleting] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<{ url: string; alt: string } | null>(null);
-  const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (entryId) {
@@ -84,25 +83,6 @@ export function CompetitionSummary() {
 
     if (imagesRes.data) {
       setStageImages(imagesRes.data);
-
-      const withPaths = imagesRes.data.filter((img) => img.storage_path);
-      if (withPaths.length > 0) {
-        const urlMap: Record<string, string> = {};
-        await Promise.all(
-          withPaths.map(async (img) => {
-            const { data, error } = await supabase.storage
-              .from('monitor-photos')
-              .createSignedUrl(img.storage_path!, 3600);
-            if (error) {
-              console.error('[CompetitionSummary] createSignedUrl failed for', img.storage_path, error);
-            }
-            if (data?.signedUrl && !error) {
-              urlMap[img.storage_path!] = data.signedUrl;
-            }
-          })
-        );
-        setSignedUrls(urlMap);
-      }
     }
 
     setLoading(false);
@@ -264,7 +244,7 @@ export function CompetitionSummary() {
             const figure = figures.find((f) => f.id === stage.field_figure_id);
             const stageImage = stageImages.find((img) => img.stage_number === stage.stage_number);
             const resolvedImageUrl = stageImage?.storage_path
-              ? signedUrls[stageImage.storage_path] || null
+              ? supabase.storage.from('monitor-photos').getPublicUrl(stageImage.storage_path).data.publicUrl
               : null;
 
             return (

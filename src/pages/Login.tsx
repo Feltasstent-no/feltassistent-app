@@ -38,7 +38,7 @@ export function Login() {
             <div className="inline-flex items-center justify-center w-16 h-16 bg-emerald-600 rounded-full mb-4">
               <Target className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-3xl font-bold text-slate-900">DFS Trening</h1>
+            <h1 className="text-3xl font-bold text-slate-900">Felt Assistent'n</h1>
             <p className="text-slate-600 mt-2">Logg inn for å fortsette</p>
           </div>
 

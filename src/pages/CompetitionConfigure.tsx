@@ -480,7 +480,7 @@ export default function CompetitionConfigure() {
             className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:cursor-not-allowed rounded transition-colors sm:ml-auto"
           >
             <Save className="w-5 h-5" />
-            {saving ? 'Lagrer...' : 'Lagre stevne'}
+            {saving ? 'Lagrer...' : 'Lagre hold'}
           </button>
         </div>
       </div>

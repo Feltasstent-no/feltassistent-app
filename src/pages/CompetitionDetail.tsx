@@ -4,7 +4,7 @@ import { Layout } from '../components/Layout';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Competition, CompetitionStage, Discipline } from '../types/database';
-import { Trophy, Calendar, MapPin, CreditCard as Edit2, Play, List, Target } from 'lucide-react';
+import { Trophy, Calendar, MapPin, Pencil, Play, List, Target } from 'lucide-react';
 
 export function CompetitionDetail() {
   const { competitionId } = useParams();
@@ -92,7 +92,7 @@ export function CompetitionDetail() {
                     onClick={() => navigate(`/competitions/${competitionId}/configure`)}
                     className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium flex items-center space-x-2 flex-shrink-0 w-full sm:w-auto justify-center"
                   >
-                    <Edit2 className="w-4 h-4" />
+                    <Pencil className="w-4 h-4" />
                     <span>Fortsett oppsett</span>
                   </button>
                 )}
@@ -223,19 +223,12 @@ export function CompetitionDetail() {
                   {isOwner && (
                     <Link
                       to={`/competitions/${competitionId}/configure`}
-                      className="flex-1 px-4 sm:px-6 py-3 border border-slate-300 rounded-lg font-semibold text-slate-700 hover:bg-slate-50 transition text-center"
+                      className="flex-1 px-4 sm:px-6 py-3 border border-emerald-400 bg-emerald-50 rounded-lg font-semibold text-emerald-800 hover:bg-emerald-100 transition text-center"
                     >
-                      <Edit2 className="w-4 h-4 inline mr-2" />
+                      <Pencil className="w-4 h-4 inline mr-2" />
                       Rediger hold
                     </Link>
                   )}
-                  <Link
-                    to={`/competitions/${competitionId}/start`}
-                    className="flex-1 px-4 sm:px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold transition text-center"
-                  >
-                    <Play className="w-4 h-4 inline mr-2" />
-                    Start feltløype
-                  </Link>
                 </div>
               </>
             )}

@@ -4,12 +4,11 @@ import { useAuth } from '../../contexts/AuthContext';
 import { CompetitionStageImage } from '../../types/database';
 import { Camera, Upload, X, Check, FileText } from 'lucide-react';
 
-async function getSignedImageUrl(storagePath: string): Promise<string | null> {
-  const { data, error } = await supabase.storage
+function getPublicImageUrl(storagePath: string): string {
+  const { data } = supabase.storage
     .from('monitor-photos')
-    .createSignedUrl(storagePath, 3600);
-  if (error || !data?.signedUrl) return null;
-  return data.signedUrl;
+    .getPublicUrl(storagePath);
+  return data.publicUrl;
 }
 
 function convertToJpeg(file: File, maxWidth = 2048): Promise<Blob> {
@@ -30,12 +29,18 @@ function convertToJpeg(file: File, maxWidth = 2048): Promise<Blob> {
       if (!ctx) { reject(new Error('Canvas not supported')); return; }
       ctx.drawImage(img, 0, 0, width, height);
       canvas.toBlob(
-        (blob) => blob ? resolve(blob) : reject(new Error('Conversion failed')),
+        (blob) => {
+          if (blob && blob.size > 0) {
+            resolve(blob);
+          } else {
+            reject(new Error('Bildekonvertering feilet'));
+          }
+        },
         'image/jpeg',
         0.85,
       );
     };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not read image')); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Kunne ikke lese bildet')); };
     img.src = url;
   });
 }
@@ -61,50 +66,53 @@ export function HoldImageUpload({
   const [notes, setNotes] = useState(existingImage?.notes || '');
   const [savingNotes, setSavingNotes] = useState(false);
   const [displayUrl, setDisplayUrl] = useState<string | null>(null);
+  const [localPreview, setLocalPreview] = useState<string | null>(null);
 
   useEffect(() => {
     setNotes(existingImage?.notes || '');
   }, [existingImage]);
 
   useEffect(() => {
-    let cancelled = false;
     if (existingImage?.storage_path) {
-      getSignedImageUrl(existingImage.storage_path).then((url) => {
-        if (!cancelled) setDisplayUrl(url);
-      });
-    } else {
+      setDisplayUrl(getPublicImageUrl(existingImage.storage_path));
+      setLocalPreview(null);
+    } else if (!localPreview) {
       setDisplayUrl(null);
     }
-    return () => { cancelled = true; };
   }, [existingImage?.storage_path]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !user) return;
 
-    if (!file.type.startsWith('image/')) {
-      setError('Vennligst velg en bildefil');
-      return;
-    }
-
     setUploading(true);
     setError(null);
     setSuccess(false);
 
     try {
-      const jpegBlob = await convertToJpeg(file);
+      let uploadBlob: Blob;
+      try {
+        uploadBlob = await convertToJpeg(file);
+      } catch {
+        uploadBlob = file;
+      }
+
       const timestamp = Date.now();
-      const storagePath = `${user.id}/entries/${entryId}/stage-${stageNumber}-${timestamp}.jpg`;
+      const ext = uploadBlob.type === 'image/jpeg' ? 'jpg' : 'jpg';
+      const storagePath = `${user.id}/entries/${entryId}/stage-${stageNumber}-${timestamp}.${ext}`;
 
       const { error: uploadError } = await supabase.storage
         .from('monitor-photos')
-        .upload(storagePath, jpegBlob, {
+        .upload(storagePath, uploadBlob, {
           cacheControl: '3600',
           upsert: false,
-          contentType: 'image/jpeg',
+          contentType: uploadBlob.type || 'image/jpeg',
         });
 
       if (uploadError) throw uploadError;
+
+      const preview = URL.createObjectURL(file);
+      setLocalPreview(preview);
 
       if (existingImage) {
         const { error: updateError } = await supabase
@@ -145,7 +153,8 @@ export function HoldImageUpload({
         onImageUploaded();
       }
     } catch (err: any) {
-      console.error('Error uploading image:', err);
+      console.error('Upload error:', err);
+      setLocalPreview(null);
       setError(err.message || 'Kunne ikke laste opp bilde');
     } finally {
       setUploading(false);
@@ -175,11 +184,14 @@ export function HoldImageUpload({
           .remove([existingImage.storage_path]);
       }
 
+      setLocalPreview(null);
+      setDisplayUrl(null);
+
       if (onImageUploaded) {
         onImageUploaded();
       }
     } catch (err: any) {
-      console.error('Error deleting image:', err);
+      console.error('Delete error:', err);
       setError(err.message || 'Kunne ikke slette bilde');
     } finally {
       setUploading(false);
@@ -217,12 +229,15 @@ export function HoldImageUpload({
         onImageUploaded();
       }
     } catch (err: any) {
-      console.error('Error saving notes:', err);
+      console.error('Save notes error:', err);
       setError(err.message || 'Kunne ikke lagre notater');
     } finally {
       setSavingNotes(false);
     }
   };
+
+  const imageUrl = displayUrl || localPreview;
+  const hasImage = (existingImage?.storage_path && imageUrl) || localPreview;
 
   return (
     <div className="bg-white rounded-lg p-4 border border-slate-200">
@@ -233,11 +248,11 @@ export function HoldImageUpload({
         </h3>
       </div>
 
-      {existingImage && existingImage.storage_path && displayUrl ? (
+      {hasImage && imageUrl ? (
         <div className="space-y-3">
           <div className="relative rounded-lg overflow-hidden border border-slate-200">
             <img
-              src={displayUrl}
+              src={imageUrl}
               alt="Gravlapp"
               className="w-full h-48 object-cover"
             />
@@ -259,7 +274,7 @@ export function HoldImageUpload({
               Lagret
             </span>
             <span>
-              {existingImage.uploaded_at &&
+              {existingImage?.uploaded_at &&
                 new Date(existingImage.uploaded_at).toLocaleTimeString('nb-NO', {
                   hour: '2-digit',
                   minute: '2-digit',
@@ -306,7 +321,7 @@ export function HoldImageUpload({
       />
 
       {error && (
-        <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+        <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 font-medium">
           {error}
         </div>
       )}
@@ -327,7 +342,7 @@ export function HoldImageUpload({
         </div>
 
         <p className="text-sm text-slate-600 mb-3">
-          Notér observasjoner, vind, eller andre detaljer fra dette holdet
+          Noter observasjoner, vind, eller andre detaljer fra dette holdet
         </p>
 
         <textarea

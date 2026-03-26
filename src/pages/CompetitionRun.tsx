@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { useWakeLock } from '../lib/use-wake-lock';
 import {
   Competition,
   CompetitionEntry,
@@ -27,6 +28,8 @@ export function CompetitionRun() {
   const [stageImages, setStageImages] = useState<CompetitionStageImage[]>([]);
   const [showPreMatchNote, setShowPreMatchNote] = useState(false);
   const [showPostMatchNote, setShowPostMatchNote] = useState(false);
+
+  useWakeLock(!loading && !!entry && entry.status !== 'completed');
 
   useEffect(() => {
     loadData();
