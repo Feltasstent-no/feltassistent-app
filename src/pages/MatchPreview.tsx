@@ -234,12 +234,7 @@ export function MatchPreview() {
       <div className="max-w-3xl mx-auto pb-56 md:pb-8">
         <button
           type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            console.log('[MatchPreview] back arrow clicked, navigating to /match/' + id + '/configure');
-            navigate(`/match/${id}/configure`);
-          }}
+          onClick={() => navigate(`/match/${id}/configure`)}
           className="flex items-center gap-2 text-slate-500 hover:text-slate-800 mb-4 py-2 pr-4 -ml-2 pl-2 rounded-lg active:bg-slate-100 transition text-sm"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -309,24 +304,14 @@ export function MatchPreview() {
             <div className="flex flex-col-reverse sm:flex-row gap-3">
               <button
                 type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  console.log('[MatchPreview] Rediger button clicked, navigating to configure');
-                  navigate(`/match/${id}/configure`);
-                }}
+                onClick={() => navigate(`/match/${id}/configure`)}
                 className="w-full sm:w-auto px-6 py-3.5 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 font-semibold rounded-xl transition text-sm"
               >
                 Rediger hold
               </button>
               <button
                 type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  console.log('[MatchPreview] Bekreft og start clicked, navigating to /match/' + id);
-                  navigate(`/match/${id}`);
-                }}
+                onClick={() => navigate(`/match/${id}`)}
                 className="w-full sm:flex-1 flex items-center justify-center gap-2.5 py-3.5 text-lg font-bold rounded-xl transition shadow-lg active:scale-[0.98] bg-emerald-600 hover:bg-emerald-700 text-white"
               >
                 <Play className="w-5 h-5" />

@@ -70,8 +70,8 @@ export function MatchConfigure() {
         return;
       }
 
-      if (sessionData.status === 'in_progress') {
-        navigate(`/match/${id}`);
+      if (sessionData.status === 'completed') {
+        navigate(`/match/${id}/summary`);
         return;
       }
 
