@@ -362,7 +362,7 @@ export function CompetitionStart() {
 
           <div className="flex gap-3">
             <button
-              onClick={() => navigate(`/competitions/${competitionId}/configure`)}
+              onClick={() => navigate(`/competitions/${competitionId}/configure?from=start`)}
               className="px-5 py-4 border border-slate-300 rounded-lg font-semibold text-slate-700 hover:bg-slate-50 transition flex items-center justify-center space-x-2 flex-shrink-0"
             >
               <Pencil className="w-5 h-5" />

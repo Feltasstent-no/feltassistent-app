@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Plus, Save, Info, AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -9,6 +9,7 @@ import { StageConfigCard } from '../components/StageConfigCard';
 export default function CompetitionConfigure() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -349,7 +350,12 @@ export default function CompetitionConfigure() {
     }
 
     setSaving(false);
-    navigate(`/competitions/${id}`);
+    const from = searchParams.get('from');
+    if (from === 'start') {
+      navigate(`/competitions/${id}/start`);
+    } else {
+      navigate(`/competitions/${id}`);
+    }
   };
 
   if (loading) {
@@ -372,7 +378,14 @@ export default function CompetitionConfigure() {
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center gap-3 sm:gap-4 mb-6">
           <button
-            onClick={() => navigate(`/competitions/${id}`)}
+            onClick={() => {
+              const from = searchParams.get('from');
+              if (from === 'start') {
+                navigate(`/competitions/${id}/start`);
+              } else {
+                navigate(`/competitions/${id}`);
+              }
+            }}
             className="p-2 hover:bg-gray-800 rounded transition-colors"
           >
             <ArrowLeft className="w-6 h-6" />

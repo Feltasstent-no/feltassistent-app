@@ -261,8 +261,8 @@ export function CompetitionSummary() {
             const figure = figures.find((f) => f.id === stage.field_figure_id);
             const stageImage = stageImages.find((img) => img.stage_number === stage.stage_number);
             const resolvedImageUrl = stageImage?.storage_path
-              ? signedUrls[stageImage.storage_path] || null
-              : null;
+              ? signedUrls[stageImage.storage_path] || stageImage.image_url || null
+              : stageImage?.image_url || null;
 
             return (
               <div
