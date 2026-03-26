@@ -52,7 +52,7 @@ export async function deleteCompetition(
 
         if (paths.length > 0) {
           const { data: removedFiles, error: storageError } = await supabase.storage
-            .from('competition-images')
+            .from('monitor-photos')
             .remove(paths);
 
           if (!storageError && removedFiles) {
@@ -113,7 +113,7 @@ export async function deleteCompetitionEntry(
 
       if (paths.length > 0) {
         const { data: removedFiles, error: storageError } = await supabase.storage
-          .from('competition-images')
+          .from('monitor-photos')
           .remove(paths);
 
         if (!storageError && removedFiles) {

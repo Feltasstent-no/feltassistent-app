@@ -91,8 +91,11 @@ export function CompetitionSummary() {
         await Promise.all(
           withPaths.map(async (img) => {
             const { data, error } = await supabase.storage
-              .from('target-images')
+              .from('monitor-photos')
               .createSignedUrl(img.storage_path!, 3600);
+            if (error) {
+              console.error('[CompetitionSummary] createSignedUrl failed for', img.storage_path, error);
+            }
             if (data?.signedUrl && !error) {
               urlMap[img.storage_path!] = data.signedUrl;
             }
@@ -261,8 +264,8 @@ export function CompetitionSummary() {
             const figure = figures.find((f) => f.id === stage.field_figure_id);
             const stageImage = stageImages.find((img) => img.stage_number === stage.stage_number);
             const resolvedImageUrl = stageImage?.storage_path
-              ? signedUrls[stageImage.storage_path] || stageImage.image_url || null
-              : stageImage?.image_url || null;
+              ? signedUrls[stageImage.storage_path] || null
+              : null;
 
             return (
               <div

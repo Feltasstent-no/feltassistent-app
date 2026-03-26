@@ -6,10 +6,38 @@ import { Camera, Upload, X, Check, FileText } from 'lucide-react';
 
 async function getSignedImageUrl(storagePath: string): Promise<string | null> {
   const { data, error } = await supabase.storage
-    .from('target-images')
+    .from('monitor-photos')
     .createSignedUrl(storagePath, 3600);
   if (error || !data?.signedUrl) return null;
   return data.signedUrl;
+}
+
+function convertToJpeg(file: File, maxWidth = 2048): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width > maxWidth) {
+        height = Math.round(height * (maxWidth / width));
+        width = maxWidth;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { reject(new Error('Canvas not supported')); return; }
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => blob ? resolve(blob) : reject(new Error('Conversion failed')),
+        'image/jpeg',
+        0.85,
+      );
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not read image')); };
+    img.src = url;
+  });
 }
 
 interface HoldImageUploadProps {
@@ -64,29 +92,26 @@ export function HoldImageUpload({
     setSuccess(false);
 
     try {
+      const jpegBlob = await convertToJpeg(file);
       const timestamp = Date.now();
-      const fileExt = file.name.split('.').pop();
-      const storagePath = `${user.id}/entries/${entryId}/stage-${stageNumber}-${timestamp}.${fileExt}`;
+      const storagePath = `${user.id}/entries/${entryId}/stage-${stageNumber}-${timestamp}.jpg`;
 
       const { error: uploadError } = await supabase.storage
-        .from('target-images')
-        .upload(storagePath, file, {
+        .from('monitor-photos')
+        .upload(storagePath, jpegBlob, {
           cacheControl: '3600',
           upsert: false,
+          contentType: 'image/jpeg',
         });
 
       if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('target-images')
-        .getPublicUrl(storagePath);
 
       if (existingImage) {
         const { error: updateError } = await supabase
           .from('competition_stage_images')
           .update({
             storage_path: storagePath,
-            image_url: publicUrl,
+            image_url: null,
             uploaded_at: new Date().toISOString(),
           })
           .eq('id', existingImage.id);
@@ -95,7 +120,7 @@ export function HoldImageUpload({
 
         if (existingImage.storage_path) {
           await supabase.storage
-            .from('target-images')
+            .from('monitor-photos')
             .remove([existingImage.storage_path]);
         }
       } else {
@@ -106,7 +131,7 @@ export function HoldImageUpload({
             stage_number: stageNumber,
             user_id: user.id,
             storage_path: storagePath,
-            image_url: publicUrl,
+            image_url: null,
             uploaded_at: new Date().toISOString(),
           });
 
@@ -146,7 +171,7 @@ export function HoldImageUpload({
 
       if (existingImage.storage_path) {
         await supabase.storage
-          .from('target-images')
+          .from('monitor-photos')
           .remove([existingImage.storage_path]);
       }
 
