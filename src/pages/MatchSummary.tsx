@@ -17,7 +17,7 @@ import { getAutoDeductInventory, deductAmmoFromInventory } from '../lib/ammo-inv
 import { supabase } from '../lib/supabase';
 import {
   ArrowLeft, CheckCircle, Clock, Wind, Camera,
-  Trophy, X, Save, CreditCard as Edit3, Package, Check, Minus, Pencil, Target,
+  Trophy, X, Save, CreditCard as Edit3, Package, Check, Minus, Pencil, Target, ImageOff,
 } from 'lucide-react';
 import { BulletIcon } from '../components/BulletIcon';
 import { FieldFigureSvg } from '../components/FieldFigureSvg';
@@ -58,6 +58,7 @@ export function MatchSummary() {
   const [savingShots, setSavingShots] = useState(false);
 
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
 
   const [ammoDeductionState, setAmmoDeductionState] = useState<
     'idle' | 'pending' | 'adjusting' | 'done'
@@ -86,6 +87,13 @@ export function MatchSummary() {
     setHolds(holdsData);
     setStats(statsData);
     setHoldImages(imagesData);
+
+    console.log('[MatchSummary] holdImages loaded:', imagesData.map(img => ({
+      holdId: img.holdId,
+      orderIndex: img.orderIndex,
+      imageUrl: img.imageUrl,
+      figureName: img.figureName,
+    })));
 
     if (sessionData) {
       setTotalHits(sessionData.total_hits != null ? String(sessionData.total_hits) : '');
@@ -685,25 +693,48 @@ export function MatchSummary() {
               <span className="text-xs text-slate-400 ml-auto">{holdImages.length} bilder</span>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              {holdImages.map((img) => (
-                <button
-                  key={img.holdId}
-                  onClick={() => setLightboxUrl(img.imageUrl)}
-                  className="group relative rounded-lg overflow-hidden border border-slate-200 hover:border-blue-400 transition aspect-[4/3]"
-                >
-                  <img
-                    src={img.imageUrl}
-                    alt={`Hold ${img.orderIndex + 1}`}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-2">
-                    <p className="text-white text-xs font-medium">
-                      Hold {img.orderIndex + 1} &middot; {img.distanceM}m
-                    </p>
-                    <p className="text-white/70 text-[10px]">{img.figureName}</p>
-                  </div>
-                </button>
-              ))}
+              {holdImages.map((img) => {
+                const isFailed = failedImages.has(img.holdId);
+                return (
+                  <button
+                    key={img.holdId}
+                    onClick={() => !isFailed && setLightboxUrl(img.imageUrl)}
+                    className={`group relative rounded-lg overflow-hidden border transition aspect-[4/3] ${
+                      isFailed
+                        ? 'border-slate-200 bg-slate-50 cursor-default'
+                        : 'border-slate-200 hover:border-blue-400'
+                    }`}
+                  >
+                    {isFailed ? (
+                      <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
+                        <ImageOff className="w-6 h-6 mb-1" />
+                        <span className="text-xs">Kunne ikke laste</span>
+                      </div>
+                    ) : (
+                      <img
+                        src={img.imageUrl}
+                        alt={`Hold ${img.orderIndex + 1}`}
+                        className="w-full h-full object-cover"
+                        onLoad={() => console.log('[MatchSummary] image loaded OK:', img.holdId)}
+                        onError={(e) => {
+                          console.error('[MatchSummary] image FAILED:', {
+                            holdId: img.holdId,
+                            src: e.currentTarget.src,
+                            currentSrc: e.currentTarget.currentSrc,
+                          });
+                          setFailedImages(prev => new Set(prev).add(img.holdId));
+                        }}
+                      />
+                    )}
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-2">
+                      <p className="text-white text-xs font-medium">
+                        Hold {img.orderIndex + 1} &middot; {img.distanceM}m
+                      </p>
+                      <p className="text-white/70 text-[10px]">{img.figureName}</p>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
@@ -917,6 +948,11 @@ export function MatchSummary() {
             alt="Forstørret bilde"
             className="max-w-full max-h-[85vh] object-contain rounded-lg"
             onClick={(e) => e.stopPropagation()}
+            onError={(e) => {
+              console.error('[MatchSummary] lightbox image FAILED:', {
+                src: e.currentTarget.src,
+              });
+            }}
           />
         </div>
       )}

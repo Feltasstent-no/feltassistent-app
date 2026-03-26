@@ -80,7 +80,7 @@ export function EditHoldModal({
             Redigere hold?
           </h3>
           <p className="text-sm text-slate-600 text-center mb-6">
-            Dette bor kun gjores ved feil.
+            Dette b{'\u00f8'}r kun gj{'\u00f8'}res ved feil.
           </p>
           <div className="flex gap-3">
             <button

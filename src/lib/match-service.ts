@@ -285,27 +285,49 @@ export async function uploadMonitorPhoto(
 ): Promise<{ url: string | null; error: any }> {
   const fileName = `${userId}/${holdId}_${Date.now()}.jpg`;
 
+  console.log('[match-service] uploadMonitorPhoto:', {
+    holdId,
+    userId,
+    fileName,
+    blobSize: imageBlob.size,
+    blobType: imageBlob.type,
+  });
+
+  const uploadBlob = imageBlob.type === 'image/jpeg'
+    ? imageBlob
+    : new Blob([imageBlob], { type: 'image/jpeg' });
+
   const { data: uploadData, error: uploadError } = await supabase.storage
     .from('monitor-photos')
-    .upload(fileName, imageBlob, {
+    .upload(fileName, uploadBlob, {
       contentType: 'image/jpeg',
       upsert: false,
     });
 
   if (uploadError) {
+    console.error('[match-service] uploadMonitorPhoto FAILED:', uploadError);
     return { url: null, error: uploadError };
   }
+
+  console.log('[match-service] uploadMonitorPhoto storage OK');
 
   const { data: publicUrlData } = supabase.storage
     .from('monitor-photos')
     .getPublicUrl(fileName);
 
-  await supabase
+  const publicUrl = publicUrlData.publicUrl;
+  console.log('[match-service] uploadMonitorPhoto publicUrl:', publicUrl);
+
+  const { error: dbError } = await supabase
     .from('match_holds')
-    .update({ monitor_image_url: publicUrlData.publicUrl })
+    .update({ monitor_image_url: publicUrl })
     .eq('id', holdId);
 
-  return { url: publicUrlData.publicUrl, error: null };
+  if (dbError) {
+    console.error('[match-service] uploadMonitorPhoto DB update FAILED:', dbError);
+  }
+
+  return { url: publicUrl, error: null };
 }
 
 export async function getMatchHistory(userId: string, limit: number = 20): Promise<MatchSession[]> {

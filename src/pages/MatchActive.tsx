@@ -8,6 +8,7 @@ import { ResetReminder } from '../components/match/ResetReminder';
 import { HoldProgress } from '../components/match/HoldProgress';
 import { EditHoldModal } from '../components/match/EditHoldModal';
 import { useBlockNavigation } from '../lib/use-block-navigation';
+import { useWakeLock } from '../lib/use-wake-lock';
 import {
   getMatchSession,
   getMatchHolds,
@@ -47,6 +48,8 @@ export function MatchActive() {
     clockStarted && !showResetReminder,
     'Du er midt i et hold. Klokken vil starte på nytt hvis du forlater.'
   );
+
+  useWakeLock(!loading && !!session && session.status !== 'completed');
 
   useEffect(() => {
     fetchData();
