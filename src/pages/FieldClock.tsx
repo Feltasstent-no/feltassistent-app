@@ -1,8 +1,8 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { Layout } from '../components/Layout';
 import { supabase } from '../lib/supabase';
 import { FieldClockPreset } from '../types/database';
-import { Play, Pause, RotateCcw, Maximize, X } from 'lucide-react';
+import { Play, Pause, RotateCcw, X } from 'lucide-react';
 
 export function FieldClock() {
   const [presets, setPresets] = useState<FieldClockPreset[]>([]);
@@ -13,37 +13,28 @@ export function FieldClock() {
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
   const [phase, setPhase] = useState<'idle' | 'prep_normal' | 'prep_warning' | 'shooting_start' | 'shooting' | 'shooting_warning' | 'shooting_critical' | 'finished'>('idle');
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const intervalRef = useRef<number | null>(null);
   const wakeLockRef = useRef<any>(null);
-  const exitFullscreenTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     fetchPresets();
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
-      if (exitFullscreenTimeoutRef.current) clearTimeout(exitFullscreenTimeoutRef.current);
       releaseWakeLock();
     };
   }, []);
 
-  useEffect(() => {
-    if (phase === 'finished' && isFullscreen && !isRunning) {
-      exitFullscreenTimeoutRef.current = window.setTimeout(() => {
-        if (document.fullscreenElement) {
-          document.exitFullscreen();
-          setIsFullscreen(false);
-        }
-      }, 10000);
+  const getWarningThreshold = useCallback(() => {
+    if (selectedPreset && selectedPreset.warning_seconds > 0) {
+      return selectedPreset.warning_seconds;
     }
+    return 10;
+  }, [selectedPreset]);
 
-    return () => {
-      if (exitFullscreenTimeoutRef.current) {
-        clearTimeout(exitFullscreenTimeoutRef.current);
-        exitFullscreenTimeoutRef.current = null;
-      }
-    };
-  }, [phase, isFullscreen, isRunning]);
+  const getPrepSeconds = useCallback(() => {
+    if (selectedPreset) return selectedPreset.prep_seconds;
+    return 15;
+  }, [selectedPreset]);
 
   useEffect(() => {
     if (isRunning) {
@@ -55,12 +46,13 @@ export function FieldClock() {
           }
 
           const newTime = prev - 1;
+          const warningThreshold = getWarningThreshold();
 
           if (phase === 'prep_normal' && newTime === 5) {
             setPhase('prep_warning');
           } else if (phase === 'shooting_start' && newTime === (customTimeSeconds || selectedPreset?.shoot_seconds || 0) - 2) {
             setPhase('shooting');
-          } else if (phase === 'shooting' && newTime === 10) {
+          } else if (phase === 'shooting' && newTime === warningThreshold) {
             setPhase('shooting_warning');
           } else if (phase === 'shooting_warning' && newTime === 3) {
             setPhase('shooting_critical');
@@ -86,7 +78,7 @@ export function FieldClock() {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [isRunning, phase, customTimeSeconds, selectedPreset]);
+  }, [isRunning, phase, customTimeSeconds, selectedPreset, getWarningThreshold]);
 
   const fetchPresets = async () => {
     const { data } = await supabase
@@ -229,8 +221,9 @@ export function FieldClock() {
     if (!selectedPreset && !customTimeSeconds) return;
 
     if (phase === 'idle') {
+      const prepTime = getPrepSeconds();
       setPhase('prep_normal');
-      setTimeRemaining(15);
+      setTimeRemaining(prepTime);
     }
 
     setIsRunning(true);
@@ -248,36 +241,6 @@ export function FieldClock() {
 
   const handlePresetSelect = (preset: FieldClockPreset) => {
     setSelectedPreset(preset);
-    handleReset();
-  };
-
-  const exitFullscreen = async () => {
-    if (document.fullscreenElement) {
-      try {
-        await document.exitFullscreen();
-      } catch (err) {
-        console.log('Exit fullscreen error:', err);
-      }
-    }
-    setIsFullscreen(false);
-  };
-
-  const toggleFullscreen = async () => {
-    if (!document.fullscreenElement) {
-      try {
-        await document.documentElement.requestFullscreen();
-        setIsFullscreen(true);
-      } catch (err) {
-        console.log('Fullscreen not supported or blocked:', err);
-      }
-    } else {
-      await exitFullscreen();
-    }
-  };
-
-  const handleExitButton = async () => {
-    setIsRunning(false);
-    await exitFullscreen();
     handleReset();
   };
 
@@ -353,78 +316,6 @@ export function FieldClock() {
     }
     return null;
   };
-
-  if (isFullscreen) {
-    const bgColor = getPhaseColor();
-    const phaseSubtext = getPhaseSubtext();
-    const timerClasses = getTimerColorClasses();
-
-    return (
-      <div className={`h-[100dvh] w-full flex flex-col ${bgColor} transition-colors duration-300 overflow-hidden`}>
-        <button
-          onClick={handleExitButton}
-          className="absolute top-3 left-3 sm:top-4 sm:left-4 p-2 sm:p-3 bg-white/20 hover:bg-white/30 rounded-full transition z-10"
-        >
-          <X className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-        </button>
-
-        <div className="flex-1 flex flex-col items-center justify-center text-center px-4 min-h-0 pb-safe">
-          <div className="mb-6 sm:mb-8 md:mb-10">
-            <p className="text-white text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold mb-3 sm:mb-4">{getPhaseText()}</p>
-            {phaseSubtext && (
-              <p className="text-white/80 text-xl sm:text-2xl md:text-3xl lg:text-4xl">{phaseSubtext}</p>
-            )}
-          </div>
-
-          <p className={`${timerClasses} text-8xl sm:text-9xl md:text-[12rem] lg:text-[16rem] font-bold tracking-tight transition-colors duration-300`}>
-            {formatTime(timeRemaining)}
-          </p>
-
-          {selectedPreset && (
-            <p className="text-white/70 text-base sm:text-lg md:text-xl lg:text-2xl mt-6 sm:mt-8 md:mt-10 line-clamp-1">{selectedPreset.name}</p>
-          )}
-        </div>
-
-        <div className="pb-safe pb-6 sm:pb-8 pt-4 flex justify-center space-x-3 sm:space-x-4 px-4 flex-shrink-0">
-          {!isRunning && phase !== 'finished' && (
-            <button
-              onClick={handleStart}
-              className="bg-white hover:bg-white/90 text-slate-900 p-4 sm:p-5 md:p-6 rounded-full transition shadow-2xl active:scale-95"
-            >
-              <Play className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" />
-            </button>
-          )}
-
-          {isRunning && (
-            <button
-              onClick={handlePause}
-              className="bg-white hover:bg-white/90 text-slate-900 p-4 sm:p-5 md:p-6 rounded-full transition shadow-2xl active:scale-95"
-            >
-              <Pause className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" />
-            </button>
-          )}
-
-          {phase === 'finished' && (
-            <button
-              onClick={handleReset}
-              className="bg-white hover:bg-white/90 text-slate-900 font-semibold px-6 sm:px-8 py-3 sm:py-4 rounded-full transition shadow-2xl active:scale-95 text-base sm:text-lg"
-            >
-              Start på nytt
-            </button>
-          )}
-
-          {phase !== 'finished' && (
-            <button
-              onClick={handleReset}
-              className="bg-white/20 hover:bg-white/30 text-white p-4 sm:p-5 md:p-6 rounded-full transition active:scale-95"
-            >
-              <RotateCcw className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" />
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  }
 
   const timerClasses = getTimerColorClasses();
 
@@ -523,10 +414,10 @@ export function FieldClock() {
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 text-center">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 text-center">
                 <div className="bg-blue-50 rounded-lg p-3 sm:p-4">
                   <p className="text-xs text-blue-600 font-medium mb-1">Forberedelse</p>
-                  <p className="text-xl sm:text-2xl font-bold text-blue-900">{formatDisplayTime(15)}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-blue-900">{formatDisplayTime(getPrepSeconds())}</p>
                 </div>
                 <div className="bg-emerald-50 rounded-lg p-3 sm:p-4">
                   <p className="text-xs text-emerald-600 font-medium mb-1">Skyting</p>
@@ -536,12 +427,6 @@ export function FieldClock() {
                   <div className="bg-amber-50 rounded-lg p-3 sm:p-4">
                     <p className="text-xs text-amber-600 font-medium mb-1">Advarsel</p>
                     <p className="text-xl sm:text-2xl font-bold text-amber-900">{formatDisplayTime(selectedPreset.warning_seconds)}</p>
-                  </div>
-                )}
-                {selectedPreset.cooldown_seconds > 0 && (
-                  <div className="bg-slate-50 rounded-lg p-3 sm:p-4">
-                    <p className="text-xs text-slate-600 font-medium mb-1">Nedkjøling</p>
-                    <p className="text-xl sm:text-2xl font-bold text-slate-900">{formatDisplayTime(selectedPreset.cooldown_seconds)}</p>
                   </div>
                 )}
               </div>
@@ -592,24 +477,13 @@ export function FieldClock() {
                 )}
 
                 {phase !== 'finished' && (
-                  <>
-                    <button
-                      onClick={handleReset}
-                      className="bg-white/20 hover:bg-white/30 text-white font-semibold px-5 sm:px-6 md:px-8 py-2.5 sm:py-3 md:py-4 rounded-full transition flex items-center space-x-2 active:scale-95"
-                    >
-                      <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
-                      <span className="text-sm sm:text-base">Nullstill</span>
-                    </button>
-
-                    <button
-                      onClick={toggleFullscreen}
-                      className="bg-white/20 hover:bg-white/30 text-white font-semibold px-5 sm:px-6 md:px-8 py-2.5 sm:py-3 md:py-4 rounded-full transition flex items-center space-x-2 active:scale-95"
-                    >
-                      <Maximize className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
-                      <span className="text-sm sm:text-base hidden sm:inline">Fullskjerm</span>
-                      <span className="text-sm sm:text-base sm:hidden">Full</span>
-                    </button>
-                  </>
+                  <button
+                    onClick={handleReset}
+                    className="bg-white/20 hover:bg-white/30 text-white font-semibold px-5 sm:px-6 md:px-8 py-2.5 sm:py-3 md:py-4 rounded-full transition flex items-center space-x-2 active:scale-95"
+                  >
+                    <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
+                    <span className="text-sm sm:text-base">Nullstill</span>
+                  </button>
                 )}
               </div>
             </div>

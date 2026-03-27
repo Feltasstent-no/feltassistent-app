@@ -1,19 +1,34 @@
-import { ReactNode } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { supabase } from '../lib/supabase';
 import { Home, User, BookOpen, Clock, Settings, LogOut, Trophy, Crosshair, ListOrdered, Activity, Compass, Shield, Sun, Moon, Palette, Target } from 'lucide-react';
 import { ApertureIconBadge } from './ApertureIconBadge';
+import { InitialsAvatar } from './InitialsAvatar';
 
 interface LayoutProps {
   children: ReactNode;
 }
 
 export function Layout({ children }: LayoutProps) {
-  const { signOut, isAdmin } = useAuth();
+  const { user, signOut, isAdmin } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
+  const [profileName, setProfileName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from('profiles')
+      .select('full_name')
+      .eq('id', user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.full_name) setProfileName(data.full_name);
+      });
+  }, [user]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -101,9 +116,9 @@ export function Layout({ children }: LayoutProps) {
               </Link>
               <Link
                 to="/profile"
-                className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition"
+                className="hover:opacity-80 transition"
               >
-                <User className="w-5 h-5" />
+                <InitialsAvatar name={profileName} size="sm" />
               </Link>
               <button
                 onClick={handleSignOut}

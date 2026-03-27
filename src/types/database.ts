@@ -487,6 +487,21 @@ export interface AmmoInventory {
   updated_at: string;
 }
 
+export interface FieldClockPreset {
+  id: string;
+  name: string;
+  discipline_code: string | null;
+  class_code: string | null;
+  prep_seconds: number;
+  shoot_seconds: number;
+  warning_seconds: number;
+  cooldown_seconds: number;
+  rule_reference: string | null;
+  rule_version: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
 export interface AmmoInventoryLog {
   id: string;
   ammo_inventory_id: string;
