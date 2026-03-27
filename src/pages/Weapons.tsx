@@ -140,16 +140,22 @@ export function Weapons() {
       .single();
 
     if (!error && data) {
+      let firstBarrelId: string | null = null;
       if (weaponForm.serial_number) {
-        await supabase.from('weapon_barrels').insert({
+        const { data: barrelData } = await supabase.from('weapon_barrels').insert({
           weapon_id: data.id,
           barrel_number: '1',
-          barrel_name: 'Løp 1',
+          barrel_name: '\u004C\u00F8p 1',
           serial_number: weaponForm.serial_number,
           installed_date: new Date().toISOString().split('T')[0],
           is_active: true,
           total_shots_fired: 0,
-        });
+        }).select('id').single();
+        if (barrelData) firstBarrelId = barrelData.id;
+      }
+
+      if (weapons.length === 0) {
+        await setWeapon(data.id, firstBarrelId);
       }
 
       await fetchWeapons();

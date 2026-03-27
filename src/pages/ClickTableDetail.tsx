@@ -20,12 +20,12 @@ export function ClickTableDetail() {
 
   const [formData, setFormData] = useState({
     name: '',
-    ammo: '',
+    ammo_type: '',
     caliber: '',
     bullet_weight: '',
     muzzle_velocity: '',
     zero_distance: '',
-    click_unit: '',
+    sight_info: '',
     notes: '',
   });
 
@@ -50,12 +50,12 @@ export function ClickTableDetail() {
       setTable(tableRes.data);
       setFormData({
         name: tableRes.data.name,
-        ammo: tableRes.data.ammo || '',
+        ammo_type: tableRes.data.ammo_type || '',
         caliber: tableRes.data.caliber || '',
         bullet_weight: tableRes.data.bullet_weight || '',
         muzzle_velocity: tableRes.data.muzzle_velocity?.toString() || '',
-        zero_distance: tableRes.data.zero_distance.toString(),
-        click_unit: tableRes.data.click_unit,
+        zero_distance: tableRes.data.zero_distance?.toString() || '100',
+        sight_info: tableRes.data.sight_info || '',
         notes: tableRes.data.notes || '',
       });
 
@@ -91,12 +91,12 @@ export function ClickTableDetail() {
       .from('click_tables')
       .update({
         name: formData.name,
-        ammo: formData.ammo || null,
+        ammo_type: formData.ammo_type || null,
         caliber: formData.caliber || null,
         bullet_weight: formData.bullet_weight || null,
-        muzzle_velocity: formData.muzzle_velocity ? parseInt(formData.muzzle_velocity) : null,
+        muzzle_velocity: formData.muzzle_velocity || null,
         zero_distance: parseInt(formData.zero_distance),
-        click_unit: formData.click_unit,
+        sight_info: formData.sight_info,
         notes: formData.notes || null,
       })
       .eq('id', table.id);
@@ -255,8 +255,8 @@ export function ClickTableDetail() {
                   <label className="block text-sm font-medium text-slate-700 mb-2">Ammunisjon</label>
                   <input
                     type="text"
-                    value={formData.ammo}
-                    onChange={(e) => setFormData({ ...formData, ammo: e.target.value })}
+                    value={formData.ammo_type}
+                    onChange={(e) => setFormData({ ...formData, ammo_type: e.target.value })}
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                   />
                 </div>
@@ -296,12 +296,14 @@ export function ClickTableDetail() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Knepp-enhet</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Siktetype</label>
                   <select
-                    value={formData.click_unit}
-                    onChange={(e) => setFormData({ ...formData, click_unit: e.target.value })}
+                    value={formData.sight_info}
+                    onChange={(e) => setFormData({ ...formData, sight_info: e.target.value })}
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                   >
+                    <option value="Busk Standard">Busk Standard (grovknepp)</option>
+                    <option value="Busk Finknepp">Busk Finknepp</option>
                     <option value="1/4 MOA">1/4 MOA</option>
                     <option value="1/2 MOA">1/2 MOA</option>
                     <option value="1 MOA">1 MOA</option>
@@ -329,10 +331,10 @@ export function ClickTableDetail() {
                   <p className="font-medium text-slate-900">{table.caliber}</p>
                 </div>
               )}
-              {table.ammo && (
+              {table.ammo_type && (
                 <div>
                   <p className="text-slate-500">Ammunisjon</p>
-                  <p className="font-medium text-slate-900">{table.ammo}</p>
+                  <p className="font-medium text-slate-900">{table.ammo_type}</p>
                 </div>
               )}
               {table.bullet_weight && (
@@ -351,10 +353,12 @@ export function ClickTableDetail() {
                 <p className="text-slate-500">Innskutt avstand</p>
                 <p className="font-medium text-slate-900">{table.zero_distance}m</p>
               </div>
-              <div>
-                <p className="text-slate-500">Knepp-enhet</p>
-                <p className="font-medium text-slate-900">{table.click_unit}</p>
-              </div>
+              {table.sight_info && (
+                <div>
+                  <p className="text-slate-500">Siktetype</p>
+                  <p className="font-medium text-slate-900">{table.sight_info}</p>
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -3,12 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { useActiveSetup } from '../contexts/ActiveSetupContext';
 import { Weapon, WeaponBarrel } from '../types/database';
 import { Save } from 'lucide-react';
 import { TabellIconBadge } from '../components/TabellIconBadge';
 
 export function NewClickTable() {
   const { user } = useAuth();
+  const { activeSetup, setClickTable } = useActiveSetup();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [weapons, setWeapons] = useState<Weapon[]>([]);
@@ -16,12 +18,12 @@ export function NewClickTable() {
 
   const [formData, setFormData] = useState({
     name: '',
-    ammo: '',
+    ammo_type: '',
     caliber: '',
     bullet_weight: '',
     muzzle_velocity: '',
     zero_distance: '100',
-    click_unit: '1/4 MOA',
+    sight_info: 'Busk Standard',
     weapon_id: '',
     barrel_id: '',
     notes: '',
@@ -70,12 +72,12 @@ export function NewClickTable() {
       .insert({
         user_id: user.id,
         name: formData.name,
-        ammo: formData.ammo || null,
+        ammo_type: formData.ammo_type || null,
         caliber: formData.caliber || null,
         bullet_weight: formData.bullet_weight || null,
-        muzzle_velocity: formData.muzzle_velocity ? parseInt(formData.muzzle_velocity) : null,
+        muzzle_velocity: formData.muzzle_velocity || null,
         zero_distance: parseInt(formData.zero_distance),
-        click_unit: formData.click_unit,
+        sight_info: formData.sight_info,
         weapon_id: formData.weapon_id || null,
         barrel_id: formData.barrel_id || null,
         notes: formData.notes || null,
@@ -92,6 +94,9 @@ export function NewClickTable() {
     }
 
     if (data) {
+      if (!activeSetup?.click_table_id) {
+        await setClickTable(data.id);
+      }
       navigate(`/click-tables/${data.id}`);
     }
   };
@@ -182,8 +187,8 @@ export function NewClickTable() {
               <label className="block text-sm font-medium text-slate-900 mb-2">Ammunisjon</label>
               <input
                 type="text"
-                value={formData.ammo}
-                onChange={(e) => setFormData({ ...formData, ammo: e.target.value })}
+                value={formData.ammo_type}
+                onChange={(e) => setFormData({ ...formData, ammo_type: e.target.value })}
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 placeholder="Norma Match"
               />
@@ -233,13 +238,15 @@ export function NewClickTable() {
 
             <div>
               <label className="block text-sm font-medium text-slate-900 mb-2">
-                Knepp-enhet
+                Siktetype
               </label>
               <select
-                value={formData.click_unit}
-                onChange={(e) => setFormData({ ...formData, click_unit: e.target.value })}
+                value={formData.sight_info}
+                onChange={(e) => setFormData({ ...formData, sight_info: e.target.value })}
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               >
+                <option value="Busk Standard">Busk Standard (grovknepp)</option>
+                <option value="Busk Finknepp">Busk Finknepp</option>
                 <option value="1/4 MOA">1/4 MOA</option>
                 <option value="1/2 MOA">1/2 MOA</option>
                 <option value="1 MOA">1 MOA</option>

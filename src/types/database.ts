@@ -282,9 +282,13 @@ export interface ClickTable {
   id: string;
   user_id: string;
   name: string;
+  ammo_type: string | null;
+  caliber: string | null;
+  bullet_weight: string | null;
+  muzzle_velocity: string | null;
+  sight_info: string | null;
   weapon_id: string | null;
   barrel_id: string | null;
-  discipline_id: string | null;
   zero_distance: number;
   click_value_cm_100m: number;
   wind_clicks_per_10ms_100m: number;

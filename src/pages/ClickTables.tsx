@@ -188,10 +188,10 @@ export function ClickTables() {
                           <p className="font-medium text-slate-900">{table.caliber}</p>
                         </div>
                       )}
-                      {table.ammo && (
+                      {table.ammo_type && (
                         <div>
                           <p className="text-slate-500">Ammunisjon</p>
-                          <p className="font-medium text-slate-900">{table.ammo}</p>
+                          <p className="font-medium text-slate-900">{table.ammo_type}</p>
                         </div>
                       )}
                       {table.bullet_weight && (
