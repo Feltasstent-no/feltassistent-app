@@ -436,6 +436,41 @@ export async function updateMatchHold(params: {
   return { error };
 }
 
+export async function addMatchHold(params: {
+  sessionId: string;
+  shootingTimeSeconds: number;
+  shotCount: number;
+}): Promise<{ hold: MatchHold | null; error: any }> {
+  const { data: existingHolds } = await supabase
+    .from('match_holds')
+    .select('order_index')
+    .eq('match_session_id', params.sessionId)
+    .order('order_index', { ascending: false })
+    .limit(1);
+
+  const nextIndex = existingHolds && existingHolds.length > 0
+    ? existingHolds[0].order_index + 1
+    : 0;
+
+  const { data, error } = await supabase
+    .from('match_holds')
+    .insert({
+      match_session_id: params.sessionId,
+      order_index: nextIndex,
+      shooting_time_seconds: params.shootingTimeSeconds,
+      shot_count: params.shotCount,
+      field_figure_id: null,
+      distance_m: null,
+      recommended_clicks: null,
+      wind_correction_clicks: 0,
+      completed: false,
+    })
+    .select()
+    .single();
+
+  return { hold: data, error };
+}
+
 export async function isMatchReadyToStart(sessionId: string): Promise<boolean> {
   const { data: holds } = await supabase
     .from('match_holds')

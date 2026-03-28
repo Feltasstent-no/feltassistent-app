@@ -23,6 +23,7 @@ import {
   updateHoldWindCorrection,
   updateMatchAmmoDeduction,
   updateMatchShotCounts,
+  addMatchHold,
 } from '../lib/match-service';
 import { deductAmmoFromInventory } from '../lib/ammo-inventory-service';
 import { supabase } from '../lib/supabase';
@@ -241,6 +242,34 @@ export function MatchActive() {
   };
 
 
+  const handleAddHold = async () => {
+    if (!session) return;
+
+    const defaultTime = session.competition_type === 'finfelt' ? 120 : 60;
+    const { error } = await addMatchHold({
+      sessionId: session.id,
+      shootingTimeSeconds: defaultTime,
+      shotCount: 6,
+    });
+
+    if (error) {
+      alert('Kunne ikke legge til hold: ' + error.message);
+      return;
+    }
+
+    const updatedHolds = await getMatchHolds(session.id);
+    setHolds(updatedHolds);
+    setShowResetReminder(false);
+    setIsLastHoldReset(false);
+
+    const nextIndex = session.current_hold_index + 1;
+    await updateMatchSessionHoldIndex(session.id, nextIndex);
+
+    const nextHold = await getCurrentHold(session.id, nextIndex);
+    setCurrentHold(nextHold);
+    setSession({ ...session, current_hold_index: nextIndex });
+  };
+
   const handleClockStart = async () => {
     if (currentHold) {
       await startHold(currentHold.id);
@@ -372,6 +401,7 @@ export function MatchActive() {
         {showResetReminder && (
           <ResetReminder
             onConfirm={isLastHoldReset ? handleLastHoldConfirm : handleNextHold}
+            onAddHold={handleAddHold}
             previousClicks={currentHold?.recommended_clicks}
             previousWindClicks={currentHold?.wind_correction_clicks}
             nextWindClicks={

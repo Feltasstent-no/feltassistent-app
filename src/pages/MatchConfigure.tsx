@@ -489,15 +489,17 @@ export function MatchConfigure() {
                             Avstand (meter)
                           </label>
                           <input
-                            type="number"
-                            min="1"
-                            max="600"
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
                             value={hold.distance_m || 100}
-                            onChange={(e) =>
+                            onChange={(e) => {
+                              const v = e.target.value.replace(/[^0-9]/g, '');
                               handleUpdateHold(hold.id, {
-                                distance_m: parseInt(e.target.value) || 100,
-                              })
-                            }
+                                distance_m: v ? parseInt(v) : 100,
+                              });
+                            }}
+                            onFocus={(e) => e.target.select()}
                             className="w-full px-4 py-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                             placeholder="100"
                           />
@@ -508,7 +510,7 @@ export function MatchConfigure() {
                             Knepp brukes ikke i finfelt
                           </p>
                           <p className="text-xs text-blue-700">
-                            Husk: fra 15m → ca +26 knepp (busk standard)
+                            Husk: fra 15m &rarr; ca +26 knepp (busk standard)
                           </p>
                         </div>
                       </div>
@@ -519,15 +521,17 @@ export function MatchConfigure() {
                             Avstand (meter)
                           </label>
                           <input
-                            type="number"
-                            min="1"
-                            max="600"
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
                             value={hold.distance_m || ''}
-                            onChange={(e) =>
+                            onChange={(e) => {
+                              const v = e.target.value.replace(/[^0-9]/g, '');
                               handleUpdateHold(hold.id, {
-                                distance_m: parseInt(e.target.value) || null,
-                              })
-                            }
+                                distance_m: v ? parseInt(v) : null,
+                              });
+                            }}
+                            onFocus={(e) => e.target.select()}
                             className="w-full px-4 py-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                             placeholder="Avstand..."
                           />
@@ -538,15 +542,17 @@ export function MatchConfigure() {
                             Knepp opp
                           </label>
                           <input
-                            type="number"
-                            min="-50"
-                            max="50"
+                            type="text"
+                            inputMode="numeric"
+                            pattern="-?[0-9]*"
                             value={hold.recommended_clicks ?? ''}
-                            onChange={(e) =>
+                            onChange={(e) => {
+                              const v = e.target.value.replace(/[^0-9-]/g, '');
                               handleUpdateHold(hold.id, {
-                                recommended_clicks: parseInt(e.target.value) || 0,
-                              })
-                            }
+                                recommended_clicks: v ? parseInt(v) : 0,
+                              });
+                            }}
+                            onFocus={(e) => e.target.select()}
                             className="w-full px-4 py-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                             placeholder="Knepp..."
                           />
@@ -560,17 +566,19 @@ export function MatchConfigure() {
                           Antall skudd
                         </label>
                         <input
-                          type="number"
-                          min="1"
-                          max="20"
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
                           value={hold.shot_count}
-                          onChange={(e) =>
+                          onChange={(e) => {
+                            const v = e.target.value.replace(/[^0-9]/g, '');
                             handleUpdateHold(hold.id, {
-                              shot_count: parseInt(e.target.value) || 6,
-                            })
-                          }
+                              shot_count: v ? parseInt(v) : 6,
+                            });
+                          }}
+                          onFocus={(e) => e.target.select()}
                           className="w-full px-4 py-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                          placeholder="6 skudd (standard)"
+                          placeholder="6"
                         />
                       </div>
 
@@ -579,15 +587,17 @@ export function MatchConfigure() {
                           Skytetid (sek)
                         </label>
                         <input
-                          type="number"
-                          min="10"
-                          max="300"
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
                           value={hold.shooting_time_seconds}
-                          onChange={(e) =>
+                          onChange={(e) => {
+                            const v = e.target.value.replace(/[^0-9]/g, '');
                             handleUpdateHold(hold.id, {
-                              shooting_time_seconds: parseInt(e.target.value) || 60,
-                            })
-                          }
+                              shooting_time_seconds: v ? parseInt(v) : 60,
+                            });
+                          }}
+                          onFocus={(e) => e.target.select()}
                           className="w-full px-4 py-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                           placeholder={session?.competition_type === 'finfelt' ? '120' : '60'}
                         />
@@ -661,16 +671,18 @@ export function MatchConfigure() {
                             <div className="flex items-center gap-2 mt-2">
                               <label className="text-xs text-slate-500">Skytetid:</label>
                               <input
-                                type="number"
-                                min="10"
-                                max="300"
+                                type="text"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
                                 value={hold.shooting_time_seconds}
                                 onClick={(e) => e.stopPropagation()}
-                                onChange={(e) =>
+                                onChange={(e) => {
+                                  const v = e.target.value.replace(/[^0-9]/g, '');
                                   handleUpdateHold(hold.id, {
-                                    shooting_time_seconds: parseInt(e.target.value) || 60,
-                                  })
-                                }
+                                    shooting_time_seconds: v ? parseInt(v) : 60,
+                                  });
+                                }}
+                                onFocus={(e) => e.target.select()}
                                 className="w-20 px-2 py-1 text-sm bg-white border border-slate-300 rounded focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                               />
                               <span className="text-xs text-slate-500">sek</span>

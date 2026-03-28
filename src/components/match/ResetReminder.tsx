@@ -1,7 +1,8 @@
-import { RotateCcw, ArrowUp, Wind } from 'lucide-react';
+import { RotateCcw, ArrowUp, Wind, PlusCircle } from 'lucide-react';
 
 interface ResetReminderProps {
   onConfirm: () => void;
+  onAddHold?: () => void;
   previousClicks?: number | null;
   previousWindClicks?: number | null;
   nextWindClicks?: number | null;
@@ -10,6 +11,7 @@ interface ResetReminderProps {
 
 export function ResetReminder({
   onConfirm,
+  onAddHold,
   previousClicks,
   previousWindClicks,
   nextWindClicks,
@@ -167,8 +169,18 @@ export function ResetReminder({
           onClick={onConfirm}
           className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xl font-bold rounded-xl transition shadow-lg"
         >
-          {isLastHold ? 'Fullfør stevne' : 'Bekreftet – Neste hold'}
+          {isLastHold ? 'Fullfør stevne' : 'Bekreftet -- Neste hold'}
         </button>
+
+        {isLastHold && onAddHold && (
+          <button
+            onClick={onAddHold}
+            className="w-full mt-3 py-3 bg-white hover:bg-slate-50 text-slate-700 font-semibold rounded-xl transition border-2 border-slate-300 flex items-center justify-center gap-2"
+          >
+            <PlusCircle className="w-5 h-5 text-emerald-600" />
+            Legg til ekstra hold
+          </button>
+        )}
       </div>
     </div>
   );
