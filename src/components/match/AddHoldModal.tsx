@@ -22,7 +22,9 @@ export function AddHoldModal({
   const [selectedFigureId, setSelectedFigureId] = useState<string | null>(null);
   const [distance, setDistance] = useState(0);
   const [shotCount, setShotCount] = useState(6);
-  const [shootingTime, setShootingTime] = useState(competitionType === 'finfelt' ? 120 : 60);
+  const defaultTime = competitionType === 'finfelt' ? 120 : 60;
+  // String state so user can freely clear and retype on mobile
+  const [shootingTimeInput, setShootingTimeInput] = useState(String(defaultTime));
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -40,13 +42,15 @@ export function AddHoldModal({
     }
   };
 
+  const parsedShootingTime = parseInt(shootingTimeInput) || 0;
+
   const handleSave = async () => {
-    if (!selectedFigureId || distance <= 0) return;
+    if (!selectedFigureId || distance <= 0 || parsedShootingTime < 10) return;
     setSaving(true);
 
     const { hold, error } = await addMatchHold({
       sessionId,
-      shootingTimeSeconds: shootingTime,
+      shootingTimeSeconds: parsedShootingTime,
       shotCount,
       fieldFigureId: selectedFigureId,
       distanceM: distance,
@@ -66,9 +70,8 @@ export function AddHoldModal({
     onSaved(hold.id);
   };
 
-  const timeOptions = competitionType === 'finfelt'
-    ? [30, 45, 60, 90, 120]
-    : [30, 45, 60, 90, 120];
+  const timeOptions = [30, 45, 60, 90, 120];
+  const timeInvalid = parsedShootingTime < 10;
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -146,9 +149,9 @@ export function AddHoldModal({
               {timeOptions.map((t) => (
                 <button
                   key={t}
-                  onClick={() => setShootingTime(t)}
+                  onClick={() => setShootingTimeInput(String(t))}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                    shootingTime === t
+                    parsedShootingTime === t
                       ? 'bg-emerald-600 text-white'
                       : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                   }`}
@@ -159,31 +162,42 @@ export function AddHoldModal({
             </div>
             <div className="flex items-center gap-3 mt-2">
               <button
-                onClick={() => setShootingTime(Math.max(10, shootingTime - 5))}
+                onClick={() => setShootingTimeInput(String(Math.max(10, parsedShootingTime - 5)))}
                 className="w-10 h-10 rounded-lg border-2 border-slate-300 hover:bg-slate-100 flex items-center justify-center transition"
               >
                 <Minus className="w-4 h-4 text-slate-600" />
               </button>
               <input
                 type="number"
-                value={shootingTime}
-                onChange={(e) => setShootingTime(Math.max(10, parseInt(e.target.value) || 10))}
-                className="flex-1 text-center text-xl font-bold border-2 border-slate-300 rounded-lg py-2 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none"
+                inputMode="numeric"
+                value={shootingTimeInput}
+                onChange={(e) => setShootingTimeInput(e.target.value)}
+                className={`flex-1 text-center text-xl font-bold border-2 rounded-lg py-2 outline-none transition ${
+                  timeInvalid && shootingTimeInput !== ''
+                    ? 'border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500'
+                    : 'border-slate-300 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500'
+                }`}
               />
               <button
-                onClick={() => setShootingTime(shootingTime + 5)}
+                onClick={() => setShootingTimeInput(String(parsedShootingTime + 5))}
                 className="w-10 h-10 rounded-lg border-2 border-slate-300 hover:bg-slate-100 flex items-center justify-center transition"
               >
                 <Plus className="w-4 h-4 text-slate-600" />
               </button>
             </div>
+            {timeInvalid && shootingTimeInput !== '' && (
+              <p className="text-xs text-red-500 mt-1">Minimum 10 sekunder</p>
+            )}
+            <p className="text-[11px] text-slate-400 mt-1">
+              Standard fra stevneoppsett ({defaultTime}s) -- kan endres for dette holdet
+            </p>
           </div>
         </div>
 
         <div className="p-4 border-t border-slate-200 space-y-2">
           <button
             onClick={handleSave}
-            disabled={saving || !selectedFigureId || distance <= 0}
+            disabled={saving || !selectedFigureId || distance <= 0 || timeInvalid}
             className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold rounded-xl transition"
           >
             {saving ? 'Lagrer...' : 'Legg til hold'}

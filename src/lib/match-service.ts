@@ -355,7 +355,6 @@ export async function getMatchStats(sessionId: string): Promise<{
     .maybeSingle();
 
   const totalShots = (holds || [])
-    .filter((h: any) => h.completed)
     .reduce((sum: number, h: any) => sum + (h.shot_count || 0), 0);
 
   let duration = null;
@@ -681,9 +680,6 @@ export async function updateMatchAmmoDeduction(params: {
 export function getEffectiveShotCount(session: MatchSession, calculatedFromHolds: number): number {
   if (session.actual_shot_count != null) {
     return session.actual_shot_count;
-  }
-  if (session.calculated_shot_count != null) {
-    return session.calculated_shot_count;
   }
   return calculatedFromHolds;
 }

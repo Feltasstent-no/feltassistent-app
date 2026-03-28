@@ -513,7 +513,7 @@ export function MatchSummary() {
         <div className="grid grid-cols-3 gap-3 mb-3">
           <div className="bg-white border border-slate-200 rounded-xl p-4 text-center">
             <Target className="w-6 h-6 mx-auto mb-1 text-slate-500" strokeWidth={2} />
-            <p className="text-2xl font-bold text-slate-900">{stats.completedHolds}</p>
+            <p className="text-2xl font-bold text-slate-900">{stats.totalHolds}</p>
             <p className="text-xs text-slate-500">Hold</p>
           </div>
 

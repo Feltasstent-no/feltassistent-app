@@ -26,6 +26,8 @@ export function EditHoldModal({
   const [selectedFigureId, setSelectedFigureId] = useState<string | null>(hold.field_figure_id);
   const [distance, setDistance] = useState(hold.distance_m || 0);
   const [shotCount, setShotCount] = useState(hold.shot_count || 0);
+  // String state so user can freely clear and retype on mobile
+  const [shootingTimeInput, setShootingTimeInput] = useState(String(hold.shooting_time_seconds || 60));
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -43,19 +45,25 @@ export function EditHoldModal({
     }
   };
 
+  const parsedShootingTime = parseInt(shootingTimeInput) || 0;
+  const timeInvalid = parsedShootingTime < 10;
+
   const handleSave = async () => {
+    if (timeInvalid) return;
     setSaving(true);
 
     const distanceChanged = distance !== (hold.distance_m || 0);
     const figureChanged = selectedFigureId !== hold.field_figure_id;
     const shotCountChanged = shotCount !== (hold.shot_count || 0);
+    const timeChanged = parsedShootingTime !== (hold.shooting_time_seconds || 60);
 
-    if (figureChanged || shotCountChanged || distanceChanged) {
+    if (figureChanged || shotCountChanged || distanceChanged || timeChanged) {
       await updateMatchHold({
         holdId: hold.id,
         fieldFigureId: selectedFigureId || undefined,
         distanceM: distance,
         shotCount: shotCount,
+        shootingTimeSeconds: parsedShootingTime,
       });
     }
 
@@ -170,12 +178,59 @@ export function EditHoldModal({
               </button>
             </div>
           </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Skytetid (sek)</label>
+            <div className="flex flex-wrap gap-2">
+              {[30, 45, 60, 90, 120].map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setShootingTimeInput(String(t))}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                    parsedShootingTime === t
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                  }`}
+                >
+                  {t}s
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-3 mt-2">
+              <button
+                onClick={() => setShootingTimeInput(String(Math.max(10, parsedShootingTime - 5)))}
+                className="w-10 h-10 rounded-lg border-2 border-slate-300 hover:bg-slate-100 flex items-center justify-center transition"
+              >
+                <Minus className="w-4 h-4 text-slate-600" />
+              </button>
+              <input
+                type="number"
+                inputMode="numeric"
+                value={shootingTimeInput}
+                onChange={(e) => setShootingTimeInput(e.target.value)}
+                className={`flex-1 text-center text-xl font-bold border-2 rounded-lg py-2 outline-none transition ${
+                  timeInvalid && shootingTimeInput !== ''
+                    ? 'border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500'
+                    : 'border-slate-300 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500'
+                }`}
+              />
+              <button
+                onClick={() => setShootingTimeInput(String(parsedShootingTime + 5))}
+                className="w-10 h-10 rounded-lg border-2 border-slate-300 hover:bg-slate-100 flex items-center justify-center transition"
+              >
+                <Plus className="w-4 h-4 text-slate-600" />
+              </button>
+            </div>
+            {timeInvalid && shootingTimeInput !== '' && (
+              <p className="text-xs text-red-500 mt-1">Minimum 10 sekunder</p>
+            )}
+          </div>
         </div>
 
         <div className="p-4 border-t border-slate-200 space-y-2">
           <button
             onClick={handleSave}
-            disabled={saving || !selectedFigureId || distance <= 0}
+            disabled={saving || !selectedFigureId || distance <= 0 || timeInvalid}
             className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold rounded-xl transition"
           >
             {saving ? 'Lagrer...' : 'Lagre endringer'}
