@@ -98,9 +98,15 @@ export function StageConfigCard({
             <div className="flex items-center gap-2 flex-shrink-0">
               {competitionType === 'grovfelt' && (
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   value={distanceM || ''}
-                  onChange={(e) => handleDistanceChange(Number(e.target.value))}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/[^0-9]/g, '');
+                    handleDistanceChange(v ? Number(v) : 0);
+                  }}
+                  onFocus={(e) => e.target.select()}
                   placeholder="m"
                   className="w-20 sm:w-32 px-2 sm:px-3 py-1.5 sm:py-2 bg-gray-700 border border-gray-600 rounded text-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />

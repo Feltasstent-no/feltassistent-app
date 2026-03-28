@@ -262,6 +262,48 @@ export function CompetitionRun() {
     navigate(`/competitions/entry/${entryId}/summary`);
   };
 
+  const handleAddHold = async (data: {
+    distance_m: number | null;
+    total_shots: number;
+    time_limit_seconds: number;
+    field_figure_id: string | null;
+  }) => {
+    if (!competitionId || !competition) return;
+
+    const newStageNumber = stages.length + 1;
+    const figure = data.field_figure_id
+      ? figures.find(f => f.id === data.field_figure_id)
+      : null;
+
+    const { error } = await supabase
+      .from('competition_stages')
+      .insert({
+        competition_id: competitionId,
+        stage_number: newStageNumber,
+        field_figure_id: data.field_figure_id,
+        field_figure_code: figure?.code || null,
+        field_figure_name: figure?.name || null,
+        distance_m: data.distance_m,
+        total_shots: data.total_shots,
+        time_limit_seconds: data.time_limit_seconds,
+        clicks: null,
+        clicks_to_zero: null,
+        notes: null,
+      });
+
+    if (error) {
+      console.error('[CompetitionRun] Error adding hold:', error);
+      return;
+    }
+
+    await supabase
+      .from('competitions')
+      .update({ total_stages: newStageNumber })
+      .eq('id', competitionId);
+
+    await loadData();
+  };
+
   const handlePostMatchNoteContinue = () => {
     setShowPostMatchNote(false);
     handleFinish();
@@ -574,9 +616,12 @@ export function CompetitionRun() {
         isLastStage={isLastStage}
         entryId={entry.id}
         existingImage={currentStageImage}
+        figures={figures}
+        competitionType={competition.competition_type as 'grovfelt' | 'finfelt'}
         onNextHold={handleNextHold}
         onFinish={handleFinish}
         onImageUploaded={loadData}
+        onAddHold={handleAddHold}
       />
     );
   }

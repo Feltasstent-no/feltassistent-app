@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { CompetitionStageImage } from '../../types/database';
-import { Camera, Upload, X, Check, FileText } from 'lucide-react';
+import { Camera, Upload, X, Check, FileText, Loader2 } from 'lucide-react';
 
 function getPublicImageUrl(storagePath: string): string {
   const { data } = supabase.storage
@@ -11,7 +11,7 @@ function getPublicImageUrl(storagePath: string): string {
   return data.publicUrl;
 }
 
-function convertToJpeg(file: File, maxWidth = 2048): Promise<Blob> {
+function convertToJpeg(file: File, maxWidth = 1200, quality = 0.7): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
@@ -37,7 +37,7 @@ function convertToJpeg(file: File, maxWidth = 2048): Promise<Blob> {
           }
         },
         'image/jpeg',
-        0.85,
+        quality,
       );
     };
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Kunne ikke lese bildet')); };
@@ -60,6 +60,7 @@ export function HoldImageUpload({
 }: HoldImageUploadProps) {
   const { user } = useAuth();
   const [uploading, setUploading] = useState(false);
+  const [uploadPhase, setUploadPhase] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -90,20 +91,23 @@ export function HoldImageUpload({
     setSuccess(false);
 
     try {
+      setUploadPhase('Komprimerer bilde...');
+
       let uploadBlob: Blob;
       try {
         uploadBlob = await convertToJpeg(file);
-        console.log('[HoldImageUpload] JPEG conversion OK, blob size:', uploadBlob.size, 'type:', uploadBlob.type);
       } catch (convErr) {
         console.warn('[HoldImageUpload] JPEG conversion failed, using raw file:', convErr);
         uploadBlob = file;
       }
 
+      setUploadPhase('Laster opp...');
+
+      const preview = URL.createObjectURL(file);
+      setLocalPreview(preview);
+
       const timestamp = Date.now();
       const storagePath = `${user.id}/entries/${entryId}/stage-${stageNumber}-${timestamp}.jpg`;
-
-      console.log('[HoldImageUpload] Uploading to monitor-photos:', storagePath);
-      console.log('[HoldImageUpload] Blob size:', uploadBlob.size, 'type:', uploadBlob.type || 'image/jpeg');
 
       const { error: uploadError } = await supabase.storage
         .from('monitor-photos')
@@ -118,10 +122,7 @@ export function HoldImageUpload({
         throw uploadError;
       }
 
-      console.log('[HoldImageUpload] Storage upload SUCCESS:', storagePath);
-
-      const preview = URL.createObjectURL(file);
-      setLocalPreview(preview);
+      setUploadPhase('Lagrer...');
 
       if (existingImage) {
         console.log('[HoldImageUpload] Updating existing record:', existingImage.id);
@@ -177,6 +178,7 @@ export function HoldImageUpload({
       setError(err.message || 'Kunne ikke laste opp bilde');
     } finally {
       setUploading(false);
+      setUploadPhase(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -320,8 +322,12 @@ export function HoldImageUpload({
             disabled={uploading}
             className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
           >
-            <Upload className="w-5 h-5" />
-            {uploading ? 'Laster opp...' : 'Velg eller ta bilde'}
+            {uploading ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <Upload className="w-5 h-5" />
+            )}
+            {uploading ? (uploadPhase || 'Laster opp...') : 'Velg eller ta bilde'}
           </button>
 
           <p className="text-xs text-center text-slate-500">

@@ -295,11 +295,16 @@ export function NewCompetition() {
                           Antall hold
                         </label>
                         <input
-                          type="number"
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
                           value={formData.custom_stages}
-                          onChange={(e) => setFormData({ ...formData, custom_stages: parseInt(e.target.value) || 1 })}
+                          onChange={(e) => {
+                            const v = e.target.value.replace(/[^0-9]/g, '');
+                            setFormData({ ...formData, custom_stages: v ? parseInt(v) : 1 });
+                          }}
+                          onFocus={(e) => e.target.select()}
                           className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm"
-                          min="1"
                         />
                       </div>
                       <div>
@@ -307,11 +312,16 @@ export function NewCompetition() {
                           Skudd per hold
                         </label>
                         <input
-                          type="number"
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
                           value={formData.custom_shots_per_stage}
-                          onChange={(e) => setFormData({ ...formData, custom_shots_per_stage: parseInt(e.target.value) || 1 })}
+                          onChange={(e) => {
+                            const v = e.target.value.replace(/[^0-9]/g, '');
+                            setFormData({ ...formData, custom_shots_per_stage: v ? parseInt(v) : 1 });
+                          }}
+                          onFocus={(e) => e.target.select()}
                           className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm"
-                          min="1"
                         />
                       </div>
                       <div>
@@ -319,11 +329,16 @@ export function NewCompetition() {
                           Skytetid (sekunder)
                         </label>
                         <input
-                          type="number"
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
                           value={formData.custom_shoot_time}
-                          onChange={(e) => setFormData({ ...formData, custom_shoot_time: parseInt(e.target.value) || 1 })}
+                          onChange={(e) => {
+                            const v = e.target.value.replace(/[^0-9]/g, '');
+                            setFormData({ ...formData, custom_shoot_time: v ? parseInt(v) : 1 });
+                          }}
+                          onFocus={(e) => e.target.select()}
                           className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm"
-                          min="1"
                         />
                       </div>
                       <div>
@@ -331,11 +346,16 @@ export function NewCompetition() {
                           Klargjøringstid (sekunder)
                         </label>
                         <input
-                          type="number"
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
                           value={formData.custom_prep_time}
-                          onChange={(e) => setFormData({ ...formData, custom_prep_time: parseInt(e.target.value) || 1 })}
+                          onChange={(e) => {
+                            const v = e.target.value.replace(/[^0-9]/g, '');
+                            setFormData({ ...formData, custom_prep_time: v ? parseInt(v) : 1 });
+                          }}
+                          onFocus={(e) => e.target.select()}
                           className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm"
-                          min="1"
                         />
                       </div>
                     </div>

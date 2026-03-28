@@ -250,11 +250,15 @@ export function CompetitionStages() {
               </label>
               <div className="flex items-center space-x-3">
                 <input
-                  type="number"
-                  min="1"
-                  max="50"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   value={stageCount}
-                  onChange={(e) => setStageCount(parseInt(e.target.value) || 1)}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/[^0-9]/g, '');
+                    setStageCount(v ? parseInt(v) : 1);
+                  }}
+                  onFocus={(e) => e.target.select()}
                   className="w-24 px-4 py-2 border border-slate-300 rounded-lg"
                 />
                 <span className="text-slate-600">hold</span>
@@ -312,9 +316,15 @@ export function CompetitionStages() {
                             Holdnummer
                           </label>
                           <input
-                            type="number"
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
                             value={stage.stage_number}
-                            onChange={(e) => updateStage(stage.id, { stage_number: parseInt(e.target.value) })}
+                            onChange={(e) => {
+                              const v = e.target.value.replace(/[^0-9]/g, '');
+                              if (v) updateStage(stage.id, { stage_number: parseInt(v) });
+                            }}
+                            onFocus={(e) => e.target.select()}
                             className="w-full px-4 py-2 border border-slate-300 rounded-lg"
                           />
                         </div>
@@ -409,9 +419,15 @@ export function CompetitionStages() {
                             Avstand (m)
                           </label>
                           <input
-                            type="number"
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
                             value={stage.distance_m || ''}
-                            onChange={(e) => updateStage(stage.id, { distance_m: e.target.value ? parseInt(e.target.value) : null })}
+                            onChange={(e) => {
+                              const v = e.target.value.replace(/[^0-9]/g, '');
+                              updateStage(stage.id, { distance_m: v ? parseInt(v) : null });
+                            }}
+                            onFocus={(e) => e.target.select()}
                             className="w-full px-4 py-2 border border-slate-300 rounded-lg"
                             placeholder="Avstand i meter"
                           />
@@ -421,9 +437,15 @@ export function CompetitionStages() {
                             Antall knepp
                           </label>
                           <input
-                            type="number"
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
                             value={stage.clicks || ''}
-                            onChange={(e) => updateStage(stage.id, { clicks: e.target.value ? parseInt(e.target.value) : null })}
+                            onChange={(e) => {
+                              const v = e.target.value.replace(/[^0-9]/g, '');
+                              updateStage(stage.id, { clicks: v ? parseInt(v) : null });
+                            }}
+                            onFocus={(e) => e.target.select()}
                             className="w-full px-4 py-2 border border-slate-300 rounded-lg"
                             placeholder="Antall knepp"
                           />
@@ -436,9 +458,15 @@ export function CompetitionStages() {
                             Klargjøring (sek)
                           </label>
                           <input
-                            type="number"
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
                             value={stage.prep_seconds}
-                            onChange={(e) => updateStage(stage.id, { prep_seconds: parseInt(e.target.value) })}
+                            onChange={(e) => {
+                              const v = e.target.value.replace(/[^0-9]/g, '');
+                              if (v) updateStage(stage.id, { prep_seconds: parseInt(v) });
+                            }}
+                            onFocus={(e) => e.target.select()}
                             className="w-full px-3 sm:px-4 py-2 border border-slate-300 rounded-lg"
                           />
                         </div>
@@ -447,9 +475,15 @@ export function CompetitionStages() {
                             Skytetid (sek)
                           </label>
                           <input
-                            type="number"
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
                             value={stage.shoot_seconds}
-                            onChange={(e) => updateStage(stage.id, { shoot_seconds: parseInt(e.target.value) })}
+                            onChange={(e) => {
+                              const v = e.target.value.replace(/[^0-9]/g, '');
+                              if (v) updateStage(stage.id, { shoot_seconds: parseInt(v) });
+                            }}
+                            onFocus={(e) => e.target.select()}
                             className="w-full px-3 sm:px-4 py-2 border border-slate-300 rounded-lg"
                           />
                         </div>
@@ -458,9 +492,15 @@ export function CompetitionStages() {
                             Advarsel (sek)
                           </label>
                           <input
-                            type="number"
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
                             value={stage.warning_seconds}
-                            onChange={(e) => updateStage(stage.id, { warning_seconds: parseInt(e.target.value) })}
+                            onChange={(e) => {
+                              const v = e.target.value.replace(/[^0-9]/g, '');
+                              if (v) updateStage(stage.id, { warning_seconds: parseInt(v) });
+                            }}
+                            onFocus={(e) => e.target.select()}
                             className="w-full px-3 sm:px-4 py-2 border border-slate-300 rounded-lg"
                           />
                         </div>
@@ -469,9 +509,15 @@ export function CompetitionStages() {
                             Antall skudd
                           </label>
                           <input
-                            type="number"
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
                             value={stage.shots_count}
-                            onChange={(e) => updateStage(stage.id, { shots_count: parseInt(e.target.value) })}
+                            onChange={(e) => {
+                              const v = e.target.value.replace(/[^0-9]/g, '');
+                              if (v) updateStage(stage.id, { shots_count: parseInt(v) });
+                            }}
+                            onFocus={(e) => e.target.select()}
                             className="w-full px-3 sm:px-4 py-2 border border-slate-300 rounded-lg"
                           />
                         </div>
@@ -598,9 +644,15 @@ export function CompetitionStages() {
                       Holdnummer
                     </label>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       value={formData.stage_number}
-                      onChange={(e) => setFormData({ ...formData, stage_number: parseInt(e.target.value) })}
+                      onChange={(e) => {
+                        const v = e.target.value.replace(/[^0-9]/g, '');
+                        if (v) setFormData({ ...formData, stage_number: parseInt(v) });
+                      }}
+                      onFocus={(e) => e.target.select()}
                       className="w-full px-4 py-2 border border-slate-300 rounded-lg"
                     />
                   </div>
@@ -657,9 +709,15 @@ export function CompetitionStages() {
                       Avstand (m)
                     </label>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       value={formData.distance_m || ''}
-                      onChange={(e) => setFormData({ ...formData, distance_m: e.target.value ? parseInt(e.target.value) : 0 })}
+                      onChange={(e) => {
+                        const v = e.target.value.replace(/[^0-9]/g, '');
+                        setFormData({ ...formData, distance_m: v ? parseInt(v) : 0 });
+                      }}
+                      onFocus={(e) => e.target.select()}
                       className="w-full px-4 py-2 border border-slate-300 rounded-lg"
                       placeholder="Avstand i meter"
                     />
@@ -669,9 +727,15 @@ export function CompetitionStages() {
                       Antall knepp
                     </label>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       value={formData.clicks || ''}
-                      onChange={(e) => setFormData({ ...formData, clicks: e.target.value ? parseInt(e.target.value) : 0 })}
+                      onChange={(e) => {
+                        const v = e.target.value.replace(/[^0-9]/g, '');
+                        setFormData({ ...formData, clicks: v ? parseInt(v) : 0 });
+                      }}
+                      onFocus={(e) => e.target.select()}
                       className="w-full px-4 py-2 border border-slate-300 rounded-lg"
                       placeholder="Antall knepp"
                     />
@@ -684,9 +748,15 @@ export function CompetitionStages() {
                       Klargjøring (sek)
                     </label>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       value={formData.prep_seconds}
-                      onChange={(e) => setFormData({ ...formData, prep_seconds: parseInt(e.target.value) })}
+                      onChange={(e) => {
+                        const v = e.target.value.replace(/[^0-9]/g, '');
+                        if (v) setFormData({ ...formData, prep_seconds: parseInt(v) });
+                      }}
+                      onFocus={(e) => e.target.select()}
                       className="w-full px-3 sm:px-4 py-2 border border-slate-300 rounded-lg"
                     />
                   </div>
@@ -695,9 +765,15 @@ export function CompetitionStages() {
                       Skytetid (sek)
                     </label>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       value={formData.shoot_seconds}
-                      onChange={(e) => setFormData({ ...formData, shoot_seconds: parseInt(e.target.value) })}
+                      onChange={(e) => {
+                        const v = e.target.value.replace(/[^0-9]/g, '');
+                        if (v) setFormData({ ...formData, shoot_seconds: parseInt(v) });
+                      }}
+                      onFocus={(e) => e.target.select()}
                       className="w-full px-3 sm:px-4 py-2 border border-slate-300 rounded-lg"
                     />
                   </div>
@@ -706,9 +782,15 @@ export function CompetitionStages() {
                       Advarsel (sek)
                     </label>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       value={formData.warning_seconds}
-                      onChange={(e) => setFormData({ ...formData, warning_seconds: parseInt(e.target.value) })}
+                      onChange={(e) => {
+                        const v = e.target.value.replace(/[^0-9]/g, '');
+                        if (v) setFormData({ ...formData, warning_seconds: parseInt(v) });
+                      }}
+                      onFocus={(e) => e.target.select()}
                       className="w-full px-3 sm:px-4 py-2 border border-slate-300 rounded-lg"
                     />
                   </div>
@@ -717,9 +799,15 @@ export function CompetitionStages() {
                       Antall skudd
                     </label>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       value={formData.shots_count}
-                      onChange={(e) => setFormData({ ...formData, shots_count: parseInt(e.target.value) })}
+                      onChange={(e) => {
+                        const v = e.target.value.replace(/[^0-9]/g, '');
+                        if (v) setFormData({ ...formData, shots_count: parseInt(v) });
+                      }}
+                      onFocus={(e) => e.target.select()}
                       className="w-full px-3 sm:px-4 py-2 border border-slate-300 rounded-lg"
                     />
                   </div>

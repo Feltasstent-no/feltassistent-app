@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Plus, Save, Info, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Plus, Save, Info, AlertTriangle, Hash } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Competition, CompetitionStage, FieldFigure, ClickTable, ClickTableRow } from '../types/database';
@@ -19,6 +19,7 @@ export default function CompetitionConfigure() {
   const [clickTable, setClickTable] = useState<ClickTable | null>(null);
   const [clickTableRows, setClickTableRows] = useState<ClickTableRow[]>([]);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [holdCountInput, setHoldCountInput] = useState('');
 
   useEffect(() => {
     if (id && user) {
@@ -205,6 +206,30 @@ export default function CompetitionConfigure() {
         stage_number: i + 1,
       }));
     });
+  };
+
+  const setHoldCount = (count: number) => {
+    if (count < 1 || count > 50) return;
+    const newStages: Partial<CompetitionStage>[] = Array.from(
+      { length: count },
+      (_, i) => {
+        const existing = stages[i];
+        if (existing) return existing;
+        return {
+          competition_id: id,
+          stage_number: i + 1,
+          field_figure_id: null,
+          distance_m: competition?.competition_type === 'finfelt' ? 100 : null,
+          clicks: null,
+          clicks_to_zero: null,
+          total_shots: 1,
+          time_limit_seconds: 15,
+          notes: null,
+        };
+      }
+    );
+    newStages.forEach((s, i) => { s.stage_number = i + 1; });
+    setStages(newStages);
   };
 
   const validateStages = (): string[] => {
@@ -444,6 +469,46 @@ export default function CompetitionConfigure() {
             </div>
           </div>
         )}
+
+        <div className="bg-gray-800 rounded-lg p-4 mb-6">
+          <div className="flex items-center gap-3">
+            <Hash className="w-5 h-5 text-gray-400 flex-shrink-0" />
+            <span className="text-sm text-gray-300">Antall hold:</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={holdCountInput || stages.length || ''}
+              onChange={(e) => {
+                const v = e.target.value.replace(/[^0-9]/g, '');
+                setHoldCountInput(v);
+              }}
+              onBlur={() => {
+                const n = parseInt(holdCountInput);
+                if (n && n >= 1 && n <= 50) {
+                  setHoldCount(n);
+                }
+                setHoldCountInput('');
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const n = parseInt(holdCountInput);
+                  if (n && n >= 1 && n <= 50) {
+                    setHoldCount(n);
+                  }
+                  setHoldCountInput('');
+                  (e.target as HTMLInputElement).blur();
+                }
+              }}
+              onFocus={(e) => {
+                setHoldCountInput(String(stages.length));
+                e.target.select();
+              }}
+              className="w-16 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded text-gray-200 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <span className="text-xs text-gray-500">Skriv inn antall og trykk Enter for å generere hold</span>
+          </div>
+        </div>
 
         <div className="space-y-4 mb-6">
           {stages.map((stage, index) => (
