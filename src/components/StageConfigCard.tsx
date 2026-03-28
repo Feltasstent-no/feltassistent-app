@@ -10,12 +10,16 @@ interface StageConfigCardProps {
   distanceM: number | null;
   clicks: number | null;
   clicksToZero: number | null;
+  totalShots: number;
+  timeLimitSeconds: number;
   notes: string | null;
   onUpdate: (updates: {
     field_figure_id?: string | null;
     distance_m?: number | null;
     clicks?: number | null;
     clicks_to_zero?: number | null;
+    total_shots?: number;
+    time_limit_seconds?: number;
     notes?: string | null;
   }) => void;
   onRemove: () => void;
@@ -31,6 +35,8 @@ export function StageConfigCard({
   distanceM,
   clicks,
   clicksToZero,
+  totalShots,
+  timeLimitSeconds,
   notes,
   onUpdate,
   onRemove,
@@ -132,6 +138,39 @@ export function StageConfigCard({
               </option>
             ))}
           </select>
+
+          <div className="flex items-center gap-3 mt-2">
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs text-gray-400 whitespace-nowrap">Skudd</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={totalShots}
+                onChange={(e) => {
+                  const v = e.target.value.replace(/[^0-9]/g, '');
+                  if (v) onUpdate({ total_shots: parseInt(v) });
+                }}
+                onFocus={(e) => e.target.select()}
+                className="w-14 px-2 py-1.5 bg-gray-700 border border-gray-600 rounded text-gray-200 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs text-gray-400 whitespace-nowrap">Tid (s)</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={timeLimitSeconds}
+                onChange={(e) => {
+                  const v = e.target.value.replace(/[^0-9]/g, '');
+                  if (v) onUpdate({ time_limit_seconds: parseInt(v) });
+                }}
+                onFocus={(e) => e.target.select()}
+                className="w-16 px-2 py-1.5 bg-gray-700 border border-gray-600 rounded text-gray-200 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
         </div>
 
         <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">

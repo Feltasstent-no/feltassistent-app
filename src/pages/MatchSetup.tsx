@@ -179,8 +179,7 @@ export function MatchSetup() {
                 }`}
               >
                 <div className="text-center">
-                  <div className="text-xl font-bold text-slate-900 mb-0.5">Grovfelt</div>
-                  <div className="text-sm text-slate-600">6 skudd, 60 sek</div>
+                  <div className="text-xl font-bold text-slate-900">Grovfelt</div>
                 </div>
               </button>
               <button
@@ -193,8 +192,7 @@ export function MatchSetup() {
                 }`}
               >
                 <div className="text-center">
-                  <div className="text-xl font-bold text-slate-900 mb-0.5">Finfelt</div>
-                  <div className="text-sm text-slate-600">6 skudd, 120 sek</div>
+                  <div className="text-xl font-bold text-slate-900">Finfelt</div>
                 </div>
               </button>
             </div>

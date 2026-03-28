@@ -153,7 +153,6 @@ export function NewCompetition() {
                 }`}
               >
                 <div className="font-semibold text-sm sm:text-base">Bane</div>
-                <div className="text-xs sm:text-sm text-slate-600 mt-1 hidden sm:block">Baneskyting</div>
               </button>
               <button
                 type="button"
@@ -165,7 +164,6 @@ export function NewCompetition() {
                 }`}
               >
                 <div className="font-semibold text-sm sm:text-base">Grovfelt</div>
-                <div className="text-xs sm:text-sm text-slate-600 mt-1 hidden sm:block">Grovfeltskyting</div>
               </button>
               <button
                 type="button"
@@ -177,7 +175,6 @@ export function NewCompetition() {
                 }`}
               >
                 <div className="font-semibold text-sm sm:text-base">Finfelt</div>
-                <div className="text-xs sm:text-sm text-slate-600 mt-1 hidden sm:block">Finfelt (100m)</div>
               </button>
             </div>
           </div>

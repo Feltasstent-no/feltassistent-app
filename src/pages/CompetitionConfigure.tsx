@@ -520,6 +520,8 @@ export default function CompetitionConfigure() {
               distanceM={stage.distance_m || null}
               clicks={stage.clicks || null}
               clicksToZero={stage.clicks_to_zero || null}
+              totalShots={stage.total_shots || 1}
+              timeLimitSeconds={stage.time_limit_seconds || 15}
               notes={stage.notes || null}
               onUpdate={(updates) => updateStage(index, updates)}
               onRemove={() => removeStage(index)}
