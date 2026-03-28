@@ -440,6 +440,8 @@ export async function addMatchHold(params: {
   sessionId: string;
   shootingTimeSeconds: number;
   shotCount: number;
+  fieldFigureId?: string | null;
+  distanceM?: number | null;
 }): Promise<{ hold: MatchHold | null; error: any }> {
   const { data: existingHolds } = await supabase
     .from('match_holds')
@@ -459,8 +461,8 @@ export async function addMatchHold(params: {
       order_index: nextIndex,
       shooting_time_seconds: params.shootingTimeSeconds,
       shot_count: params.shotCount,
-      field_figure_id: null,
-      distance_m: null,
+      field_figure_id: params.fieldFigureId ?? null,
+      distance_m: params.distanceM ?? null,
       recommended_clicks: null,
       wind_correction_clicks: 0,
       completed: false,

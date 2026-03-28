@@ -7,6 +7,7 @@ import { ActiveHoldScreen } from '../components/match/ActiveHoldScreen';
 import { ResetReminder } from '../components/match/ResetReminder';
 import { HoldProgress } from '../components/match/HoldProgress';
 import { EditHoldModal } from '../components/match/EditHoldModal';
+import { AddHoldModal } from '../components/match/AddHoldModal';
 import { useBlockNavigation } from '../lib/use-block-navigation';
 import { useWakeLock } from '../lib/use-wake-lock';
 import {
@@ -23,7 +24,6 @@ import {
   updateHoldWindCorrection,
   updateMatchAmmoDeduction,
   updateMatchShotCounts,
-  addMatchHold,
 } from '../lib/match-service';
 import { deductAmmoFromInventory } from '../lib/ammo-inventory-service';
 import { supabase } from '../lib/supabase';
@@ -43,6 +43,7 @@ export function MatchActive() {
   const [ammoName, setAmmoName] = useState<string | null>(null);
   const [ammoStock, setAmmoStock] = useState<number | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showAddHoldModal, setShowAddHoldModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useBlockNavigation(
@@ -242,20 +243,14 @@ export function MatchActive() {
   };
 
 
-  const handleAddHold = async () => {
+  const handleAddHold = () => {
+    setShowAddHoldModal(true);
+  };
+
+  const handleAddHoldSaved = async () => {
     if (!session) return;
 
-    const defaultTime = session.competition_type === 'finfelt' ? 120 : 60;
-    const { error } = await addMatchHold({
-      sessionId: session.id,
-      shootingTimeSeconds: defaultTime,
-      shotCount: 6,
-    });
-
-    if (error) {
-      alert('Kunne ikke legge til hold: ' + error.message);
-      return;
-    }
+    setShowAddHoldModal(false);
 
     const updatedHolds = await getMatchHolds(session.id);
     setHolds(updatedHolds);
@@ -425,6 +420,15 @@ export function MatchActive() {
               setShowEditModal(false);
               await fetchData();
             }}
+          />
+        )}
+
+        {showAddHoldModal && (
+          <AddHoldModal
+            sessionId={session.id}
+            competitionType={session.competition_type}
+            onClose={() => setShowAddHoldModal(false)}
+            onSaved={handleAddHoldSaved}
           />
         )}
 

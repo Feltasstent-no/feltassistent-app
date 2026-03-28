@@ -42,6 +42,7 @@ export function MatchHome() {
   const [weapons, setWeapons] = useState<WeaponWithBarrel[]>([]);
   const [showShotInput, setShowShotInput] = useState<string | null>(null);
   const [shotInputValue, setShotInputValue] = useState('');
+  const [shotAdjustMode, setShotAdjustMode] = useState<'add' | 'remove'>('add');
   const [loading, setLoading] = useState(true);
 
   const setupComplete = hasValidActiveSetup(activeSetup);
@@ -392,17 +393,23 @@ export function MatchHome() {
                         placeholder="Antall skudd"
                         className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                         autoFocus
+                        min="1"
                       />
                       <button
                         onClick={() => {
-                          const shots = parseInt(shotInputValue);
-                          if (!isNaN(shots)) {
+                          const qty = parseInt(shotInputValue);
+                          if (!isNaN(qty) && qty > 0) {
+                            const shots = shotAdjustMode === 'remove' ? -qty : qty;
                             handleUpdateShots(weapon.id, shots);
                           }
                         }}
-                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium"
+                        className={`px-4 py-2 text-white rounded-lg text-sm font-medium ${
+                          shotAdjustMode === 'add'
+                            ? 'bg-emerald-600 hover:bg-emerald-700'
+                            : 'bg-red-600 hover:bg-red-700'
+                        }`}
                       >
-                        Legg til
+                        {shotAdjustMode === 'add' ? 'Legg til' : 'Trekk fra'}
                       </button>
                       <button
                         onClick={() => {
@@ -417,38 +424,36 @@ export function MatchHome() {
                   ) : (
                     <div className="flex flex-wrap gap-2">
                       <button
-                        onClick={() => {
-                          handleQuickUpdate(weapon.id, 10);
-                        }}
+                        onClick={() => handleQuickUpdate(weapon.id, 10)}
                         className="px-4 py-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 rounded-lg text-sm font-medium transition"
                       >
                         +10
                       </button>
                       <button
-                        onClick={() => {
-                          handleQuickUpdate(weapon.id, 20);
-                        }}
+                        onClick={() => handleQuickUpdate(weapon.id, 20)}
                         className="px-4 py-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 rounded-lg text-sm font-medium transition"
                       >
                         +20
                       </button>
                       <button
-                        onClick={() => {
-                          handleQuickUpdate(weapon.id, 50);
-                        }}
+                        onClick={() => handleQuickUpdate(weapon.id, 50)}
                         className="px-4 py-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 rounded-lg text-sm font-medium transition"
                       >
                         +50
                       </button>
                       <button
-                        onClick={() => setShowShotInput(weapon.id)}
+                        onClick={() => {
+                          setShotAdjustMode('add');
+                          setShowShotInput(weapon.id);
+                        }}
                         className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition"
                       >
                         Egendefinert
                       </button>
                       <button
                         onClick={() => {
-                          handleQuickUpdate(weapon.id, -10);
+                          setShotAdjustMode('remove');
+                          setShowShotInput(weapon.id);
                         }}
                         className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-sm font-medium transition"
                       >
