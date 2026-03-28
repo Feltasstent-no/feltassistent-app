@@ -17,6 +17,7 @@ interface WeaponShotLog {
   shot_date: string;
   comment: string | null;
   source: string;
+  log_type: string;
   created_at: string;
 }
 
@@ -354,12 +355,15 @@ export function Weapons() {
   const recalculateWeaponTotals = async (weaponId: string) => {
     const { data: logs } = await supabase
       .from('weapon_shot_logs')
-      .select('shots_fired, barrel_id')
+      .select('shots_fired, barrel_id, log_type')
       .eq('weapon_id', weaponId);
 
     if (!logs) return;
 
-    const weaponTotal = logs.reduce((sum, log) => sum + log.shots_fired, 0);
+    const weaponTotal = Math.max(0, logs.reduce((sum, log) => {
+      const val = log.log_type === 'correction' ? -log.shots_fired : log.shots_fired;
+      return sum + val;
+    }, 0));
 
     await supabase
       .from('weapons')
@@ -369,9 +373,10 @@ export function Weapons() {
     const barrelTotals = new Map<string, number>();
     logs.forEach(log => {
       if (log.barrel_id) {
+        const val = log.log_type === 'correction' ? -log.shots_fired : log.shots_fired;
         barrelTotals.set(
           log.barrel_id,
-          (barrelTotals.get(log.barrel_id) || 0) + log.shots_fired
+          (barrelTotals.get(log.barrel_id) || 0) + val
         );
       }
     });
@@ -379,7 +384,7 @@ export function Weapons() {
     for (const [barrelId, total] of barrelTotals.entries()) {
       await supabase
         .from('weapon_barrels')
-        .update({ total_shots_fired: total })
+        .update({ total_shots_fired: Math.max(0, total) })
         .eq('id', barrelId);
     }
 
@@ -1522,8 +1527,8 @@ export function Weapons() {
                                   <div className="flex items-start justify-between">
                                     <div className="flex-1">
                                       <div className="flex items-center gap-2 flex-wrap">
-                                        <span className="font-semibold text-slate-900">
-                                          {log.shots_fired} skudd
+                                        <span className={`font-semibold ${log.log_type === 'correction' ? 'text-red-700' : 'text-slate-900'}`}>
+                                          {log.log_type === 'correction' ? '-' : ''}{log.shots_fired} skudd
                                         </span>
                                         {barrel && (
                                           <span className="text-xs px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded">

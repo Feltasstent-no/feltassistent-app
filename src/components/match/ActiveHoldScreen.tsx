@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Camera, Play, CheckCircle, Pause, AlertCircle, Wind, Minus, Plus } from 'lucide-react';
+import { Camera, Play, CheckCircle, Pause, AlertCircle, Wind, Minus, Plus, PlusCircle } from 'lucide-react';
 import { FieldFigure } from '../FieldFigure';
 import { CompactDigitalClock } from './CompactDigitalClock';
 import type { MatchHoldWithFigure } from '../../lib/match-service';
@@ -12,8 +12,10 @@ interface ActiveHoldScreenProps {
   onClockStart?: () => void;
   onClockComplete?: () => void;
   onWindCorrectionChange?: (holdId: string, clicks: number) => void;
+  onAddHold?: () => void;
   initialElapsedTime?: number;
   isFinfelt?: boolean;
+  isLastHold?: boolean;
   previousHoldWindClicks?: number | null;
 }
 
@@ -25,8 +27,10 @@ export function ActiveHoldScreen({
   onClockStart,
   onClockComplete: onClockCompleteProp,
   onWindCorrectionChange,
+  onAddHold,
   initialElapsedTime = 0,
   isFinfelt = false,
+  isLastHold = false,
   previousHoldWindClicks,
 }: ActiveHoldScreenProps) {
   const [clockStarted, setClockStarted] = useState(initialElapsedTime > 0);
@@ -236,6 +240,15 @@ export function ActiveHoldScreen({
               <CheckCircle className="w-6 h-6" />
               <span>Fullfør hold</span>
             </button>
+            {isLastHold && onAddHold && (
+              <button
+                onClick={onAddHold}
+                className="w-full py-2.5 bg-white hover:bg-slate-50 text-slate-600 font-medium rounded-lg transition border border-slate-300 flex items-center justify-center space-x-2"
+              >
+                <PlusCircle className="w-4 h-4 text-emerald-600" />
+                <span>Legg til ekstra hold</span>
+              </button>
+            )}
           </>
         ) : (
           <div className="text-center text-slate-600 py-2">

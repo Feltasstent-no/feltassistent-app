@@ -16,6 +16,9 @@ export async function logWeaponShots(params: LogWeaponShotsParams): Promise<void
     throw new Error('Shots fired must be a non-zero number');
   }
 
+  const isCorrection = shotsFired < 0;
+  const absShots = Math.abs(shotsFired);
+
   const { data: weapon, error: weaponFetchError } = await supabase
     .from('weapons')
     .select('total_shots_fired')
@@ -31,7 +34,10 @@ export async function logWeaponShots(params: LogWeaponShotsParams): Promise<void
     throw new Error('Weapon not found');
   }
 
-  const newTotal = (weapon.total_shots_fired || 0) + shotsFired;
+  const currentTotal = weapon.total_shots_fired || 0;
+  const newTotal = isCorrection
+    ? Math.max(0, currentTotal - absShots)
+    : currentTotal + absShots;
 
   const { error: weaponError } = await supabase
     .from('weapons')
@@ -58,7 +64,10 @@ export async function logWeaponShots(params: LogWeaponShotsParams): Promise<void
   }
 
   if (activeBarrel) {
-    const newBarrelTotal = (activeBarrel.total_shots_fired || 0) + shotsFired;
+    const barrelCurrent = activeBarrel.total_shots_fired || 0;
+    const newBarrelTotal = isCorrection
+      ? Math.max(0, barrelCurrent - absShots)
+      : barrelCurrent + absShots;
 
     const { error: barrelError } = await supabase
       .from('weapon_barrels')
@@ -77,10 +86,11 @@ export async function logWeaponShots(params: LogWeaponShotsParams): Promise<void
     user_id: userId,
     weapon_id: weaponId,
     barrel_id: activeBarrel?.id || null,
-    shots_fired: shotsFired,
+    shots_fired: absShots,
     shot_date: shotDate,
     comment: comment || null,
     source,
+    log_type: isCorrection ? 'correction' : 'add',
   };
 
   const { error: logError } = await supabase

@@ -388,8 +388,10 @@ export function MatchActive() {
             onClockStart={handleClockStart}
             onClockComplete={handleClockComplete}
             onWindCorrectionChange={handleWindCorrectionChange}
+            onAddHold={handleAddHold}
             initialElapsedTime={getInitialElapsedTime()}
             isFinfelt={session.competition_type === 'finfelt'}
+            isLastHold={session.current_hold_index >= holds.length - 1}
             previousHoldWindClicks={
               session.current_hold_index > 0
                 ? holds[session.current_hold_index - 1]?.wind_correction_clicks ?? null
