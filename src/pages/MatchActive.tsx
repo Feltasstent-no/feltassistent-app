@@ -276,10 +276,15 @@ export function MatchActive() {
     setClockStarted(false);
   };
 
-  const getInitialElapsedTime = () => {
-    if (!currentHold?.started_at) return 0;
-    return getElapsedTime(currentHold.started_at);
-  };
+  const [initialElapsedTime, setInitialElapsedTime] = useState(0);
+
+  useEffect(() => {
+    if (currentHold?.started_at) {
+      setInitialElapsedTime(getElapsedTime(currentHold.started_at));
+    } else {
+      setInitialElapsedTime(0);
+    }
+  }, [currentHold?.id, currentHold?.started_at]);
 
   const handleWindCorrectionChange = async (holdId: string, clicks: number) => {
     await updateHoldWindCorrection(holdId, clicks);
@@ -384,7 +389,7 @@ export function MatchActive() {
             onClockComplete={handleClockComplete}
             onWindCorrectionChange={handleWindCorrectionChange}
             onAddHold={handleAddHold}
-            initialElapsedTime={getInitialElapsedTime()}
+            initialElapsedTime={initialElapsedTime}
             isFinfelt={session.competition_type === 'finfelt'}
             isLastHold={session.current_hold_index >= holds.length - 1}
             previousHoldWindClicks={
