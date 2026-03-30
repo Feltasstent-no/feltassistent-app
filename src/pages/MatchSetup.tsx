@@ -4,8 +4,9 @@ import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { createMatchSession } from '../lib/match-service';
-import { ArrowLeft, Wind } from 'lucide-react';
+import { ArrowLeft, Wind, HelpCircle, Minus, Eye, BookOpen } from 'lucide-react';
 import { WindInput } from '../components/WindInput';
+import { getAssistanceMode, setAssistanceMode, type AssistanceMode } from '../lib/user-preferences';
 import type { ClickTable, CompetitionTemplate } from '../types/database';
 
 export function MatchSetup() {
@@ -22,6 +23,7 @@ export function MatchSetup() {
   const [matchName, setMatchName] = useState('');
   const [windSpeed, setWindSpeed] = useState<number>(0);
   const [windDirection, setWindDirection] = useState<number>(90);
+  const [assistMode, setAssistMode] = useState<AssistanceMode>(getAssistanceMode);
 
   useEffect(() => {
     fetchData();
@@ -106,6 +108,11 @@ export function MatchSetup() {
     } else if (newFieldType === 'grovfelt' && clickTables.length > 0) {
       setSelectedTableId(clickTables[0].id);
     }
+  };
+
+  const handleAssistModeChange = (mode: AssistanceMode) => {
+    setAssistMode(mode);
+    setAssistanceMode(mode);
   };
 
   const handleCreateMatch = async () => {
@@ -273,11 +280,41 @@ export function MatchSetup() {
             </div>
           </div>
 
+          <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <div className="flex items-center space-x-2 mb-1">
+              <HelpCircle className="w-5 h-5 text-slate-600" />
+              <h2 className="text-lg font-bold text-slate-900">5. Stevneassistanse</h2>
+            </div>
+            <p className="text-xs text-slate-500 mb-3">Velg hvor mye veiledning du vil ha under stevnet</p>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { mode: 'minimal' as const, label: 'Minimal', desc: 'Minst mulig avbrudd', icon: Minus },
+                { mode: 'standard' as const, label: 'Standard', desc: 'Veiledning ved start og mellom hold', icon: Eye },
+                { mode: 'guided' as const, label: 'Guidet', desc: 'Veiledning for hvert hold', icon: BookOpen },
+              ]).map(({ mode, label, desc, icon: Icon }) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => handleAssistModeChange(mode)}
+                  className={`flex flex-col items-center p-3 rounded-lg border-2 transition text-center ${
+                    assistMode === mode
+                      ? 'border-emerald-600 bg-emerald-50'
+                      : 'border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <Icon className={`w-5 h-5 mb-1.5 ${assistMode === mode ? 'text-emerald-600' : 'text-slate-400'}`} />
+                  <span className={`text-sm font-bold ${assistMode === mode ? 'text-emerald-700' : 'text-slate-900'}`}>{label}</span>
+                  <span className="text-[10px] text-slate-500 mt-0.5 leading-tight">{desc}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className={`bg-white rounded-xl border border-slate-200 p-5 ${fieldType === 'finfelt' ? 'opacity-50' : ''}`}>
             <div className="flex items-center space-x-2 mb-3">
               <Wind className="w-5 h-5 text-slate-600" />
               <h2 className="text-lg font-bold text-slate-900">
-                5. Vind (valgfritt)
+                6. Vind (valgfritt)
                 {fieldType === 'finfelt' && (
                   <span className="ml-2 text-sm font-normal text-slate-500">(brukes ikke i finfelt)</span>
                 )}

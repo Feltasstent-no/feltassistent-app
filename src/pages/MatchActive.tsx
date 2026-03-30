@@ -8,8 +8,10 @@ import { ResetReminder } from '../components/match/ResetReminder';
 import { HoldProgress } from '../components/match/HoldProgress';
 import { EditHoldModal } from '../components/match/EditHoldModal';
 import { AddHoldModal } from '../components/match/AddHoldModal';
+import { FirstHoldModal } from '../components/match/FirstHoldModal';
 import { useBlockNavigation } from '../lib/use-block-navigation';
 import { useWakeLock } from '../lib/use-wake-lock';
+import { getAssistanceMode, type AssistanceMode } from '../lib/user-preferences';
 import {
   getMatchSession,
   getMatchHolds,
@@ -44,6 +46,9 @@ export function MatchActive() {
   const [ammoStock, setAmmoStock] = useState<number | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAddHoldModal, setShowAddHoldModal] = useState(false);
+  const [showFirstHoldModal, setShowFirstHoldModal] = useState(false);
+  const [showHoldSetupModal, setShowHoldSetupModal] = useState(false);
+  const [assistMode] = useState<AssistanceMode>(getAssistanceMode);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useBlockNavigation(
@@ -114,6 +119,14 @@ export function MatchActive() {
       });
 
       setCurrentHold(current);
+
+      if (!current?.started_at && assistMode !== 'minimal') {
+        if (sessionData.current_hold_index === 0) {
+          setShowFirstHoldModal(true);
+        } else if (assistMode === 'guided') {
+          setShowHoldSetupModal(true);
+        }
+      }
     }
 
     setLoading(false);
@@ -127,8 +140,9 @@ export function MatchActive() {
     const nextIndex = session.current_hold_index + 1;
     const isFinfelt = session.competition_type === 'finfelt';
     const isLast = nextIndex >= holds.length;
+    const showReset = assistMode !== 'minimal' && !isFinfelt;
 
-    if (isLast && !isFinfelt) {
+    if (isLast && showReset) {
       setIsLastHoldReset(true);
       setShowResetReminder(true);
       return;
@@ -139,11 +153,11 @@ export function MatchActive() {
       return;
     }
 
-    if (isFinfelt) {
-      handleNextHold();
-    } else {
+    if (showReset) {
       setIsLastHoldReset(false);
       setShowResetReminder(true);
+    } else {
+      handleNextHold();
     }
   };
 
@@ -229,6 +243,10 @@ export function MatchActive() {
     setSession({ ...session, current_hold_index: nextIndex });
     setShowResetReminder(false);
 
+    if (assistMode === 'guided' && nextHold && !nextHold.started_at) {
+      setShowHoldSetupModal(true);
+    }
+
     console.log('[MatchActive] State updated - currentHold should now be:', nextHold?.id);
   };
 
@@ -263,6 +281,10 @@ export function MatchActive() {
     const nextHold = await getCurrentHold(session.id, nextIndex);
     setCurrentHold(nextHold);
     setSession({ ...session, current_hold_index: nextIndex });
+
+    if (assistMode === 'guided' && nextHold && !nextHold.started_at) {
+      setShowHoldSetupModal(true);
+    }
   };
 
   const handleClockStart = async () => {
@@ -425,6 +447,29 @@ export function MatchActive() {
               setShowEditModal(false);
               await fetchData();
             }}
+          />
+        )}
+
+        {showFirstHoldModal && currentHold && (
+          <FirstHoldModal
+            hold={currentHold}
+            holdIndex={0}
+            isFinfelt={session.competition_type === 'finfelt'}
+            onConfirm={() => setShowFirstHoldModal(false)}
+            onCancel={() => {
+              setShowFirstHoldModal(false);
+              navigate('/match');
+            }}
+          />
+        )}
+
+        {showHoldSetupModal && currentHold && (
+          <FirstHoldModal
+            hold={currentHold}
+            holdIndex={session.current_hold_index}
+            isFinfelt={session.competition_type === 'finfelt'}
+            onConfirm={() => setShowHoldSetupModal(false)}
+            onCancel={() => setShowHoldSetupModal(false)}
           />
         )}
 

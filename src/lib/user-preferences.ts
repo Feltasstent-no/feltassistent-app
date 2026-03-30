@@ -1,9 +1,12 @@
 const STORAGE_KEY = 'dfs-user-preferences';
 
+export type AssistanceMode = 'minimal' | 'standard' | 'guided';
+
 interface UserPreferences {
   lastShooterClassId?: string;
   lastShooterClassCode?: string;
   lastTrainingLocation?: string;
+  assistanceMode?: AssistanceMode;
   lastBallisticDefaults?: {
     sight_height_mm?: string;
     sight_radius_cm?: string;
@@ -62,4 +65,12 @@ export function getLastTrainingLocation(): string | undefined {
 
 export function setLastTrainingLocation(location: string) {
   save({ lastTrainingLocation: location });
+}
+
+export function getAssistanceMode(): AssistanceMode {
+  return load().assistanceMode || 'standard';
+}
+
+export function setAssistanceMode(mode: AssistanceMode) {
+  save({ assistanceMode: mode });
 }
