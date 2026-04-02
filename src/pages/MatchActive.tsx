@@ -28,6 +28,8 @@ import {
   updateMatchShotCounts,
 } from '../lib/match-service';
 import { deductAmmoFromInventory } from '../lib/ammo-inventory-service';
+import { logWeaponShots } from '../lib/weapon-shot-service';
+import { getUserActiveSetup } from '../lib/active-setup-service';
 import { supabase } from '../lib/supabase';
 import type { MatchSession, MatchHoldWithFigure } from '../lib/match-service';
 
@@ -166,6 +168,31 @@ export function MatchActive() {
 
     await completeMatchSession(session.id);
 
+    const totalShots = holds.reduce((sum, h) => sum + h.shot_count, 0);
+
+    await updateMatchShotCounts({
+      sessionId: session.id,
+      calculatedShotCount: totalShots,
+    });
+
+    if (totalShots > 0) {
+      try {
+        const activeSetup = await getUserActiveSetup(user.id);
+        if (activeSetup?.weapon_id) {
+          await logWeaponShots({
+            userId: user.id,
+            weaponId: activeSetup.weapon_id,
+            shotsFired: totalShots,
+            shotDate: session.match_date || new Date().toISOString().split('T')[0],
+            comment: session.match_name,
+            source: 'match',
+          });
+        }
+      } catch (e) {
+        console.error('[MatchActive] Failed to log weapon shots:', e);
+      }
+    }
+
     if (session.ammo_inventory_id) {
       const { data: freshSession } = await supabase
         .from('match_sessions')
@@ -174,13 +201,6 @@ export function MatchActive() {
         .maybeSingle();
 
       if (freshSession?.ammo_deducted_count == null) {
-        const totalShots = holds.reduce((sum, h) => sum + h.shot_count, 0);
-
-        await updateMatchShotCounts({
-          sessionId: session.id,
-          calculatedShotCount: totalShots,
-        });
-
         const { error } = await deductAmmoFromInventory({
           inventoryId: session.ammo_inventory_id,
           userId: user.id,

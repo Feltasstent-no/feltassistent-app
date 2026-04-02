@@ -6,7 +6,7 @@ export interface LogWeaponShotsParams {
   shotsFired: number;
   shotDate: string;
   comment?: string;
-  source: 'dashboard' | 'weapons_page' | 'quick_assistant';
+  source: 'dashboard' | 'weapons_page' | 'quick_assistant' | 'match' | 'training';
 }
 
 export async function logWeaponShots(params: LogWeaponShotsParams): Promise<void> {

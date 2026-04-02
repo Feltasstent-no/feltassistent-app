@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { Layout } from '../components/Layout';
 import { supabase } from '../lib/supabase';
 import { FieldClockPreset } from '../types/database';
+import { useWakeLock } from '../lib/use-wake-lock';
 import { Play, Pause, RotateCcw, X, ChevronDown, ChevronUp, AlertTriangle, Clock, Timer, BookOpen } from 'lucide-react';
 
 function formatDisplayTime(seconds: number) {
@@ -253,13 +254,13 @@ export function FieldClock() {
   const [isRunning, setIsRunning] = useState(false);
   const [phase, setPhase] = useState<'idle' | 'prep_normal' | 'prep_warning' | 'shooting_start' | 'shooting' | 'shooting_warning' | 'shooting_critical' | 'finished'>('idle');
   const intervalRef = useRef<number | null>(null);
-  const wakeLockRef = useRef<any>(null);
+
+  useWakeLock(selectedPreset !== null);
 
   useEffect(() => {
     fetchPresets();
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
-      releaseWakeLock();
     };
   }, []);
 
@@ -300,7 +301,6 @@ export function FieldClock() {
         });
       }, 1000);
 
-      requestWakeLock();
     } else {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -320,23 +320,6 @@ export function FieldClock() {
       .eq('is_active', true)
       .order('name');
     if (data) setPresets(data);
-  };
-
-  const requestWakeLock = async () => {
-    try {
-      if ('wakeLock' in navigator) {
-        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
-      }
-    } catch {}
-  };
-
-  const releaseWakeLock = async () => {
-    if (wakeLockRef.current) {
-      try {
-        await wakeLockRef.current.release();
-        wakeLockRef.current = null;
-      } catch {}
-    }
   };
 
   const handlePhaseComplete = () => {

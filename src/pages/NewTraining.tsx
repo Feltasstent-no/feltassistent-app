@@ -7,6 +7,7 @@ import { Discipline, ShooterClass } from '../types/database';
 import { Save, ArrowLeft } from 'lucide-react';
 import { ShotCountDialog } from '../components/ShotCountDialog';
 import { deductAmmoFromInventory } from '../lib/ammo-inventory-service';
+import { logWeaponShots } from '../lib/weapon-shot-service';
 import { getLastShooterClassCode, setLastShooterClassCode, getLastTrainingLocation, setLastTrainingLocation } from '../lib/user-preferences';
 
 interface SimpleWeapon {
@@ -151,40 +152,14 @@ export function NewTraining() {
     const shotsTotal = parseInt(formData.shots_total);
 
     try {
-      const { data: weapon } = await supabase
-        .from('weapons')
-        .select('total_shots_fired')
-        .eq('id', weaponId)
-        .single();
-
-      const { data: barrel } = await supabase
-        .from('weapon_barrels')
-        .select('id, total_shots_fired')
-        .eq('weapon_id', weaponId)
-        .eq('is_active', true)
-        .maybeSingle();
-
-      const updates: Promise<any>[] = [];
-
-      if (weapon) {
-        updates.push(
-          supabase
-            .from('weapons')
-            .update({ total_shots_fired: (weapon.total_shots_fired || 0) + shotsTotal })
-            .eq('id', weaponId)
-        );
-      }
-
-      if (barrel) {
-        updates.push(
-          supabase
-            .from('weapon_barrels')
-            .update({ total_shots_fired: (barrel.total_shots_fired || 0) + shotsTotal })
-            .eq('id', barrel.id)
-        );
-      }
-
-      await Promise.all(updates);
+      await logWeaponShots({
+        userId: user!.id,
+        weaponId,
+        shotsFired: shotsTotal,
+        shotDate: formData.entry_date,
+        comment: `Trening: ${shotsTotal} skudd`,
+        source: 'training',
+      });
 
       let ammoDeducted = false;
       let ammoWarning = '';
