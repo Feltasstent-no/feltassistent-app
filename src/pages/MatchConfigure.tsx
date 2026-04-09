@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Layout } from '../components/Layout';
-import { FieldFigureSelector } from '../components/FieldFigureSelector';
 import { FieldFigurePreview } from '../components/FieldFigurePreview';
-import { ArrowLeft, Play, Check, AlertCircle, Package, AlertTriangle } from 'lucide-react';
+import { ConfigureHoldEditor } from '../components/match/ConfigureHoldEditor';
+import { ArrowLeft, Play, Check, AlertCircle, Package, AlertTriangle, Layers } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import {
   getMatchSession,
@@ -13,8 +13,10 @@ import {
   updateMatchAmmoSelection,
   startMatchSession,
   isMatchReadyToStart,
+  getSubHoldsForSession,
   type MatchSession,
   type MatchHold,
+  type MatchSubHold,
 } from '../lib/match-service';
 import { getAmmoInventoryForUser } from '../lib/ammo-inventory-service';
 import { useAuth } from '../contexts/AuthContext';
@@ -36,6 +38,7 @@ export function MatchConfigure() {
   const [isReady, setIsReady] = useState(false);
   const [starting, setStarting] = useState(false);
   const [clickTableRows, setClickTableRows] = useState<ClickTableRow[]>([]);
+  const [subHoldsMap, setSubHoldsMap] = useState<Record<string, MatchSubHold[]>>({});
   const [ammoList, setAmmoList] = useState<AmmoInventory[]>([]);
   const [selectedAmmoId, setSelectedAmmoId] = useState<string>('');
 
@@ -62,9 +65,6 @@ export function MatchConfigure() {
         getMatchHolds(id),
       ]);
 
-      console.log('Match session:', sessionData);
-      console.log('Match holds:', holdsData);
-
       if (!sessionData) {
         navigate('/match');
         return;
@@ -77,6 +77,9 @@ export function MatchConfigure() {
 
       setSession(sessionData);
       setHolds(holdsData);
+
+      const subHolds = await getSubHoldsForSession(id);
+      setSubHoldsMap(subHolds);
 
       if (sessionData.shooter_class_id) {
         setSelectedShooterClassId(sessionData.shooter_class_id);
@@ -277,6 +280,16 @@ export function MatchConfigure() {
     await updateMatchAmmoSelection(id, ammoId || null);
   };
 
+  const handleSubHoldsChanged = async (holdId: string, isComposite: boolean) => {
+    if (!id) return;
+    const [updatedHolds, updatedSubHolds] = await Promise.all([
+      getMatchHolds(id),
+      getSubHoldsForSession(id),
+    ]);
+    setHolds(updatedHolds);
+    setSubHoldsMap(updatedSubHolds);
+  };
+
   const handleStartMatch = async () => {
     if (!id || !isReady) return;
 
@@ -456,179 +469,15 @@ export function MatchConfigure() {
                 </div>
 
                 {editingHoldId === hold.id ? (
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-3">
-                        Velg figur
-                      </label>
-                      <FieldFigureSelector
-                        figures={availableFigures}
-                        selectedFigureId={hold.field_figure_id}
-                        onSelect={(figureId) => {
-                          console.log('[MatchConfigure] FieldFigureSelector onSelect triggered:');
-                          console.log('[MatchConfigure] 🎯 figureId received:', figureId);
-                          console.log('[MatchConfigure] 📍 holdId:', hold.id);
-                          console.log('[MatchConfigure] 🔄 current hold.field_figure_id:', hold.field_figure_id);
-                          const selectedFigure = availableFigures.find(f => f.id === figureId);
-                          console.log('[MatchConfigure] 📝 Selected figure:', selectedFigure ? {
-                            id: selectedFigure.id,
-                            code: selectedFigure.code,
-                            name: selectedFigure.name
-                          } : 'NOT FOUND');
-                          handleUpdateHold(hold.id, { field_figure_id: figureId });
-                        }}
-                        showDistanceInfo={true}
-                        competitionType={session?.competition_type}
-                      />
-                    </div>
-
-                    {session?.competition_type === 'finfelt' ? (
-                      <div className="space-y-4 mb-4">
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-2">
-                            Avstand (meter)
-                          </label>
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            pattern="[0-9]*"
-                            value={hold.distance_m || 100}
-                            onChange={(e) => {
-                              const v = e.target.value.replace(/[^0-9]/g, '');
-                              handleUpdateHold(hold.id, {
-                                distance_m: v ? parseInt(v) : 100,
-                              });
-                            }}
-                            onFocus={(e) => e.target.select()}
-                            className="w-full px-4 py-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                            placeholder="100"
-                          />
-                        </div>
-
-                        <div className="py-4 px-4 bg-blue-50 rounded-lg border border-blue-200">
-                          <p className="text-sm text-blue-900 font-medium mb-1">
-                            Knepp brukes ikke i finfelt
-                          </p>
-                          <p className="text-xs text-blue-700">
-                            Husk: fra 15m &rarr; ca +26 knepp (busk standard)
-                          </p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-2 gap-4 mb-4">
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-2">
-                            Avstand (meter)
-                          </label>
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            pattern="[0-9]*"
-                            value={hold.distance_m || ''}
-                            onChange={(e) => {
-                              const v = e.target.value.replace(/[^0-9]/g, '');
-                              handleUpdateHold(hold.id, {
-                                distance_m: v ? parseInt(v) : null,
-                              });
-                            }}
-                            onFocus={(e) => e.target.select()}
-                            className="w-full px-4 py-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                            placeholder="Avstand..."
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-2">
-                            Knepp opp
-                          </label>
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            pattern="-?[0-9]*"
-                            value={hold.recommended_clicks ?? ''}
-                            onChange={(e) => {
-                              const v = e.target.value.replace(/[^0-9-]/g, '');
-                              handleUpdateHold(hold.id, {
-                                recommended_clicks: v ? parseInt(v) : 0,
-                              });
-                            }}
-                            onFocus={(e) => e.target.select()}
-                            className="w-full px-4 py-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                            placeholder="Knepp..."
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                          Antall skudd
-                        </label>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          value={hold.shot_count}
-                          onChange={(e) => {
-                            const v = e.target.value.replace(/[^0-9]/g, '');
-                            handleUpdateHold(hold.id, {
-                              shot_count: v ? parseInt(v) : 6,
-                            });
-                          }}
-                          onFocus={(e) => e.target.select()}
-                          className="w-full px-4 py-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                          placeholder="6"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                          Skytetid (sek)
-                        </label>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          value={hold.shooting_time_seconds}
-                          onChange={(e) => {
-                            const v = e.target.value.replace(/[^0-9]/g, '');
-                            handleUpdateHold(hold.id, {
-                              shooting_time_seconds: v ? parseInt(v) : 60,
-                            });
-                          }}
-                          onFocus={(e) => e.target.select()}
-                          className="w-full px-4 py-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                          placeholder={session?.competition_type === 'finfelt' ? '120' : '60'}
-                        />
-                        <p className="text-xs text-slate-500 mt-1">
-                          Gjelder kun dette holdet
-                        </p>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Notat (valgfritt)
-                      </label>
-                      <textarea
-                        value={hold.notes || ''}
-                        onChange={(e) =>
-                          handleUpdateHold(hold.id, { notes: e.target.value })
-                        }
-                        className="w-full px-4 py-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                        rows={2}
-                        placeholder="Notater..."
-                      />
-                    </div>
-
-                    <button
-                      onClick={() => setEditingHoldId(null)}
-                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium border border-slate-300 rounded-lg transition-colors"
-                    >
-                      Lukk
-                    </button>
-                  </div>
+                  <ConfigureHoldEditor
+                    hold={hold}
+                    figures={availableFigures}
+                    clickTableRows={clickTableRows}
+                    competitionType={session?.competition_type || 'grovfelt'}
+                    onUpdate={handleUpdateHold}
+                    onClose={() => setEditingHoldId(null)}
+                    onSubHoldsChanged={handleSubHoldsChanged}
+                  />
                 ) : (
                   <div>
                     {hold.field_figure_id && hold.distance_m ? (
@@ -649,25 +498,55 @@ export function MatchConfigure() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="mb-3">
-                            <p className="text-sm text-slate-600">
-                              Figur:{' '}
-                              <span className="font-medium text-slate-900">
-                                {availableFigures.find((f) => f.id === hold.field_figure_id)?.name}
-                              </span>
-                            </p>
-                            <p className="text-sm text-slate-600 break-words">
-                              {hold.distance_m}m
-                              {hold.recommended_clicks !== null && hold.recommended_clicks !== undefined && (
-                                <>
-                                  {' · '}
-                                  <span className="font-medium text-emerald-700">
-                                    {hold.recommended_clicks > 0 ? '+' : ''}{hold.recommended_clicks} knepp
+                            {hold.is_composite && subHoldsMap[hold.id]?.length > 0 ? (
+                              <>
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Layers className="w-4 h-4 text-emerald-600" />
+                                  <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                                    Sammensatt - {subHoldsMap[hold.id].length} delhold
                                   </span>
-                                </>
-                              )}
-                              {' · '}
-                              {hold.shot_count} skudd
-                            </p>
+                                </div>
+                                <div className="space-y-1 mb-2">
+                                  {subHoldsMap[hold.id].map((sh, si) => {
+                                    const fig = availableFigures.find(f => f.id === sh.field_figure_id);
+                                    return (
+                                      <p key={sh.id} className="text-sm text-slate-600">
+                                        <span className="font-medium text-slate-700">{si + 1}.</span>{' '}
+                                        {fig?.name || 'Ukjent'} - {sh.distance_m}m
+                                        {sh.elevation_clicks != null && (
+                                          <span className="text-emerald-700 font-medium">
+                                            {' '}({sh.elevation_clicks > 0 ? '+' : ''}{sh.elevation_clicks} kn)
+                                          </span>
+                                        )}
+                                        {' - '}{sh.shot_count} skudd
+                                      </p>
+                                    );
+                                  })}
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <p className="text-sm text-slate-600">
+                                  Figur:{' '}
+                                  <span className="font-medium text-slate-900">
+                                    {availableFigures.find((f) => f.id === hold.field_figure_id)?.name}
+                                  </span>
+                                </p>
+                                <p className="text-sm text-slate-600 break-words">
+                                  {hold.distance_m}m
+                                  {hold.recommended_clicks !== null && hold.recommended_clicks !== undefined && (
+                                    <>
+                                      {' · '}
+                                      <span className="font-medium text-emerald-700">
+                                        {hold.recommended_clicks > 0 ? '+' : ''}{hold.recommended_clicks} knepp
+                                      </span>
+                                    </>
+                                  )}
+                                  {' · '}
+                                  {hold.shot_count} skudd
+                                </p>
+                              </>
+                            )}
                             <div className="flex items-center gap-2 mt-2">
                               <label className="text-xs text-slate-500">Skytetid:</label>
                               <input

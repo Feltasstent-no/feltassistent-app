@@ -4,6 +4,7 @@ import { ActiveSetupProvider } from './contexts/ActiveSetupContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
+import { ResetPassword } from './pages/ResetPassword';
 import { Profile } from './pages/Profile';
 import { TrainingList } from './pages/TrainingList';
 import { NewTraining } from './pages/NewTraining';
@@ -46,6 +47,7 @@ function App() {
           <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
 
           <Route
             path="/profile"

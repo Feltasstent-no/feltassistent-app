@@ -1,8 +1,18 @@
 import { useState, useEffect } from 'react';
-import { X, AlertTriangle, Minus, Plus } from 'lucide-react';
+import { X, AlertTriangle, Minus, Plus, Layers } from 'lucide-react';
 import { CompactFigureSelector } from '../CompactFigureSelector';
+import { SubHoldEditor, type SubHoldFormData } from './SubHoldEditor';
 import { getFieldFigures } from '../../lib/field-assistant';
-import { updateMatchHold, recalculateHoldClicks } from '../../lib/match-service';
+import {
+  updateMatchHold,
+  recalculateHoldClicks,
+  getSubHolds,
+  createSubHold,
+  updateSubHold,
+  deleteSubHold,
+  syncCompositeHoldShotCount,
+} from '../../lib/match-service';
+import { supabase } from '../../lib/supabase';
 import type { MatchHoldWithFigure } from '../../lib/match-service';
 import type { FieldFigure } from '../../types/database';
 
@@ -26,9 +36,13 @@ export function EditHoldModal({
   const [selectedFigureId, setSelectedFigureId] = useState<string | null>(hold.field_figure_id);
   const [distance, setDistance] = useState(hold.distance_m || 0);
   const [shotCount, setShotCount] = useState(hold.shot_count || 0);
-  // String state so user can freely clear and retype on mobile
   const [shootingTimeInput, setShootingTimeInput] = useState(String(hold.shooting_time_seconds || 60));
   const [saving, setSaving] = useState(false);
+
+  const [isComposite, setIsComposite] = useState(hold.is_composite);
+  const [subHolds, setSubHolds] = useState<SubHoldFormData[]>([]);
+  const [originalSubHoldIds, setOriginalSubHoldIds] = useState<string[]>([]);
+  const [loadingSubHolds, setLoadingSubHolds] = useState(false);
 
   useEffect(() => {
     getFieldFigures().then((data) => {
@@ -36,6 +50,24 @@ export function EditHoldModal({
       setFigures(filtered);
     });
   }, [competitionType]);
+
+  useEffect(() => {
+    if (hold.is_composite) {
+      setLoadingSubHolds(true);
+      getSubHolds(hold.id).then((data) => {
+        setOriginalSubHoldIds(data.map(sh => sh.id));
+        setSubHolds(data.map(sh => ({
+          id: sh.id,
+          fieldFigureId: sh.field_figure_id,
+          distanceM: sh.distance_m || 0,
+          shotCount: sh.shot_count,
+          elevationClicks: sh.elevation_clicks,
+          windClicks: sh.wind_clicks,
+        })));
+        setLoadingSubHolds(false);
+      });
+    }
+  }, [hold.id, hold.is_composite]);
 
   const handleFigureSelect = (figureId: string) => {
     setSelectedFigureId(figureId);
@@ -48,27 +80,93 @@ export function EditHoldModal({
   const parsedShootingTime = parseInt(shootingTimeInput) || 0;
   const timeInvalid = parsedShootingTime < 10;
 
+  const compositeShotTotal = subHolds.reduce((sum, sh) => sum + sh.shotCount, 0);
+  const compositeValid = subHolds.length >= 2 && subHolds.every(sh => sh.fieldFigureId && sh.distanceM > 0);
+
   const handleSave = async () => {
     if (timeInvalid) return;
     setSaving(true);
 
-    const distanceChanged = distance !== (hold.distance_m || 0);
-    const figureChanged = selectedFigureId !== hold.field_figure_id;
-    const shotCountChanged = shotCount !== (hold.shot_count || 0);
-    const timeChanged = parsedShootingTime !== (hold.shooting_time_seconds || 60);
+    if (isComposite) {
+      const firstSub = subHolds[0];
 
-    if (figureChanged || shotCountChanged || distanceChanged || timeChanged) {
       await updateMatchHold({
         holdId: hold.id,
-        fieldFigureId: selectedFigureId || undefined,
-        distanceM: distance,
-        shotCount: shotCount,
+        fieldFigureId: firstSub?.fieldFigureId || undefined,
+        distanceM: firstSub?.distanceM || 0,
         shootingTimeSeconds: parsedShootingTime,
+        shotCount: compositeShotTotal,
       });
-    }
 
-    if (distanceChanged && competitionType !== 'finfelt') {
-      await recalculateHoldClicks(sessionId, hold.id, distance);
+      await supabase
+        .from('match_holds')
+        .update({ is_composite: true })
+        .eq('id', hold.id);
+
+      const currentIds = subHolds.filter(sh => sh.id).map(sh => sh.id!);
+      const toDelete = originalSubHoldIds.filter(id => !currentIds.includes(id));
+      for (const id of toDelete) {
+        await deleteSubHold(id);
+      }
+
+      for (let i = 0; i < subHolds.length; i++) {
+        const sh = subHolds[i];
+        if (sh.id) {
+          await updateSubHold({
+            subHoldId: sh.id,
+            fieldFigureId: sh.fieldFigureId,
+            distanceM: sh.distanceM,
+            shotCount: sh.shotCount,
+            elevationClicks: sh.elevationClicks,
+            windClicks: sh.windClicks,
+          });
+        } else {
+          await createSubHold({
+            matchHoldId: hold.id,
+            orderIndex: i,
+            fieldFigureId: sh.fieldFigureId,
+            distanceM: sh.distanceM,
+            shotCount: sh.shotCount,
+            elevationClicks: sh.elevationClicks,
+            windClicks: sh.windClicks,
+          });
+        }
+      }
+
+      await syncCompositeHoldShotCount(hold.id);
+
+      if (competitionType !== 'finfelt' && firstSub) {
+        await recalculateHoldClicks(sessionId, hold.id, firstSub.distanceM);
+      }
+    } else {
+      if (hold.is_composite && !isComposite) {
+        for (const id of originalSubHoldIds) {
+          await deleteSubHold(id);
+        }
+        await supabase
+          .from('match_holds')
+          .update({ is_composite: false })
+          .eq('id', hold.id);
+      }
+
+      const distanceChanged = distance !== (hold.distance_m || 0);
+      const figureChanged = selectedFigureId !== hold.field_figure_id;
+      const shotCountChanged = shotCount !== (hold.shot_count || 0);
+      const timeChanged = parsedShootingTime !== (hold.shooting_time_seconds || 60);
+
+      if (figureChanged || shotCountChanged || distanceChanged || timeChanged) {
+        await updateMatchHold({
+          holdId: hold.id,
+          fieldFigureId: selectedFigureId || undefined,
+          distanceM: distance,
+          shotCount: shotCount,
+          shootingTimeSeconds: parsedShootingTime,
+        });
+      }
+
+      if (distanceChanged && competitionType !== 'finfelt') {
+        await recalculateHoldClicks(sessionId, hold.id, distance);
+      }
     }
 
     setSaving(false);
@@ -109,6 +207,10 @@ export function EditHoldModal({
     );
   }
 
+  const canSave = isComposite
+    ? compositeValid && !timeInvalid && !loadingSubHolds
+    : !!selectedFigureId && distance > 0 && !timeInvalid;
+
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl max-h-[90vh] flex flex-col">
@@ -125,62 +227,111 @@ export function EditHoldModal({
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Figur</label>
-            <CompactFigureSelector
-              figures={figures}
-              selectedFigureId={selectedFigureId}
-              onSelect={handleFigureSelect}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Avstand (m)</label>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setDistance(Math.max(0, distance - 50))}
-                className="w-10 h-10 rounded-lg border-2 border-slate-300 hover:bg-slate-100 flex items-center justify-center transition"
-              >
-                <Minus className="w-4 h-4 text-slate-600" />
-              </button>
-              <input
-                type="number"
-                value={distance}
-                onChange={(e) => setDistance(Math.max(0, parseInt(e.target.value) || 0))}
-                className="flex-1 text-center text-xl font-bold border-2 border-slate-300 rounded-lg py-2 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none"
-              />
-              <button
-                onClick={() => setDistance(distance + 50)}
-                className="w-10 h-10 rounded-lg border-2 border-slate-300 hover:bg-slate-100 flex items-center justify-center transition"
-              >
-                <Plus className="w-4 h-4 text-slate-600" />
-              </button>
+          <button
+            type="button"
+            onClick={() => setIsComposite(!isComposite)}
+            className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition ${
+              isComposite
+                ? 'border-emerald-500 bg-emerald-50'
+                : 'border-slate-200 hover:border-slate-300 bg-white'
+            }`}
+          >
+            <Layers className={`w-5 h-5 ${isComposite ? 'text-emerald-600' : 'text-slate-400'}`} />
+            <div className="text-left">
+              <p className={`text-sm font-semibold ${isComposite ? 'text-emerald-800' : 'text-slate-700'}`}>
+                Sammensatt hold
+              </p>
+              <p className="text-xs text-slate-500">
+                Flere figurer innenfor en samlet skytetid
+              </p>
             </div>
-          </div>
+            <div className={`ml-auto w-10 h-6 rounded-full transition-colors flex items-center ${
+              isComposite ? 'bg-emerald-500 justify-end' : 'bg-slate-300 justify-start'
+            }`}>
+              <div className="w-5 h-5 bg-white rounded-full shadow-sm mx-0.5" />
+            </div>
+          </button>
 
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Antall skudd</label>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setShotCount(Math.max(1, shotCount - 1))}
-                className="w-10 h-10 rounded-lg border-2 border-slate-300 hover:bg-slate-100 flex items-center justify-center transition"
-              >
-                <Minus className="w-4 h-4 text-slate-600" />
-              </button>
-              <div className="flex-1 text-center text-xl font-bold text-slate-900">
-                {shotCount}
+          {!isComposite && (
+            <>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Figur</label>
+                <CompactFigureSelector
+                  figures={figures}
+                  selectedFigureId={selectedFigureId}
+                  onSelect={handleFigureSelect}
+                />
               </div>
-              <button
-                onClick={() => setShotCount(shotCount + 1)}
-                className="w-10 h-10 rounded-lg border-2 border-slate-300 hover:bg-slate-100 flex items-center justify-center transition"
-              >
-                <Plus className="w-4 h-4 text-slate-600" />
-              </button>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Avstand (m)</label>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setDistance(Math.max(0, distance - 50))}
+                    className="w-10 h-10 rounded-lg border-2 border-slate-300 hover:bg-slate-100 flex items-center justify-center transition"
+                  >
+                    <Minus className="w-4 h-4 text-slate-600" />
+                  </button>
+                  <input
+                    type="number"
+                    value={distance}
+                    onChange={(e) => setDistance(Math.max(0, parseInt(e.target.value) || 0))}
+                    className="flex-1 text-center text-xl font-bold border-2 border-slate-300 rounded-lg py-2 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none"
+                  />
+                  <button
+                    onClick={() => setDistance(distance + 50)}
+                    className="w-10 h-10 rounded-lg border-2 border-slate-300 hover:bg-slate-100 flex items-center justify-center transition"
+                  >
+                    <Plus className="w-4 h-4 text-slate-600" />
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Antall skudd</label>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setShotCount(Math.max(1, shotCount - 1))}
+                    className="w-10 h-10 rounded-lg border-2 border-slate-300 hover:bg-slate-100 flex items-center justify-center transition"
+                  >
+                    <Minus className="w-4 h-4 text-slate-600" />
+                  </button>
+                  <div className="flex-1 text-center text-xl font-bold text-slate-900">
+                    {shotCount}
+                  </div>
+                  <button
+                    onClick={() => setShotCount(shotCount + 1)}
+                    className="w-10 h-10 rounded-lg border-2 border-slate-300 hover:bg-slate-100 flex items-center justify-center transition"
+                  >
+                    <Plus className="w-4 h-4 text-slate-600" />
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {isComposite && !loadingSubHolds && (
+            <SubHoldEditor
+              subHolds={subHolds.length > 0 ? subHolds : [
+                { fieldFigureId: null, distanceM: 0, shotCount: 3, elevationClicks: null, windClicks: null },
+                { fieldFigureId: null, distanceM: 0, shotCount: 3, elevationClicks: null, windClicks: null },
+              ]}
+              onChange={setSubHolds}
+              figures={figures}
+              showClicks={competitionType !== 'finfelt'}
+            />
+          )}
+
+          {isComposite && loadingSubHolds && (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600" />
             </div>
-          </div>
+          )}
 
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Skytetid (sek)</label>
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+              Skytetid (sek){isComposite ? ' - samlet for alle delhold' : ''}
+            </label>
             <div className="flex flex-wrap gap-2">
               {[30, 45, 60, 90, 120].map((t) => (
                 <button
@@ -228,9 +379,14 @@ export function EditHoldModal({
         </div>
 
         <div className="p-4 border-t border-slate-200 space-y-2">
+          {isComposite && (
+            <p className="text-xs text-slate-500 text-center mb-1">
+              {subHolds.length} delhold - totalt {compositeShotTotal} skudd
+            </p>
+          )}
           <button
             onClick={handleSave}
-            disabled={saving || !selectedFigureId || distance <= 0 || timeInvalid}
+            disabled={saving || !canSave}
             className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold rounded-xl transition"
           >
             {saving ? 'Lagrer...' : 'Lagre endringer'}

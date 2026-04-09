@@ -8,13 +8,15 @@ import {
   getMatchSession,
   getMatchHolds,
   updateMatchHold,
+  getSubHoldsForSession,
   type MatchSession,
   type MatchHoldWithFigure,
+  type MatchSubHold,
 } from '../lib/match-service';
 import {
   ArrowLeft, Play, Wind, Target, Focus,
   RotateCcw, FileText, Zap, Pencil, X, Check, RotateCw,
-  Package, AlertTriangle,
+  Package, AlertTriangle, Layers,
 } from 'lucide-react';
 import { AmmoIcon } from '../components/AmmoIcon';
 
@@ -64,6 +66,7 @@ export function MatchPreview() {
     ammoName: null,
     ammoStock: null,
   });
+  const [subHoldsMap, setSubHoldsMap] = useState<Record<string, MatchSubHold[]>>({});
   const [loading, setLoading] = useState(true);
   const [editingHoldId, setEditingHoldId] = useState<string | null>(null);
 
@@ -91,6 +94,9 @@ export function MatchPreview() {
 
     setSession(sessionData);
     setHolds(holdsData);
+
+    const subHolds = await getSubHoldsForSession(id);
+    setSubHoldsMap(subHolds);
 
     const metaResult: SessionMeta = {
       weaponName: null,
@@ -266,6 +272,7 @@ export function MatchPreview() {
                 onEdit={() => setEditingHoldId(hold.id)}
                 onCancel={() => setEditingHoldId(null)}
                 onSave={(data) => handleSaveHold(hold.id, data)}
+                subHolds={subHoldsMap[hold.id]}
               />
 
               {index < holds.length - 1 && (
@@ -475,6 +482,7 @@ function HoldCard({
   onEdit,
   onCancel,
   onSave,
+  subHolds,
 }: {
   hold: MatchHoldWithFigure;
   index: number;
@@ -483,14 +491,15 @@ function HoldCard({
   onEdit: () => void;
   onCancel: () => void;
   onSave: (data: EditFormData) => void;
+  subHolds?: MatchSubHold[];
 }) {
   const figure = hold.field_figure;
   const elevClicks = formatClicks(hold.recommended_clicks);
   const windVal = hold.recommended_wind_clicks ?? hold.wind_correction_clicks;
   const windClicks = formatClicks(windVal);
   const hasWindValue = windVal != null && windVal !== 0;
-  const prepTime = 15;
   const isOutOfRange = (hold.distance_m || 0) < 100 || (hold.distance_m || 0) > 600;
+  const isComposite = hold.is_composite && subHolds && subHolds.length > 0;
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
@@ -509,61 +518,113 @@ function HoldCard({
             />
           ) : (
             <>
-              <div className="flex items-center gap-2.5">
-                {figure && (
-                  <div className="w-10 h-10 sm:w-14 sm:h-14 flex-shrink-0 bg-slate-50 rounded-lg border border-slate-200 p-0.5 sm:p-1">
-                    <FieldFigurePreview
-                      figure={figure}
-                      size="sm"
-                      showDetails={false}
-                    />
+              {isComposite ? (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Layers className="w-4 h-4 text-emerald-600" />
+                      <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                        Sammensatt - {subHolds.length} delhold
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-500">{formatTime(hold.shooting_time_seconds)} samlet</span>
+                      <button
+                        onClick={onEdit}
+                        className="p-1.5 rounded-lg text-blue-600 hover:text-blue-700 hover:bg-slate-100 transition flex-shrink-0"
+                        title="Rediger hold"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
-                )}
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
-                      {figure?.short_code || figure?.code || '?'}
-                    </span>
-                    <p className="text-sm font-semibold text-slate-900 truncate">
-                      {figure?.name || 'Ukjent figur'}
-                    </p>
-                    <button
-                      onClick={onEdit}
-                      className="ml-auto p-1.5 rounded-lg text-blue-600 hover:text-blue-700 hover:bg-slate-100 transition flex-shrink-0"
-                      title="Rediger hold"
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                    </button>
+                  <div className="space-y-1.5">
+                    {subHolds.map((sh, si) => (
+                      <div key={sh.id} className="flex items-center gap-2 bg-slate-50 rounded-lg px-3 py-2">
+                        <span className="text-xs font-bold text-slate-500 w-5">{si + 1}.</span>
+                        {sh.field_figure && (
+                          <div className="w-8 h-8 flex-shrink-0 bg-white rounded border border-slate-200 p-0.5">
+                            <FieldFigurePreview figure={sh.field_figure} size="sm" showDetails={false} />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-slate-800 truncate">
+                            {sh.field_figure?.name || 'Ukjent'}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {sh.distance_m}m - {sh.shot_count} skudd
+                          </p>
+                        </div>
+                        {!isFinfelt && sh.elevation_clicks != null && (
+                          <div className="text-right flex-shrink-0">
+                            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
+                              {formatClicks(sh.elevation_clicks)} fra 0
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                  <div className="flex items-center gap-1 mt-1 text-sm text-slate-500">
-                    <span className={isOutOfRange ? 'text-red-600 font-semibold' : ''}>{hold.distance_m || 0}m</span>
-                    <span className="text-slate-300">&middot;</span>
-                    <span>{hold.shot_count} skudd</span>
-                    <span className="text-slate-300">&middot;</span>
-                    <span>{formatTime(hold.shooting_time_seconds)}</span>
-                  </div>
-                  {isOutOfRange && (
-                    <p className="text-[10px] text-red-500 mt-0.5">Utenfor DFS-standard (100{'\u2013'}600m)</p>
-                  )}
                 </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2.5">
+                    {figure && (
+                      <div className="w-10 h-10 sm:w-14 sm:h-14 flex-shrink-0 bg-slate-50 rounded-lg border border-slate-200 p-0.5 sm:p-1">
+                        <FieldFigurePreview
+                          figure={figure}
+                          size="sm"
+                          showDetails={false}
+                        />
+                      </div>
+                    )}
 
-                {!isFinfelt && (
-                  <div className="flex flex-col gap-1 flex-shrink-0">
-                    <ClickBadge
-                      label="Høyde"
-                      value={elevClicks}
-                      color="emerald"
-                    />
-                    <ClickBadge
-                      label="Vind"
-                      value={hasWindValue ? windClicks : '\u2014'}
-                      color="sky"
-                      dimmed={!hasWindValue}
-                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+                          {figure?.short_code || figure?.code || '?'}
+                        </span>
+                        <p className="text-sm font-semibold text-slate-900 truncate">
+                          {figure?.name || 'Ukjent figur'}
+                        </p>
+                        <button
+                          onClick={onEdit}
+                          className="ml-auto p-1.5 rounded-lg text-blue-600 hover:text-blue-700 hover:bg-slate-100 transition flex-shrink-0"
+                          title="Rediger hold"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-1 mt-1 text-sm text-slate-500">
+                        <span className={isOutOfRange ? 'text-red-600 font-semibold' : ''}>{hold.distance_m || 0}m</span>
+                        <span className="text-slate-300">&middot;</span>
+                        <span>{hold.shot_count} skudd</span>
+                        <span className="text-slate-300">&middot;</span>
+                        <span>{formatTime(hold.shooting_time_seconds)}</span>
+                      </div>
+                      {isOutOfRange && (
+                        <p className="text-[10px] text-red-500 mt-0.5">Utenfor DFS-standard (100{'\u2013'}600m)</p>
+                      )}
+                    </div>
+
+                    {!isFinfelt && (
+                      <div className="flex flex-col gap-1 flex-shrink-0">
+                        <ClickBadge
+                          label="Hoyde"
+                          value={elevClicks}
+                          color="emerald"
+                        />
+                        <ClickBadge
+                          label="Vind"
+                          value={hasWindValue ? windClicks : '\u2014'}
+                          color="sky"
+                          dimmed={!hasWindValue}
+                        />
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                </>
+              )}
 
               {hold.notes && (
                 <div

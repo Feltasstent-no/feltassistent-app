@@ -11,6 +11,8 @@ import {
   updateMatchShotCounts,
   updateMatchAmmoDeduction,
   getEffectiveShotCount,
+  getSubHoldsForSession,
+  getAllSubHoldImagesForSession,
 } from '../lib/match-service';
 import { getWindDirectionLabel } from '../components/WindCompassInput';
 import { getAutoDeductInventory, deductAmmoFromInventory } from '../lib/ammo-inventory-service';
@@ -18,6 +20,7 @@ import { supabase } from '../lib/supabase';
 import {
   ArrowLeft, CheckCircle, Clock, Wind, Camera,
   Trophy, X, Save, CreditCard as Edit3, Package, Check, Minus, Pencil, Target, ImageOff,
+  Layers, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { BulletIcon } from '../components/BulletIcon';
 import { FieldFigureSvg } from '../components/FieldFigureSvg';
@@ -59,6 +62,15 @@ export function MatchSummary() {
 
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
+  const [expandedComposite, setExpandedComposite] = useState<Set<string>>(new Set());
+  const [subHoldImages, setSubHoldImages] = useState<Array<{
+    subHoldId: string;
+    holdOrderIndex: number;
+    subHoldOrderIndex: number;
+    imageUrl: string;
+    figureName: string;
+    distanceM: number;
+  }>>([]);
 
   const [ammoDeductionState, setAmmoDeductionState] = useState<
     'idle' | 'pending' | 'adjusting' | 'done'
@@ -76,17 +88,25 @@ export function MatchSummary() {
   const fetchData = async () => {
     if (!id || !user) return;
 
-    const [sessionData, holdsData, statsData, imagesData] = await Promise.all([
+    const [sessionData, holdsData, statsData, imagesData, subHoldsMap, subImagesData] = await Promise.all([
       getMatchSession(id),
       getMatchHolds(id),
       getMatchStats(id),
       getMatchHoldImages(id),
+      getSubHoldsForSession(id),
+      getAllSubHoldImagesForSession(id),
     ]);
 
+    const holdsWithSubs = holdsData.map(h => ({
+      ...h,
+      sub_holds: subHoldsMap[h.id] || undefined,
+    }));
+
     setSession(sessionData);
-    setHolds(holdsData);
+    setHolds(holdsWithSubs);
     setStats(statsData);
     setHoldImages(imagesData);
+    setSubHoldImages(subImagesData);
 
     console.log('[MatchSummary] holdImages loaded:', imagesData.map(img => ({
       holdId: img.holdId,
@@ -635,52 +655,146 @@ export function MatchSummary() {
         <div className="bg-white border border-slate-200 rounded-xl p-5 mb-6">
           <h2 className="text-base font-bold text-slate-900 mb-3">Holdoversikt</h2>
           <div className="space-y-2">
-            {holds.map((hold, index) => (
-              <div
-                key={hold.id}
-                className="flex items-center justify-between p-3 bg-slate-50 rounded-lg"
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="relative flex-shrink-0">
-                    <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden">
-                      {hold.field_figure ? (
-                        <FieldFigureSvg
-                          svgData={hold.field_figure.svg_data}
-                          imageUrl={hold.field_figure.image_url}
-                          size="xs"
-                          fallbackText={hold.field_figure.short_code || hold.field_figure.code}
-                        />
-                      ) : (
-                        <Target className="w-5 h-5 text-slate-400" />
-                      )}
+            {holds.map((hold, index) => {
+              const isComp = hold.is_composite && hold.sub_holds && hold.sub_holds.length > 0;
+              const isExpanded = expandedComposite.has(hold.id);
+
+              return (
+                <div key={hold.id}>
+                  <div
+                    className={`flex items-center justify-between p-3 bg-slate-50 rounded-lg ${isComp ? 'cursor-pointer hover:bg-slate-100 transition' : ''}`}
+                    onClick={isComp ? () => {
+                      setExpandedComposite(prev => {
+                        const next = new Set(prev);
+                        if (next.has(hold.id)) next.delete(hold.id);
+                        else next.add(hold.id);
+                        return next;
+                      });
+                    } : undefined}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="relative flex-shrink-0">
+                        <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden">
+                          {isComp ? (
+                            <Layers className="w-5 h-5 text-amber-600" />
+                          ) : hold.field_figure ? (
+                            <FieldFigureSvg
+                              svgData={hold.field_figure.svg_data}
+                              imageUrl={hold.field_figure.image_url}
+                              size="xs"
+                              fallbackText={hold.field_figure.short_code || hold.field_figure.code}
+                            />
+                          ) : (
+                            <Target className="w-5 h-5 text-slate-400" />
+                          )}
+                        </div>
+                        <div className={`absolute -top-1 -left-1 w-4 h-4 rounded-full flex items-center justify-center ring-2 ring-white ${isComp ? 'bg-amber-500' : 'bg-emerald-500'}`}>
+                          <span className="text-[9px] font-bold text-white leading-none">{index + 1}</span>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-semibold text-slate-900 text-sm">
+                            {isComp ? 'Sammensatt hold' : (hold.field_figure?.name || 'Ukjent figur')}
+                          </p>
+                          {isComp && (
+                            <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-md font-bold">
+                              {hold.sub_holds!.length} delhold
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-slate-500">
+                          {!isComp && <span>{hold.distance_m || 0}m</span>}
+                          <span>{hold.shot_count} skudd</span>
+                          {!isComp && hold.recommended_clicks != null && hold.recommended_clicks !== 0 && (
+                            <span>+{hold.recommended_clicks} knepp</span>
+                          )}
+                          {!isComp && hold.wind_correction_clicks != null && hold.wind_correction_clicks !== 0 && (
+                            <span className="text-sky-600">
+                              vind {hold.wind_correction_clicks > 0 ? '+' : ''}{hold.wind_correction_clicks}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div className="absolute -top-1 -left-1 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center ring-2 ring-white">
-                      <span className="text-[9px] font-bold text-white leading-none">{index + 1}</span>
+                    <div className="flex items-center gap-2">
+                      {hold.completed && (
+                        <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                      )}
+                      {isComp && (
+                        isExpanded
+                          ? <ChevronUp className="w-4 h-4 text-slate-400" />
+                          : <ChevronDown className="w-4 h-4 text-slate-400" />
+                      )}
                     </div>
                   </div>
-                  <div>
-                    <p className="font-semibold text-slate-900 text-sm">
-                      {hold.field_figure?.name || 'Ukjent figur'}
-                    </p>
-                    <div className="flex items-center gap-2 text-xs text-slate-500">
-                      <span>{hold.distance_m || 0}m</span>
-                      <span>{hold.shot_count} skudd</span>
-                      {hold.recommended_clicks != null && hold.recommended_clicks !== 0 && (
-                        <span>+{hold.recommended_clicks} knepp</span>
-                      )}
-                      {hold.wind_correction_clicks != null && hold.wind_correction_clicks !== 0 && (
-                        <span className="text-sky-600">
-                          vind {hold.wind_correction_clicks > 0 ? '+' : ''}{hold.wind_correction_clicks}
-                        </span>
-                      )}
+
+                  {isComp && isExpanded && (
+                    <div className="ml-6 mt-1 space-y-1.5 mb-1">
+                      {hold.sub_holds!.map((sh, si) => {
+                        const fig = sh.field_figure;
+                        const shImages = subHoldImages.filter(img => img.subHoldId === sh.id);
+                        return (
+                          <div key={sh.id} className="bg-white border border-slate-200 rounded-lg p-2.5">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-8 h-8 rounded-md bg-slate-50 border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+                                {fig ? (
+                                  <FieldFigureSvg
+                                    svgData={fig.svg_data}
+                                    imageUrl={fig.image_url}
+                                    size="xs"
+                                    fallbackText={fig.short_code || fig.code}
+                                  />
+                                ) : (
+                                  <span className="text-[10px] text-slate-400 font-bold">{si + 1}</span>
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-bold text-slate-800 truncate">
+                                  {fig?.short_code || fig?.code || fig?.name || 'Ukjent'}
+                                </p>
+                                <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                                  <span>{sh.distance_m || 0}m</span>
+                                  <span>{sh.shot_count} skudd</span>
+                                  {sh.elevation_clicks != null && sh.elevation_clicks !== 0 && (
+                                    <span className="text-emerald-600 font-semibold">
+                                      {sh.elevation_clicks > 0 ? '+' : ''}{sh.elevation_clicks}h
+                                    </span>
+                                  )}
+                                  {sh.wind_clicks != null && sh.wind_clicks !== 0 && (
+                                    <span className="text-sky-600 font-semibold">
+                                      {sh.wind_clicks > 0 ? '+' : ''}{sh.wind_clicks}v
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {shImages.length > 0 && (
+                              <div className="mt-2 grid grid-cols-3 gap-1.5">
+                                {shImages.map((img, ii) => (
+                                  <button
+                                    key={ii}
+                                    onClick={() => setLightboxUrl(img.imageUrl)}
+                                    className="aspect-[4/3] rounded-md overflow-hidden border border-slate-200 hover:border-blue-400 transition"
+                                  >
+                                    <img
+                                      src={img.imageUrl}
+                                      alt={`Delhold ${si + 1}`}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
-                  </div>
+                  )}
                 </div>
-                {hold.completed && (
-                  <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 

@@ -40,6 +40,7 @@ export interface MatchHold {
   wind_correction_clicks: number;
   monitor_image_url?: string;
   notes?: string;
+  is_composite: boolean;
   completed: boolean;
   started_at?: string;
   completed_at?: string;
@@ -48,6 +49,33 @@ export interface MatchHold {
 
 export interface MatchHoldWithFigure extends MatchHold {
   field_figure: FieldFigure;
+  sub_holds?: MatchSubHold[];
+}
+
+export interface MatchSubHold {
+  id: string;
+  match_hold_id: string;
+  order_index: number;
+  field_figure_id: string | null;
+  field_figure?: FieldFigure | null;
+  distance_m: number | null;
+  shot_count: number;
+  elevation_clicks: number | null;
+  wind_clicks: number | null;
+  wind_direction: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MatchSubHoldImage {
+  id: string;
+  match_sub_hold_id: string;
+  storage_path: string;
+  caption: string | null;
+  sort_order: number;
+  created_at: string;
+  imageUrl?: string;
 }
 
 export async function createMatchSession(params: {
@@ -744,4 +772,265 @@ async function resolveMonitorImageUrls(storedValues: string[]): Promise<string[]
     console.log('[match-service] resolveImage: signedUrl OK for path:', stored);
     return data.signedUrl;
   }));
+}
+
+export async function getSubHolds(holdId: string): Promise<MatchSubHold[]> {
+  const { data } = await supabase
+    .from('match_sub_holds')
+    .select(`
+      *,
+      field_figure:field_figures(*)
+    `)
+    .eq('match_hold_id', holdId)
+    .order('order_index');
+
+  return (data || []).map((sh: any) => ({
+    ...sh,
+    field_figure: sh.field_figure,
+  }));
+}
+
+export async function getSubHoldsForSession(sessionId: string): Promise<Record<string, MatchSubHold[]>> {
+  const { data: holds } = await supabase
+    .from('match_holds')
+    .select('id')
+    .eq('match_session_id', sessionId)
+    .eq('is_composite', true);
+
+  if (!holds || holds.length === 0) return {};
+
+  const holdIds = holds.map(h => h.id);
+  const { data: subHolds } = await supabase
+    .from('match_sub_holds')
+    .select(`
+      *,
+      field_figure:field_figures(*)
+    `)
+    .in('match_hold_id', holdIds)
+    .order('order_index');
+
+  const grouped: Record<string, MatchSubHold[]> = {};
+  for (const sh of subHolds || []) {
+    if (!grouped[sh.match_hold_id]) grouped[sh.match_hold_id] = [];
+    grouped[sh.match_hold_id].push({ ...sh, field_figure: sh.field_figure });
+  }
+  return grouped;
+}
+
+export async function createSubHold(params: {
+  matchHoldId: string;
+  orderIndex: number;
+  fieldFigureId?: string | null;
+  distanceM?: number | null;
+  shotCount: number;
+  elevationClicks?: number | null;
+  windClicks?: number | null;
+  windDirection?: string | null;
+}): Promise<{ subHold: MatchSubHold | null; error: any }> {
+  const { data, error } = await supabase
+    .from('match_sub_holds')
+    .insert({
+      match_hold_id: params.matchHoldId,
+      order_index: params.orderIndex,
+      field_figure_id: params.fieldFigureId ?? null,
+      distance_m: params.distanceM ?? null,
+      shot_count: params.shotCount,
+      elevation_clicks: params.elevationClicks ?? null,
+      wind_clicks: params.windClicks ?? null,
+      wind_direction: params.windDirection ?? null,
+    })
+    .select()
+    .single();
+
+  return { subHold: data, error };
+}
+
+export async function updateSubHold(params: {
+  subHoldId: string;
+  fieldFigureId?: string | null;
+  distanceM?: number | null;
+  shotCount?: number;
+  elevationClicks?: number | null;
+  windClicks?: number | null;
+  windDirection?: string | null;
+  notes?: string | null;
+}): Promise<{ error: any }> {
+  const updateData: any = {};
+  if (params.fieldFigureId !== undefined) updateData.field_figure_id = params.fieldFigureId;
+  if (params.distanceM !== undefined) updateData.distance_m = params.distanceM;
+  if (params.shotCount !== undefined) updateData.shot_count = params.shotCount;
+  if (params.elevationClicks !== undefined) updateData.elevation_clicks = params.elevationClicks;
+  if (params.windClicks !== undefined) updateData.wind_clicks = params.windClicks;
+  if (params.windDirection !== undefined) updateData.wind_direction = params.windDirection;
+  if (params.notes !== undefined) updateData.notes = params.notes;
+
+  const { error } = await supabase
+    .from('match_sub_holds')
+    .update(updateData)
+    .eq('id', params.subHoldId);
+
+  return { error };
+}
+
+export async function deleteSubHold(subHoldId: string): Promise<{ error: any }> {
+  const { error } = await supabase
+    .from('match_sub_holds')
+    .delete()
+    .eq('id', subHoldId);
+
+  return { error };
+}
+
+export async function syncCompositeHoldShotCount(holdId: string): Promise<void> {
+  const { data: subHolds } = await supabase
+    .from('match_sub_holds')
+    .select('shot_count')
+    .eq('match_hold_id', holdId);
+
+  const total = (subHolds || []).reduce((sum, sh) => sum + sh.shot_count, 0);
+
+  await supabase
+    .from('match_holds')
+    .update({ shot_count: Math.max(1, total) })
+    .eq('id', holdId);
+}
+
+export async function uploadSubHoldImage(
+  subHoldId: string,
+  userId: string,
+  imageBlob: Blob
+): Promise<{ image: MatchSubHoldImage | null; error: any }> {
+  const storagePath = `${userId}/sub_${subHoldId}_${Date.now()}.jpg`;
+
+  const uploadBlob = imageBlob.type === 'image/jpeg'
+    ? imageBlob
+    : new Blob([imageBlob], { type: 'image/jpeg' });
+
+  const { error: uploadError } = await supabase.storage
+    .from('monitor-photos')
+    .upload(storagePath, uploadBlob, {
+      contentType: 'image/jpeg',
+      upsert: true,
+    });
+
+  if (uploadError) return { image: null, error: uploadError };
+
+  const { data: maxSort } = await supabase
+    .from('match_sub_hold_images')
+    .select('sort_order')
+    .eq('match_sub_hold_id', subHoldId)
+    .order('sort_order', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const nextSort = (maxSort?.sort_order ?? -1) + 1;
+
+  const { data, error } = await supabase
+    .from('match_sub_hold_images')
+    .insert({
+      match_sub_hold_id: subHoldId,
+      storage_path: storagePath,
+      sort_order: nextSort,
+    })
+    .select()
+    .single();
+
+  return { image: data, error };
+}
+
+export async function getSubHoldImages(subHoldId: string): Promise<MatchSubHoldImage[]> {
+  const { data } = await supabase
+    .from('match_sub_hold_images')
+    .select('*')
+    .eq('match_sub_hold_id', subHoldId)
+    .order('sort_order');
+
+  if (!data || data.length === 0) return [];
+
+  const resolved = await resolveMonitorImageUrls(data.map(img => img.storage_path));
+
+  return data.map((img, i) => ({
+    ...img,
+    imageUrl: resolved[i],
+  }));
+}
+
+export async function deleteSubHoldImage(imageId: string): Promise<{ error: any }> {
+  const { data: img } = await supabase
+    .from('match_sub_hold_images')
+    .select('storage_path')
+    .eq('id', imageId)
+    .maybeSingle();
+
+  if (img?.storage_path) {
+    await supabase.storage.from('monitor-photos').remove([img.storage_path]);
+  }
+
+  const { error } = await supabase
+    .from('match_sub_hold_images')
+    .delete()
+    .eq('id', imageId);
+
+  return { error };
+}
+
+export async function getAllSubHoldImagesForSession(sessionId: string): Promise<Array<{
+  subHoldId: string;
+  holdOrderIndex: number;
+  subHoldOrderIndex: number;
+  imageUrl: string;
+  figureName: string;
+  distanceM: number;
+}>> {
+  const { data: holds } = await supabase
+    .from('match_holds')
+    .select('id, order_index')
+    .eq('match_session_id', sessionId)
+    .eq('is_composite', true);
+
+  if (!holds || holds.length === 0) return [];
+
+  const holdIds = holds.map(h => h.id);
+  const holdMap = Object.fromEntries(holds.map(h => [h.id, h.order_index]));
+
+  const { data: subHolds } = await supabase
+    .from('match_sub_holds')
+    .select(`
+      id,
+      match_hold_id,
+      order_index,
+      distance_m,
+      field_figure:field_figures(name)
+    `)
+    .in('match_hold_id', holdIds)
+    .order('order_index');
+
+  if (!subHolds || subHolds.length === 0) return [];
+
+  const subHoldIds = subHolds.map(sh => sh.id);
+
+  const { data: images } = await supabase
+    .from('match_sub_hold_images')
+    .select('*')
+    .in('match_sub_hold_id', subHoldIds)
+    .order('sort_order');
+
+  if (!images || images.length === 0) return [];
+
+  const paths = images.map(img => img.storage_path);
+  const resolvedUrls = await resolveMonitorImageUrls(paths);
+
+  const subHoldMap = Object.fromEntries(subHolds.map(sh => [sh.id, sh]));
+
+  return images.map((img, i) => {
+    const sh = subHoldMap[img.match_sub_hold_id];
+    return {
+      subHoldId: img.match_sub_hold_id,
+      holdOrderIndex: holdMap[sh.match_hold_id] ?? 0,
+      subHoldOrderIndex: sh.order_index,
+      imageUrl: resolvedUrls[i],
+      figureName: (sh as any).field_figure?.name || 'Ukjent',
+      distanceM: sh.distance_m || 0,
+    };
+  });
 }

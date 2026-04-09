@@ -20,12 +20,14 @@ import {
   updateMatchSessionHoldIndex,
   pauseMatchSession,
   uploadMonitorPhoto,
+  uploadSubHoldImage,
   completeMatchSession,
   startHold,
   getElapsedTime,
   updateHoldWindCorrection,
   updateMatchAmmoDeduction,
   updateMatchShotCounts,
+  getSubHoldsForSession,
 } from '../lib/match-service';
 import { deductAmmoFromInventory } from '../lib/ammo-inventory-service';
 import { logWeaponShots } from '../lib/weapon-shot-service';
@@ -52,6 +54,8 @@ export function MatchActive() {
   const [showHoldSetupModal, setShowHoldSetupModal] = useState(false);
   const [assistMode] = useState<AssistanceMode>(getAssistanceMode);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const subHoldPhotoInputRef = useRef<HTMLInputElement>(null);
+  const pendingSubHoldIdRef = useRef<string | null>(null);
 
   useBlockNavigation(
     clockStarted && !showResetReminder,
@@ -86,16 +90,14 @@ export function MatchActive() {
         current_hold_index: sessionData.current_hold_index
       });
 
-      console.log('[MatchActive] Holds loaded:', holdsData.map(h => ({
-        id: h.id,
-        order_index: h.order_index,
-        field_figure_id: h.field_figure_id,
-        figure_code: h.field_figure?.code,
-        figure_name: h.field_figure?.name
-      })));
+      const subHoldsMap = await getSubHoldsForSession(id);
+      const holdsWithSubs = holdsData.map(h => ({
+        ...h,
+        sub_holds: subHoldsMap[h.id] || undefined,
+      }));
 
       setSession(sessionData);
-      setHolds(holdsData);
+      setHolds(holdsWithSubs);
 
       if (sessionData.ammo_inventory_id) {
         const { data: ammoData } = await supabase
@@ -111,14 +113,9 @@ export function MatchActive() {
 
       const current = await getCurrentHold(id, sessionData.current_hold_index);
 
-      console.log('[MatchActive] Current hold loaded:', {
-        id: current?.id,
-        order_index: sessionData.current_hold_index,
-        field_figure_id: current?.field_figure_id,
-        figure_code: current?.field_figure?.code,
-        figure_name: current?.field_figure?.name,
-        svg_data_length: current?.field_figure?.svg_data?.length
-      });
+      if (current && subHoldsMap[current.id]) {
+        current.sub_holds = subHoldsMap[current.id];
+      }
 
       setCurrentHold(current);
 
@@ -245,21 +242,23 @@ export function MatchActive() {
 
     await updateMatchSessionHoldIndex(session.id, nextIndex);
 
-    const [nextHold, updatedHolds] = await Promise.all([
+    const [nextHold, updatedHolds, subHoldsMap] = await Promise.all([
       getCurrentHold(session.id, nextIndex),
-      getMatchHolds(session.id)
+      getMatchHolds(session.id),
+      getSubHoldsForSession(session.id),
     ]);
 
-    console.log('[MatchActive] Next hold AFTER fetch:', {
-      id: nextHold?.id,
-      field_figure_id: nextHold?.field_figure_id,
-      figure_code: nextHold?.field_figure?.code,
-      figure_name: nextHold?.field_figure?.name,
-      svg_data_length: nextHold?.field_figure?.svg_data?.length
-    });
+    if (nextHold && subHoldsMap[nextHold.id]) {
+      nextHold.sub_holds = subHoldsMap[nextHold.id];
+    }
+
+    const holdsWithSubs = updatedHolds.map(h => ({
+      ...h,
+      sub_holds: subHoldsMap[h.id] || undefined,
+    }));
 
     setCurrentHold(nextHold);
-    setHolds(updatedHolds);
+    setHolds(holdsWithSubs);
     setSession({ ...session, current_hold_index: nextIndex });
     setShowResetReminder(false);
 
@@ -290,15 +289,27 @@ export function MatchActive() {
 
     setShowAddHoldModal(false);
 
-    const updatedHolds = await getMatchHolds(session.id);
-    setHolds(updatedHolds);
-    setShowResetReminder(false);
-    setIsLastHoldReset(false);
-
     const nextIndex = session.current_hold_index + 1;
     await updateMatchSessionHoldIndex(session.id, nextIndex);
 
-    const nextHold = await getCurrentHold(session.id, nextIndex);
+    const [updatedHolds, nextHold, subHoldsMap] = await Promise.all([
+      getMatchHolds(session.id),
+      getCurrentHold(session.id, nextIndex),
+      getSubHoldsForSession(session.id),
+    ]);
+
+    if (nextHold && subHoldsMap[nextHold.id]) {
+      nextHold.sub_holds = subHoldsMap[nextHold.id];
+    }
+
+    const holdsWithSubs = updatedHolds.map(h => ({
+      ...h,
+      sub_holds: subHoldsMap[h.id] || undefined,
+    }));
+
+    setHolds(holdsWithSubs);
+    setShowResetReminder(false);
+    setIsLastHoldReset(false);
     setCurrentHold(nextHold);
     setSession({ ...session, current_hold_index: nextIndex });
 
@@ -363,6 +374,29 @@ export function MatchActive() {
     e.target.value = '';
   };
 
+  const handleTakeSubHoldPhoto = (subHoldId: string) => {
+    pendingSubHoldIdRef.current = subHoldId;
+    subHoldPhotoInputRef.current?.click();
+  };
+
+  const handleSubHoldPhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0 || !user) return;
+    const subHoldId = pendingSubHoldIdRef.current;
+    if (!subHoldId) return;
+
+    const file = e.target.files[0];
+    const { error } = await uploadSubHoldImage(subHoldId, user.id, file);
+
+    if (error) {
+      alert('Kunne ikke laste opp bilde: ' + (error.message || JSON.stringify(error)));
+    } else {
+      alert('Bilde lastet opp!');
+    }
+
+    e.target.value = '';
+    pendingSubHoldIdRef.current = null;
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -391,8 +425,8 @@ export function MatchActive() {
 
   return (
     <Layout>
-      <div className="min-h-screen flex flex-col pb-20 md:pb-8">
-        <div className="bg-white border-b border-slate-200 p-2">
+      <div className="h-[calc(100dvh-4rem-2rem)] md:h-[calc(100dvh-4rem-4rem)] flex flex-col overflow-hidden -mx-4 sm:-mx-6 lg:-mx-8 -my-4 sm:-my-8">
+        <div className="bg-white border-b border-slate-200 p-2 flex-shrink-0">
           <div className="flex items-center justify-between">
             <HoldProgress
               currentHold={session.current_hold_index}
@@ -421,7 +455,7 @@ export function MatchActive() {
           </div>
         </div>
 
-        <div className="flex-1">
+        <div className="flex-1 min-h-0 overflow-hidden">
           <ActiveHoldScreen
             hold={currentHold}
             onComplete={handleCompleteHold}
@@ -431,6 +465,7 @@ export function MatchActive() {
             onClockComplete={handleClockComplete}
             onWindCorrectionChange={handleWindCorrectionChange}
             onAddHold={handleAddHold}
+            onTakeSubHoldPhoto={handleTakeSubHoldPhoto}
             initialElapsedTime={initialElapsedTime}
             isFinfelt={session.competition_type === 'finfelt'}
             isLastHold={session.current_hold_index >= holds.length - 1}
@@ -508,6 +543,14 @@ export function MatchActive() {
           accept="image/*"
           capture="environment"
           onChange={handlePhotoSelected}
+          className="hidden"
+        />
+        <input
+          ref={subHoldPhotoInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={handleSubHoldPhotoSelected}
           className="hidden"
         />
       </div>
