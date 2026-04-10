@@ -4,7 +4,7 @@ import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { useActiveSetup } from '../contexts/ActiveSetupContext';
 import { ActiveSetupSelector } from '../components/ActiveSetupSelector';
-import { getActiveMatchSession, getMatchHistory, cancelMatchSession } from '../lib/match-service';
+import { getActiveMatchSessions, getMatchHistory, cancelMatchSession } from '../lib/match-service';
 import { History, Play, BookOpen, XCircle, Clock, Crosshair, Minus, CheckCircle, CheckCircle2, ArrowRight, Target } from 'lucide-react';
 import apertureIcon from '../assets/aperture_icon_light.svg';
 import { AmmoStatusCard } from '../components/AmmoStatusCard';
@@ -37,7 +37,7 @@ export function MatchHome() {
   const { user } = useAuth();
   const { activeSetup } = useActiveSetup();
   const navigate = useNavigate();
-  const [activeSession, setActiveSession] = useState<MatchSession | null>(null);
+  const [activeSessions, setActiveSessions] = useState<MatchSession[]>([]);
   const [recentMatches, setRecentMatches] = useState<MatchSession[]>([]);
   const [weapons, setWeapons] = useState<WeaponWithBarrel[]>([]);
   const [showShotInput, setShowShotInput] = useState<string | null>(null);
@@ -54,9 +54,9 @@ export function MatchHome() {
   const fetchData = async () => {
     if (!user) return;
 
-    const [active, recent, weaponsRes] = await Promise.all([
-      getActiveMatchSession(user.id),
-      getMatchHistory(user.id, 5),
+    const [activeSess, recent, weaponsRes] = await Promise.all([
+      getActiveMatchSessions(user.id),
+      getMatchHistory(user.id, 10),
       supabase
         .from('weapons')
         .select('id, weapon_name, weapon_number, total_shots_fired')
@@ -65,8 +65,9 @@ export function MatchHome() {
         .order('created_at', { ascending: false }),
     ]);
 
-    setActiveSession(active);
-    setRecentMatches(recent.filter((m) => m.status !== 'in_progress' && m.status !== 'paused'));
+    const activeIds = new Set(activeSess.map(s => s.id));
+    setActiveSessions(activeSess);
+    setRecentMatches(recent.filter((m) => !activeIds.has(m.id)));
 
     if (weaponsRes.data) {
       const weaponsWithBarrels = await Promise.all(
@@ -90,17 +91,15 @@ export function MatchHome() {
     setLoading(false);
   };
 
-  const handleCancelMatch = async () => {
-    if (!activeSession) return;
-
+  const handleCancelMatch = async (sessionId: string) => {
     const confirmed = window.confirm(
       'Er du sikker på at du vil stoppe dette stevnet? Dette kan ikke angres.'
     );
 
     if (!confirmed) return;
 
-    await cancelMatchSession(activeSession.id);
-    setActiveSession(null);
+    await cancelMatchSession(sessionId);
+    setActiveSessions(prev => prev.filter(s => s.id !== sessionId));
     await fetchData();
   };
 
@@ -199,36 +198,64 @@ export function MatchHome() {
           </div>
         )}
 
-        {activeSession && (
-          <div className="bg-emerald-50 border-2 border-emerald-600 rounded-xl p-6 mb-6">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <p className="text-sm text-emerald-700 font-medium mb-1">Aktivt stevne</p>
-                <h2 className="text-xl font-bold text-slate-900">{activeSession.match_name}</h2>
-                <p className="text-sm text-slate-600 mt-1">
-                  Hold {activeSession.current_hold_index + 1}
-                </p>
-              </div>
-              <div className="bg-emerald-600 text-white text-xs font-bold px-3 py-1 rounded-full">
-                {activeSession.status === 'paused' ? 'PAUSE' : 'PÅGÅR'}
-              </div>
-            </div>
-            <div className="space-y-3">
-              <button
-                onClick={() => navigate(`/match/${activeSession.id}`)}
-                className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white text-lg font-bold rounded-lg transition shadow-lg flex items-center justify-center space-x-2"
-              >
-                <Play className="w-6 h-6" />
-                <span>Fortsett stevne</span>
-              </button>
-              <button
-                onClick={handleCancelMatch}
-                className="w-full py-3 bg-red-50 hover:bg-red-100 text-red-700 font-semibold rounded-lg transition flex items-center justify-center space-x-2 border border-red-200"
-              >
-                <XCircle className="w-5 h-5" />
-                <span>Stopp stevne</span>
-              </button>
-            </div>
+        {activeSessions.length > 0 && (
+          <div className="space-y-4 mb-6">
+            {activeSessions.map((sess) => {
+              const isSetup = sess.status === 'setup';
+              const isPaused = sess.status === 'paused';
+              const route = isSetup
+                ? `/match/${sess.id}/configure`
+                : `/match/${sess.id}`;
+              const statusLabel = isSetup ? 'OPPSETT' : isPaused ? 'PAUSE' : 'PÅGÅR';
+              const statusColor = isSetup
+                ? 'bg-slate-600'
+                : isPaused
+                ? 'bg-amber-600'
+                : 'bg-emerald-600';
+              const borderColor = isSetup
+                ? 'border-slate-400'
+                : 'border-emerald-600';
+              const bgColor = isSetup
+                ? 'bg-slate-50'
+                : 'bg-emerald-50';
+
+              return (
+                <div key={sess.id} className={`${bgColor} border-2 ${borderColor} rounded-xl p-6`}>
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <p className="text-sm text-emerald-700 font-medium mb-1">
+                        {isSetup ? 'Stevne under oppsett' : 'Aktivt stevne'}
+                      </p>
+                      <h2 className="text-xl font-bold text-slate-900">{sess.match_name}</h2>
+                      {!isSetup && (
+                        <p className="text-sm text-slate-600 mt-1">
+                          Hold {sess.current_hold_index + 1}
+                        </p>
+                      )}
+                    </div>
+                    <div className={`${statusColor} text-white text-xs font-bold px-3 py-1 rounded-full`}>
+                      {statusLabel}
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <button
+                      onClick={() => navigate(route)}
+                      className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white text-lg font-bold rounded-lg transition shadow-lg flex items-center justify-center space-x-2"
+                    >
+                      <Play className="w-6 h-6" />
+                      <span>{isSetup ? 'Fortsett oppsett' : 'Fortsett stevne'}</span>
+                    </button>
+                    <button
+                      onClick={() => handleCancelMatch(sess.id)}
+                      className="w-full py-3 bg-red-50 hover:bg-red-100 text-red-700 font-semibold rounded-lg transition flex items-center justify-center space-x-2 border border-red-200"
+                    >
+                      <XCircle className="w-5 h-5" />
+                      <span>Stopp stevne</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -473,7 +500,7 @@ export function MatchHome() {
           <div>
             <h2 className="text-lg font-bold text-slate-900 mb-4">Siste stevner</h2>
             <div className="space-y-3">
-              {recentMatches.slice(0, 3).map((match) => {
+              {recentMatches.slice(0, 5).map((match) => {
                 const getRouteForMatch = (match: MatchSession) => {
                   if (match.status === 'completed') {
                     return `/match/${match.id}/summary`;

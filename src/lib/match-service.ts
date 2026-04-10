@@ -169,6 +169,17 @@ export async function getActiveMatchSession(userId: string): Promise<MatchSessio
   return data;
 }
 
+export async function getActiveMatchSessions(userId: string): Promise<MatchSession[]> {
+  const { data } = await supabase
+    .from('match_sessions')
+    .select('*')
+    .eq('user_id', userId)
+    .in('status', ['setup', 'in_progress', 'paused'])
+    .order('created_at', { ascending: false });
+
+  return data || [];
+}
+
 export async function getMatchSession(sessionId: string): Promise<MatchSession | null> {
   const { data } = await supabase
     .from('match_sessions')
