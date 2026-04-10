@@ -36,7 +36,7 @@ export function FigurePicker({ figures, selectedFigure, onSelect }: FigurePicker
                 <div className="font-medium">{selectedFigure.name}</div>
                 <div className="text-sm text-slate-500">
                   {selectedFigure.short_code && `${selectedFigure.short_code}`}
-                  {selectedFigure.normal_distance_m && ` – Maks ${selectedFigure.normal_distance_m}m`}
+                  {selectedFigure.max_distance_m && ` – Maks ${selectedFigure.max_distance_m}m`}
                 </div>
               </div>
             </>
@@ -104,7 +104,7 @@ export function FigurePicker({ figures, selectedFigure, onSelect }: FigurePicker
                         </div>
                         <div className="text-xs text-slate-500 mt-1">
                           {figure.short_code && `${figure.short_code}`}
-                          {figure.normal_distance_m && ` – Maks ${figure.normal_distance_m}m`}
+                          {figure.max_distance_m && ` – Maks ${figure.max_distance_m}m`}
                         </div>
                       </div>
                     </div>
