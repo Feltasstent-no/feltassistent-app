@@ -2,8 +2,9 @@ import { ReactNode, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useOnboarding } from '../contexts/OnboardingContext';
 import { supabase } from '../lib/supabase';
-import { Home, User, BookOpen, Clock, Settings, LogOut, Trophy, Crosshair, ListOrdered, Activity, Compass, Shield, Sun, Moon, Palette, Target } from 'lucide-react';
+import { Home, User, BookOpen, Clock, Settings, LogOut, Crosshair, ListOrdered, Activity, Shield, Sun, Moon, Palette, Target } from 'lucide-react';
 import { ApertureIconBadge } from './ApertureIconBadge';
 import { InitialsAvatar } from './InitialsAvatar';
 
@@ -16,6 +17,7 @@ export function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
+  const { userMode } = useOnboarding();
   const [profileName, setProfileName] = useState<string | null>(null);
 
   useEffect(() => {
@@ -35,15 +37,19 @@ export function Layout({ children }: LayoutProps) {
     navigate('/login');
   };
 
-  const baseNavItems = [
-    { path: '/match', icon: Home, label: 'Hjem' },
-    { path: '/training', icon: BookOpen, label: 'Trening' },
-    { path: '/shot-assistant', icon: Crosshair, label: 'Knepp' },
-    { path: '/ballistics', icon: Activity, label: 'Ballistikk' },
-    { path: '/click-tables', icon: ListOrdered, label: 'Knepptabell' },
-    { path: '/weapons', icon: Target, label: 'Våpen' },
-    { path: '/field-clock', icon: Clock, label: 'Klokke' },
+  const allNavItems = [
+    { path: '/match', icon: Home, label: 'Hjem', modes: ['finfelt_only', 'grovfelt'] as const },
+    { path: '/training', icon: BookOpen, label: 'Trening', modes: ['finfelt_only', 'grovfelt'] as const },
+    { path: '/shot-assistant', icon: Crosshair, label: 'Knepp', modes: ['grovfelt'] as const },
+    { path: '/ballistics', icon: Activity, label: 'Ballistikk', modes: ['grovfelt'] as const },
+    { path: '/click-tables', icon: ListOrdered, label: 'Knepptabell', modes: ['grovfelt'] as const },
+    { path: '/weapons', icon: Target, label: 'Våpen', modes: ['finfelt_only', 'grovfelt'] as const },
+    { path: '/field-clock', icon: Clock, label: 'Klokke', modes: ['finfelt_only', 'grovfelt'] as const },
   ];
+
+  const baseNavItems = allNavItems.filter(item =>
+    (item.modes as readonly string[]).includes(userMode)
+  );
 
   const sidebarNavItems = [
     ...baseNavItems,

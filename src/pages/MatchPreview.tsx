@@ -16,7 +16,7 @@ import {
 import {
   ArrowLeft, Play, Wind, Target, Focus,
   RotateCcw, FileText, Zap, Pencil, X, Check, RotateCw,
-  Package, AlertTriangle, Layers,
+  Package, AlertTriangle, Layers, Shuffle,
 } from 'lucide-react';
 import { AmmoIcon } from '../components/AmmoIcon';
 
@@ -227,6 +227,7 @@ export function MatchPreview() {
 
   const totalShots = holds.reduce((sum, h) => sum + h.shot_count, 0);
   const isFinfelt = session.competition_type === 'finfelt';
+  const isUnknownMode = session.distance_mode === 'ukjent';
   const notEnoughAmmo = meta.ammoStock != null && meta.ammoStock < totalShots;
   const matchDate = new Date(session.match_date || session.created_at);
   const dateStr = matchDate.toLocaleDateString('nb-NO', {
@@ -261,38 +262,63 @@ export function MatchPreview() {
           </h2>
         </div>
 
-        <div>
-          {holds.map((hold, index) => (
-            <div key={hold.id}>
-              <HoldCard
-                hold={hold}
-                index={index}
-                isFinfelt={isFinfelt}
-                isEditing={editingHoldId === hold.id}
-                onEdit={() => setEditingHoldId(hold.id)}
-                onCancel={() => setEditingHoldId(null)}
-                onSave={(data) => handleSaveHold(hold.id, data)}
-                subHolds={subHoldsMap[hold.id]}
-              />
-
-              {index < holds.length - 1 && (
-                <ResetDivider
-                  isFinfelt={isFinfelt}
-                  prevElevClicks={hold.recommended_clicks}
-                  prevWindClicks={hold.recommended_wind_clicks ?? hold.wind_correction_clicks}
-                  nextWindClicks={holds[index + 1]?.recommended_wind_clicks ?? holds[index + 1]?.wind_correction_clicks}
-                />
-              )}
+        {isUnknownMode ? (
+          <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-5 mb-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Shuffle className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-amber-900 text-base">Ukjente hold</h3>
+                <p className="text-sm text-amber-800 mt-1 leading-relaxed">
+                  Figur og avstand konfigureres rett for hvert hold under stevnet. Dette er ikke en ufullstendig oppsett -- holdene er ment å fylles ut live.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full">
+                    <Target className="w-3 h-3" />
+                    {holds.length} hold
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full">
+                    {holds[0]?.shot_count ?? 6} skudd per hold
+                  </span>
+                </div>
+              </div>
             </div>
-          ))}
+          </div>
+        ) : (
+          <div>
+            {holds.map((hold, index) => (
+              <div key={hold.id}>
+                <HoldCard
+                  hold={hold}
+                  index={index}
+                  isFinfelt={isFinfelt}
+                  isEditing={editingHoldId === hold.id}
+                  onEdit={() => setEditingHoldId(hold.id)}
+                  onCancel={() => setEditingHoldId(null)}
+                  onSave={(data) => handleSaveHold(hold.id, data)}
+                  subHolds={subHoldsMap[hold.id]}
+                />
 
-          {!isFinfelt && holds.length > 0 && (
-            <FinalResetReminder
-              lastClicks={holds[holds.length - 1]?.recommended_clicks}
-              lastWindClicks={holds[holds.length - 1]?.wind_correction_clicks ?? holds[holds.length - 1]?.recommended_wind_clicks}
-            />
-          )}
-        </div>
+                {index < holds.length - 1 && (
+                  <ResetDivider
+                    isFinfelt={isFinfelt}
+                    prevElevClicks={hold.recommended_clicks}
+                    prevWindClicks={hold.recommended_wind_clicks ?? hold.wind_correction_clicks}
+                    nextWindClicks={holds[index + 1]?.recommended_wind_clicks ?? holds[index + 1]?.wind_correction_clicks}
+                  />
+                )}
+              </div>
+            ))}
+
+            {!isFinfelt && holds.length > 0 && (
+              <FinalResetReminder
+                lastClicks={holds[holds.length - 1]?.recommended_clicks}
+                lastWindClicks={holds[holds.length - 1]?.wind_correction_clicks ?? holds[holds.length - 1]?.recommended_wind_clicks}
+              />
+            )}
+          </div>
+        )}
 
         <div
           className="fixed left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-slate-200 z-50 md:static md:bg-transparent md:border-0 md:mt-8 md:z-auto md:bottom-0"
@@ -300,7 +326,7 @@ export function MatchPreview() {
         >
           <div className="max-w-3xl mx-auto px-4 pt-3 pb-3 md:px-0">
             <p className="text-xs text-center text-slate-500 mb-2">
-              Kontroller alle hold før du starter
+              {isUnknownMode ? 'Hold konfigureres under stevnet' : 'Kontroller alle hold før du starter'}
             </p>
             {notEnoughAmmo && (
               <div className="mb-2 flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2.5 text-sm text-yellow-800">
@@ -402,7 +428,7 @@ function SummaryHeader({
 
   if (meta.templateName) {
     items.push({
-      label: 'Loype',
+      label: 'Løype',
       value: meta.templateName,
       icon: <FileText className="w-4 h-4" />,
     });
@@ -610,7 +636,7 @@ function HoldCard({
                     {!isFinfelt && (
                       <div className="flex flex-col gap-1 flex-shrink-0">
                         <ClickBadge
-                          label="Hoyde"
+                          label="Høyde"
                           value={elevClicks}
                           color="emerald"
                         />

@@ -1,8 +1,20 @@
-import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
-import { Shield } from 'lucide-react';
+import { Shield, RotateCcw } from 'lucide-react';
+import { useOnboarding } from '../contexts/OnboardingContext';
 
 export function Settings() {
+  const navigate = useNavigate();
+  const { resetOnboarding } = useOnboarding();
+  const [resetting, setResetting] = useState(false);
+
+  const handleResetOnboarding = async () => {
+    setResetting(true);
+    await resetOnboarding();
+    navigate('/onboarding', { replace: true });
+  };
+
   return (
     <Layout>
       <div className="max-w-2xl pb-20 md:pb-8">
@@ -24,6 +36,20 @@ export function Settings() {
               <p className="text-sm text-slate-600">Administrer klasser, disipliner og presets</p>
             </div>
           </Link>
+
+          <button
+            onClick={handleResetOnboarding}
+            disabled={resetting}
+            className="w-full bg-white hover:bg-slate-50 border border-slate-200 rounded-xl p-4 sm:p-6 flex items-center space-x-4 transition text-left disabled:opacity-50"
+          >
+            <div className="w-12 h-12 bg-amber-50 rounded-lg flex items-center justify-center">
+              <RotateCcw className={`w-6 h-6 text-amber-600 ${resetting ? 'animate-spin' : ''}`} />
+            </div>
+            <div>
+              <h3 className="font-semibold text-slate-900">Start onboarding på nytt</h3>
+              <p className="text-sm text-slate-600">Nullstill oppsett og gå gjennom veiviseren igjen</p>
+            </div>
+          </button>
         </div>
       </div>
     </Layout>

@@ -8,7 +8,7 @@
     - Short code: "Mini 1/10 G"
     - Category: grovfelt
     - Dimensions: 22mm wide x 16mm tall (as specified)
-    - SVG reused from existing finfelt "1/10" figure (id: 2134d15b-f48e-4580-8cc2-cb44dca0e332)
+    - SVG reused from existing finfelt "1/10" figure (looked up by category + code)
     - sort_order: 570 (after existing grovfelt figures)
 
   2. Important Notes
@@ -61,6 +61,12 @@ BEGIN
       true,
       570
     FROM field_figures
-    WHERE id = '2134d15b-f48e-4580-8cc2-cb44dca0e332';
+    WHERE category = 'finfelt'
+      AND (
+        code = '1/10'
+        OR name ILIKE '%1/10%'
+      )
+    ORDER BY id
+    LIMIT 1;
   END IF;
 END $$;

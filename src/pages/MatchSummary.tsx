@@ -8,6 +8,7 @@ import {
   getMatchStats,
   getMatchHoldImages,
   updateMatchResult,
+  updateMatchMetadata,
   updateMatchShotCounts,
   updateMatchAmmoDeduction,
   getEffectiveShotCount,
@@ -24,6 +25,7 @@ import {
 } from 'lucide-react';
 import { BulletIcon } from '../components/BulletIcon';
 import { FieldFigureSvg } from '../components/FieldFigureSvg';
+import { EditMetadataModal } from '../components/EditMetadataModal';
 
 import type { MatchSession, MatchHoldWithFigure } from '../lib/match-service';
 
@@ -60,6 +62,7 @@ export function MatchSummary() {
   const [actualShotInput, setActualShotInput] = useState('');
   const [savingShots, setSavingShots] = useState(false);
 
+  const [showEditMeta, setShowEditMeta] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
   const [expandedComposite, setExpandedComposite] = useState<Set<string>>(new Set());
@@ -399,7 +402,16 @@ export function MatchSummary() {
             <CheckCircle className="w-8 h-8 text-emerald-600" />
           </div>
           <h1 className="text-2xl font-bold text-slate-900 mb-1">Stevne fullført</h1>
-          <p className="text-lg text-slate-700 font-medium">{session.match_name}</p>
+          <div className="flex items-center justify-center gap-2">
+            <p className="text-lg text-slate-700 font-medium">{session.match_name}</p>
+            <button
+              onClick={() => setShowEditMeta(true)}
+              className="p-1 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition"
+              title="Rediger stevneinfo"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+          </div>
           <div className="flex items-center justify-center gap-3 mt-2 text-sm text-slate-500">
             <span>{new Date(session.match_date).toLocaleDateString('nb-NO')}</span>
             <span className="capitalize">{session.competition_type}</span>
@@ -1069,6 +1081,24 @@ export function MatchSummary() {
             }}
           />
         </div>
+      )}
+
+      {showEditMeta && session && (
+        <EditMetadataModal
+          title="Rediger stevneinfo"
+          currentName={session.match_name}
+          currentNotes={session.notes || ''}
+          onSave={async (name, notes) => {
+            const { error } = await updateMatchMetadata({
+              sessionId: session.id,
+              matchName: name,
+              notes,
+            });
+            if (error) throw error;
+            setSession({ ...session, match_name: name, notes: notes || undefined });
+          }}
+          onClose={() => setShowEditMeta(false)}
+        />
       )}
     </Layout>
   );

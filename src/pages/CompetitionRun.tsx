@@ -13,7 +13,9 @@ import {
 import { HoldPreState } from '../components/competition/HoldPreState';
 import { FieldClockDisplay } from '../components/competition/FieldClockDisplay';
 import { HoldPostState } from '../components/competition/HoldPostState';
+import { UnknownHoldSetup } from '../components/competition/UnknownHoldSetup';
 import { Info } from 'lucide-react';
+import { UploadQueueToast } from '../components/UploadQueueStatus';
 
 export function CompetitionRun() {
   const navigate = useNavigate();
@@ -304,6 +306,32 @@ export function CompetitionRun() {
     await loadData();
   };
 
+  const handleUnknownHoldConfirm = async (config: {
+    field_figure_id: string;
+    distance_m: number;
+    clicks: number | null;
+    clicks_to_zero: number | null;
+    wind_clicks: number | null;
+  }) => {
+    if (!currentStage || !competitionId) return;
+
+    const figure = figures.find(f => f.id === config.field_figure_id);
+
+    await supabase
+      .from('competition_stages')
+      .update({
+        field_figure_id: config.field_figure_id,
+        field_figure_code: figure?.code || null,
+        field_figure_name: figure?.name || null,
+        distance_m: config.distance_m,
+        clicks: config.clicks,
+        clicks_to_zero: config.clicks_to_zero,
+      })
+      .eq('id', currentStage.id);
+
+    await loadData();
+  };
+
   const handlePostMatchNoteContinue = () => {
     setShowPostMatchNote(false);
     handleFinish();
@@ -571,7 +599,29 @@ export function CompetitionRun() {
   }
 
   if (entry.current_stage_state === 'pre_hold') {
-    console.log('[RENDER BRANCH] Rendering HoldPreState');
+    const isUnknownHold = competition.distance_mode === 'ukjent';
+    const stageNeedsSetup = isUnknownHold && !currentStage.field_figure_id;
+
+    if (stageNeedsSetup) {
+      const categoryFigures = figures.filter(f => {
+        if (competition.competition_type === 'grovfelt') return f.category === 'grovfelt';
+        if (competition.competition_type === 'finfelt') return f.category === 'finfelt';
+        return true;
+      });
+
+      return (
+        <UnknownHoldSetup
+          stage={currentStage}
+          stageIndex={entry.current_stage_number - 1}
+          totalStages={stages.length}
+          figures={categoryFigures}
+          clickTableId={entry.click_table_id}
+          competitionType={competition.competition_type as 'grovfelt' | 'finfelt'}
+          onConfirm={handleUnknownHoldConfirm}
+        />
+      );
+    }
+
     return (
       <HoldPreState
         stage={currentStage}
@@ -611,18 +661,21 @@ export function CompetitionRun() {
     });
 
     return (
-      <HoldPostState
-        stage={currentStage}
-        isLastStage={isLastStage}
-        entryId={entry.id}
-        existingImage={currentStageImage}
-        figures={figures}
-        competitionType={competition.competition_type as 'grovfelt' | 'finfelt'}
-        onNextHold={handleNextHold}
-        onFinish={handleFinish}
-        onImageUploaded={loadData}
-        onAddHold={handleAddHold}
-      />
+      <>
+        <HoldPostState
+          stage={currentStage}
+          isLastStage={isLastStage}
+          entryId={entry.id}
+          existingImage={currentStageImage}
+          figures={figures}
+          competitionType={competition.competition_type as 'grovfelt' | 'finfelt'}
+          onNextHold={handleNextHold}
+          onFinish={handleFinish}
+          onImageUploaded={loadData}
+          onAddHold={handleAddHold}
+        />
+        <UploadQueueToast />
+      </>
     );
   }
 

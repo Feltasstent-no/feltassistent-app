@@ -114,7 +114,7 @@ export function FirstHoldModal({ hold, holdIndex, isFinfelt, onConfirm, onCancel
 
                 <div className="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-3 text-center">
                   <Crosshair className="w-4 h-4 text-emerald-600 mx-auto mb-1" />
-                  <p className="text-[10px] uppercase tracking-wider text-emerald-700 font-semibold mb-0.5">Hoyde</p>
+                  <p className="text-[10px] uppercase tracking-wider text-emerald-700 font-semibold mb-0.5">Høyde</p>
                   <p className="text-xl font-bold text-emerald-700">
                     {heightClicks > 0 ? '+' : ''}{heightClicks}
                   </p>
@@ -129,7 +129,7 @@ export function FirstHoldModal({ hold, holdIndex, isFinfelt, onConfirm, onCancel
                     <span className="text-[10px] uppercase tracking-wider text-sky-700 font-semibold">Vindkorreksjon</span>
                   </div>
                   <p className="text-xl font-bold text-sky-800 text-center">
-                    {Math.abs(windClicks)} knepp {windClicks > 0 ? 'hoyre' : 'venstre'}
+                    {Math.abs(windClicks)} knepp {windClicks > 0 ? 'høyre' : 'venstre'}
                   </p>
                 </div>
               )}

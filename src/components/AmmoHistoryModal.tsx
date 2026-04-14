@@ -12,7 +12,7 @@ interface AmmoHistoryModalProps {
 const REASON_LABELS: Record<string, string> = {
   match: 'Stevne',
   manual: 'Manuell',
-  purchase: 'Pafyll',
+  purchase: 'Påfyll',
   adjustment: 'Justering',
 };
 

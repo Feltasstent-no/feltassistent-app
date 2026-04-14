@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { FieldFigurePreview } from '../components/FieldFigurePreview';
 import { ConfigureHoldEditor } from '../components/match/ConfigureHoldEditor';
-import { ArrowLeft, Play, Check, AlertCircle, Package, AlertTriangle, Layers } from 'lucide-react';
+import { ArrowLeft, Play, Check, AlertCircle, Package, AlertTriangle, Layers, Shuffle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import {
   getMatchSession,
@@ -290,8 +290,10 @@ export function MatchConfigure() {
     setSubHoldsMap(updatedSubHolds);
   };
 
+  const isUnknownMode = session?.distance_mode === 'ukjent';
+
   const handleStartMatch = async () => {
-    if (!id || !isReady) return;
+    if (!id || (!isReady && !isUnknownMode)) return;
 
     setStarting(true);
     const { error } = await startMatchSession(id);
@@ -345,34 +347,53 @@ export function MatchConfigure() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p className="text-sm font-medium text-slate-700">Progresjon</p>
-              <p className="text-xl sm:text-2xl font-bold text-slate-900">
-                {completedCount} av {totalCount} hold
-              </p>
+        {isUnknownMode ? (
+          <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-4 sm:p-6 mb-6">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                <Shuffle className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-amber-900">Ukjente hold</h3>
+                <p className="text-sm text-amber-700 mt-1">
+                  Figur og avstand konfigureres for hvert hold under stevnet. Du trenger ikke fylle ut holdene her.
+                </p>
+                <p className="text-xs text-amber-600 mt-2">
+                  {totalCount} hold er klare. Skyterklasse og ammunisjon kan velges nedenfor.
+                </p>
+              </div>
             </div>
-            {isReady ? (
-              <div className="flex items-center gap-2 text-emerald-600">
-                <Check className="w-5 h-5" />
-                <span className="font-medium">Klar til start</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 text-amber-600">
-                <AlertCircle className="w-5 h-5" />
-                <span className="font-medium">Ikke ferdig</span>
-              </div>
-            )}
           </div>
+        ) : (
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-sm font-medium text-slate-700">Progresjon</p>
+                <p className="text-xl sm:text-2xl font-bold text-slate-900">
+                  {completedCount} av {totalCount} hold
+                </p>
+              </div>
+              {isReady ? (
+                <div className="flex items-center gap-2 text-emerald-600">
+                  <Check className="w-5 h-5" />
+                  <span className="font-medium">Klar til start</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-amber-600">
+                  <AlertCircle className="w-5 h-5" />
+                  <span className="font-medium">Ikke ferdig</span>
+                </div>
+              )}
+            </div>
 
-          <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
-            <div
-              className="bg-emerald-600 h-full transition-all duration-300"
-              style={{ width: `${progressPercent}%` }}
-            />
+            <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
+              <div
+                className="bg-emerald-600 h-full transition-all duration-300"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6 mb-6">
           <label className="block text-sm font-medium text-slate-700 mb-3">
@@ -439,7 +460,7 @@ export function MatchConfigure() {
           </div>
         )}
 
-        <div className="space-y-4 mb-6">
+        <div className={`space-y-4 mb-6 ${isUnknownMode ? 'hidden' : ''}`}>
           {holds.map((hold, index) => (
             <div
               key={hold.id}
@@ -603,9 +624,9 @@ export function MatchConfigure() {
         >
           <button
             onClick={handleStartMatch}
-            disabled={!isReady || starting}
+            disabled={(!isReady && !isUnknownMode) || starting}
             className={`w-full flex items-center justify-center gap-2 px-6 py-4 rounded-lg font-semibold text-lg transition-colors ${
-              isReady && !starting
+              (isReady || isUnknownMode) && !starting
                 ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
                 : 'bg-slate-200 text-slate-400 cursor-not-allowed'
             }`}
@@ -613,7 +634,7 @@ export function MatchConfigure() {
             <Play className="w-5 h-5" />
             {starting ? 'Starter...' : 'Start stevne'}
           </button>
-          {!isReady && (
+          {!isReady && !isUnknownMode && (
             <p className="text-center text-sm text-slate-600 mt-3">
               Fyll ut alle hold før du starter stevnet
             </p>

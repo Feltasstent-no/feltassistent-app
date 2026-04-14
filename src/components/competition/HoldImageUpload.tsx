@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { enqueueUpload } from '../../lib/upload-queue';
 import { CompetitionStageImage } from '../../types/database';
 import { Camera, Upload, X, Check, FileText, Loader2 } from 'lucide-react';
 
@@ -60,7 +61,6 @@ export function HoldImageUpload({
 }: HoldImageUploadProps) {
   const { user } = useAuth();
   const [uploading, setUploading] = useState(false);
-  const [uploadPhase, setUploadPhase] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -82,106 +82,47 @@ export function HoldImageUpload({
     }
   }, [existingImage?.storage_path]);
 
+  const [queued, setQueued] = useState(false);
+
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !user) return;
 
-    setUploading(true);
     setError(null);
     setSuccess(false);
+    setQueued(false);
 
+    let uploadBlob: Blob;
     try {
-      setUploadPhase('Komprimerer bilde...');
+      uploadBlob = await convertToJpeg(file);
+    } catch {
+      uploadBlob = file;
+    }
 
-      let uploadBlob: Blob;
-      try {
-        uploadBlob = await convertToJpeg(file);
-      } catch (convErr) {
-        console.warn('[HoldImageUpload] JPEG conversion failed, using raw file:', convErr);
-        uploadBlob = file;
-      }
+    const preview = URL.createObjectURL(file);
+    setLocalPreview(preview);
 
-      setUploadPhase('Laster opp...');
+    const timestamp = Date.now();
+    const storagePath = `${user.id}/entries/${entryId}/stage-${stageNumber}-${timestamp}.jpg`;
 
-      const preview = URL.createObjectURL(file);
-      setLocalPreview(preview);
+    enqueueUpload({
+      blob: uploadBlob,
+      storagePath,
+      holdId: entryId,
+      holdType: 'competition_stage',
+      dbMeta: {
+        entryId,
+        stageNumber,
+        userId: user.id,
+        existingImageId: existingImage?.id || null,
+      },
+    });
 
-      const timestamp = Date.now();
-      const storagePath = `${user.id}/entries/${entryId}/stage-${stageNumber}-${timestamp}.jpg`;
+    setQueued(true);
+    setTimeout(() => setQueued(false), 3000);
 
-      const { error: uploadError } = await supabase.storage
-        .from('monitor-photos')
-        .upload(storagePath, uploadBlob, {
-          cacheControl: '3600',
-          upsert: false,
-          contentType: uploadBlob.type || 'image/jpeg',
-        });
-
-      if (uploadError) {
-        console.error('[HoldImageUpload] Storage upload FAILED:', uploadError.message, uploadError);
-        throw uploadError;
-      }
-
-      setUploadPhase('Lagrer...');
-
-      if (existingImage) {
-        console.log('[HoldImageUpload] Updating existing record:', existingImage.id);
-        const { error: updateError } = await supabase
-          .from('competition_stage_images')
-          .update({
-            storage_path: storagePath,
-            image_url: null,
-            uploaded_at: new Date().toISOString(),
-          })
-          .eq('id', existingImage.id);
-
-        if (updateError) {
-          console.error('[HoldImageUpload] DB update FAILED:', updateError);
-          throw updateError;
-        }
-        console.log('[HoldImageUpload] DB update SUCCESS');
-
-        if (existingImage.storage_path) {
-          await supabase.storage
-            .from('monitor-photos')
-            .remove([existingImage.storage_path]);
-        }
-      } else {
-        console.log('[HoldImageUpload] Inserting new record for stage:', stageNumber);
-        const { error: insertError } = await supabase
-          .from('competition_stage_images')
-          .insert({
-            entry_id: entryId,
-            stage_number: stageNumber,
-            user_id: user.id,
-            storage_path: storagePath,
-            image_url: null,
-            uploaded_at: new Date().toISOString(),
-          });
-
-        if (insertError) {
-          console.error('[HoldImageUpload] DB insert FAILED:', insertError);
-          throw insertError;
-        }
-        console.log('[HoldImageUpload] DB insert SUCCESS');
-      }
-
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 2000);
-
-      if (onImageUploaded) {
-        onImageUploaded();
-      }
-    } catch (err: any) {
-      console.error('[HoldImageUpload] UPLOAD ERROR:', err);
-      setLocalPreview(null);
-      setError(err.message || 'Kunne ikke laste opp bilde');
-    } finally {
-      setUploading(false);
-      setUploadPhase(null);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -319,15 +260,10 @@ export function HoldImageUpload({
 
           <button
             onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+            className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
           >
-            {uploading ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <Upload className="w-5 h-5" />
-            )}
-            {uploading ? (uploadPhase || 'Laster opp...') : 'Velg eller ta bilde'}
+            <Upload className="w-5 h-5" />
+            Velg eller ta bilde
           </button>
 
           <p className="text-xs text-center text-slate-500">
@@ -355,6 +291,13 @@ export function HoldImageUpload({
         <div className="mt-3 p-2 bg-green-50 border border-green-200 rounded text-sm text-green-700 flex items-center gap-2">
           <Check className="w-4 h-4" />
           Bilde lagret!
+        </div>
+      )}
+
+      {queued && (
+        <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-700 flex items-center gap-2">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Bilde lagt i kø - lastes opp i bakgrunnen
         </div>
       )}
 

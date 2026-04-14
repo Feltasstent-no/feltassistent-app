@@ -125,21 +125,21 @@ export function ShotCountDialog({
 
         <div className="p-6 space-y-5">
           <p className="text-slate-600">
-            Du skjot totalt <span className="font-bold text-slate-900">{totalShots} skudd</span>.
+            Du skjøt totalt <span className="font-bold text-slate-900">{totalShots} skudd</span>.
           </p>
 
           {weapons && weapons.length > 0 ? (
             <>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Velg vapen
+                  Velg våpen
                 </label>
                 <select
                   value={selectedWeapon}
                   onChange={(e) => setSelectedWeapon(e.target.value)}
                   className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
                 >
-                  <option value="">Velg et vapen</option>
+                  <option value="">Velg et våpen</option>
                   {weapons.map((weapon) => (
                     <option key={weapon.id} value={weapon.id}>
                       {weapon.weapon_name} ({weapon.weapon_number})
@@ -166,7 +166,7 @@ export function ShotCountDialog({
                     <div className="flex items-start gap-2 px-3 py-3 bg-slate-50 rounded-lg border border-slate-200">
                       <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
                       <p className="text-sm text-slate-600">
-                        Ingen lagerposter funnet for dette vapenet. Kun skuddteller oppdateres.
+                        Ingen lagerposter funnet for dette våpenet. Kun skuddteller oppdateres.
                       </p>
                     </div>
                   ) : (
@@ -240,10 +240,10 @@ export function ShotCountDialog({
 
               <p className="text-sm text-slate-500">
                 {ammoList.length > 0 && selectedAmmo
-                  ? 'Skuddene legges til vapen/lop og trekkes fra valgt lager.'
+                  ? 'Skuddene legges til våpen/løp og trekkes fra valgt lager.'
                   : ammoList.length > 0
-                    ? 'Velg en lagerpost for a trekke fra, eller trykk Legg til for kun skuddteller.'
-                    : 'Skuddene legges til bade vapen og aktivt lop.'}
+                    ? 'Velg en lagerpost for å trekke fra, eller trykk Legg til for kun skuddteller.'
+                    : 'Skuddene legges til både våpen og aktivt løp.'}
               </p>
             </>
           ) : (
@@ -255,11 +255,11 @@ export function ShotCountDialog({
               )}
               {!weaponName && (
                 <p className="text-slate-600">
-                  Vil du legge til disse skuddene i skuddtelleren for vapenet ditt?
+                  Vil du legge til disse skuddene i skuddtelleren for våpenet ditt?
                 </p>
               )}
               <p className="text-sm text-slate-500">
-                Du kan ogsa oppdatere skuddtelleren manuelt fra Dashboard eller Vapen-siden.
+                Du kan også oppdatere skuddtelleren manuelt fra Dashboard eller Våpen-siden.
               </p>
             </>
           )}

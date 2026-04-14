@@ -13,6 +13,8 @@ import {
 } from '../../lib/match-service';
 import { supabase } from '../../lib/supabase';
 import type { FieldFigure, ClickTableRow } from '../../types/database';
+import { ShotCountInput } from '../inputs/ShotCountInput';
+import { ShootingTimeInput } from '../inputs/ShootingTimeInput';
 
 interface ConfigureHoldEditorProps {
   hold: MatchHold;
@@ -212,32 +214,17 @@ export function ConfigureHoldEditor({
           showClicks={isGrovfelt}
         />
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Skytetid (sek)
-            </label>
-            <input
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              value={hold.shooting_time_seconds}
-              onChange={(e) => {
-                const v = e.target.value.replace(/[^0-9]/g, '');
-                onUpdate(hold.id, { shooting_time_seconds: v ? parseInt(v) : 60 });
-              }}
-              onFocus={(e) => e.target.select()}
-              className="w-full px-4 py-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-              placeholder="60"
-            />
-            <p className="text-xs text-slate-500 mt-1">Samlet tid for alle delhold</p>
-          </div>
-          <div className="flex flex-col justify-end">
-            <p className="text-sm text-slate-600">
-              {subHolds.length} delhold, {compositeShotTotal} skudd
-            </p>
-          </div>
-        </div>
+        <ShootingTimeInput
+          value={String(hold.shooting_time_seconds)}
+          onChange={(v) => {
+            const parsed = parseInt(v);
+            onUpdate(hold.id, { shooting_time_seconds: parsed || 60 });
+          }}
+          suffix="- samlet for alle delhold"
+        />
+        <p className="text-sm text-slate-600">
+          {subHolds.length} delhold, {compositeShotTotal} skudd
+        </p>
 
         <div className="flex gap-2">
           <button
@@ -352,41 +339,18 @@ export function ConfigureHoldEditor({
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">Antall skudd</label>
-          <input
-            type="text"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            value={hold.shot_count}
-            onChange={(e) => {
-              const v = e.target.value.replace(/[^0-9]/g, '');
-              onUpdate(hold.id, { shot_count: v ? parseInt(v) : 6 });
-            }}
-            onFocus={(e) => e.target.select()}
-            className="w-full px-4 py-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-            placeholder="6"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">Skytetid (sek)</label>
-          <input
-            type="text"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            value={hold.shooting_time_seconds}
-            onChange={(e) => {
-              const v = e.target.value.replace(/[^0-9]/g, '');
-              onUpdate(hold.id, { shooting_time_seconds: v ? parseInt(v) : 60 });
-            }}
-            onFocus={(e) => e.target.select()}
-            className="w-full px-4 py-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-            placeholder={competitionType === 'finfelt' ? '120' : '60'}
-          />
-          <p className="text-xs text-slate-500 mt-1">Gjelder kun dette holdet</p>
-        </div>
-      </div>
+      <ShotCountInput
+        value={hold.shot_count}
+        onChange={(v) => onUpdate(hold.id, { shot_count: v })}
+      />
+
+      <ShootingTimeInput
+        value={String(hold.shooting_time_seconds)}
+        onChange={(v) => {
+          const parsed = parseInt(v);
+          onUpdate(hold.id, { shooting_time_seconds: parsed || 60 });
+        }}
+      />
 
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-2">Notat (valgfritt)</label>

@@ -1,3 +1,8 @@
+export type ShootingType = 'finfelt' | 'grovfelt';
+export type CaliberType = '.22 LR' | '6.5x55' | 'annet';
+export type UsageIntent = 'stevne' | 'trening' | 'knepp_vind' | 'alt';
+export type UserMode = 'finfelt_only' | 'grovfelt';
+
 export interface Profile {
   id: string;
   full_name: string | null;
@@ -9,6 +14,11 @@ export interface Profile {
   shooter_class_id: string | null;
   birth_year: number | null;
   avatar_url: string | null;
+  onboarding_completed: boolean;
+  shooting_type: ShootingType | null;
+  caliber_type: CaliberType | null;
+  usage_intent: UsageIntent | null;
+  user_mode: UserMode;
   created_at: string;
   updated_at: string;
 }
@@ -93,11 +103,14 @@ export interface TimeBlock {
   created_at: string;
 }
 
+export type DistanceMode = 'kjent' | 'ukjent' | 'blandet';
+
 export interface Competition {
   id: string;
   user_id: string;
   name: string;
   competition_type: 'bane' | 'grovfelt' | 'finfelt';
+  distance_mode: DistanceMode;
   discipline_id: string | null;
   shooter_class: string | null;
   location: string | null;
@@ -119,9 +132,12 @@ export interface CompetitionStage {
   total_shots: number;
   time_limit_seconds: number | null;
   field_figure_id: string | null;
+  field_figure_code: string | null;
+  field_figure_name: string | null;
   distance_m: number | null;
   clicks: number | null;
   clicks_to_zero: number | null;
+  is_preconfigured: boolean;
   created_at: string;
 }
 
@@ -269,13 +285,18 @@ export interface CompetitionTemplate {
   id: string;
   name: string;
   description: string | null;
+  competition_type: string | null;
   discipline_id: string | null;
-  shooter_class: string | null;
-  default_stage_count: number;
-  default_total_shots: number;
-  category_id: string | null;
+  distance_mode: string | null;
+  default_stages: number;
+  default_shots_per_stage: number;
+  default_shoot_time: number;
+  default_prep_time: number;
+  sort_order: number;
+  field_figure_category_id: string | null;
   is_active: boolean;
   created_at: string;
+  updated_at: string;
 }
 
 export interface ClickTable {
@@ -515,5 +536,64 @@ export interface AmmoInventoryLog {
   match_session_id: string | null;
   notes: string | null;
   running_balance: number | null;
+  created_at: string;
+}
+
+export interface TrainingEntryImage {
+  id: string;
+  entry_id: string;
+  user_id: string;
+  storage_path: string;
+  caption: string | null;
+  created_at: string;
+}
+
+export interface TrainingSession {
+  id: string;
+  user_id: string;
+  title: string;
+  session_date: string;
+  discipline_id: string | null;
+  location: string | null;
+  weapon_id: string | null;
+  barrel_id: string | null;
+  ammo_inventory_id: string | null;
+  class_code: string | null;
+  weather: string | null;
+  wind_notes: string | null;
+  notes: string | null;
+  status: 'active' | 'completed' | 'cancelled';
+  total_shots: number;
+  total_score: number;
+  total_inner_hits: number;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TrainingSeries {
+  id: string;
+  session_id: string;
+  user_id: string;
+  order_index: number;
+  shot_count: number;
+  shooting_time_seconds: number | null;
+  distance_m: number | null;
+  score: number | null;
+  inner_hits: number | null;
+  hits: number | null;
+  notes: string | null;
+  completed: boolean;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+}
+
+export interface TrainingSeriesImage {
+  id: string;
+  series_id: string;
+  user_id: string;
+  storage_path: string;
+  caption: string | null;
   created_at: string;
 }

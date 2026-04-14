@@ -9,6 +9,7 @@ import { HoldProgress } from '../components/match/HoldProgress';
 import { EditHoldModal } from '../components/match/EditHoldModal';
 import { AddHoldModal } from '../components/match/AddHoldModal';
 import { FirstHoldModal } from '../components/match/FirstHoldModal';
+import { MatchUnknownHoldSetup, type UnknownHoldConfirmConfig } from '../components/match/MatchUnknownHoldSetup';
 import { useBlockNavigation } from '../lib/use-block-navigation';
 import { useWakeLock } from '../lib/use-wake-lock';
 import { getAssistanceMode, type AssistanceMode } from '../lib/user-preferences';
@@ -19,21 +20,28 @@ import {
   completeHold,
   updateMatchSessionHoldIndex,
   pauseMatchSession,
-  uploadMonitorPhoto,
-  uploadSubHoldImage,
   completeMatchSession,
   startHold,
   getElapsedTime,
   updateHoldWindCorrection,
   updateMatchAmmoDeduction,
+  updateMatchMetadata,
   updateMatchShotCounts,
   getSubHoldsForSession,
+  updateMatchHold,
+  recalculateHoldClicks,
+  createSubHold,
+  syncCompositeHoldShotCount,
 } from '../lib/match-service';
+import { enqueueUpload } from '../lib/upload-queue';
+import { UploadQueueStatus } from '../components/UploadQueueStatus';
+import { EditMetadataModal } from '../components/EditMetadataModal';
 import { deductAmmoFromInventory } from '../lib/ammo-inventory-service';
 import { logWeaponShots } from '../lib/weapon-shot-service';
 import { getUserActiveSetup } from '../lib/active-setup-service';
 import { supabase } from '../lib/supabase';
 import type { MatchSession, MatchHoldWithFigure } from '../lib/match-service';
+import type { FieldFigure } from '../types/database';
 
 export function MatchActive() {
   const { id } = useParams();
@@ -52,6 +60,9 @@ export function MatchActive() {
   const [showAddHoldModal, setShowAddHoldModal] = useState(false);
   const [showFirstHoldModal, setShowFirstHoldModal] = useState(false);
   const [showHoldSetupModal, setShowHoldSetupModal] = useState(false);
+  const [showUnknownSetup, setShowUnknownSetup] = useState(false);
+  const [showEditMeta, setShowEditMeta] = useState(false);
+  const [fieldFigures, setFieldFigures] = useState<FieldFigure[]>([]);
   const [assistMode] = useState<AssistanceMode>(getAssistanceMode);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const subHoldPhotoInputRef = useRef<HTMLInputElement>(null);
@@ -99,6 +110,17 @@ export function MatchActive() {
       setSession(sessionData);
       setHolds(holdsWithSubs);
 
+      const isUnknown = sessionData.distance_mode === 'ukjent';
+
+      if (isUnknown && fieldFigures.length === 0) {
+        const { data: figs } = await supabase
+          .from('field_figures')
+          .select('*')
+          .eq('is_active', true)
+          .order('order_index');
+        if (figs) setFieldFigures(figs);
+      }
+
       if (sessionData.ammo_inventory_id) {
         const { data: ammoData } = await supabase
           .from('ammo_inventory')
@@ -119,7 +141,9 @@ export function MatchActive() {
 
       setCurrentHold(current);
 
-      if (!current?.started_at && assistMode !== 'minimal') {
+      if (isUnknown && current && !current.field_figure_id && !current.started_at) {
+        setShowUnknownSetup(true);
+      } else if (!current?.started_at && assistMode !== 'minimal') {
         if (sessionData.current_hold_index === 0) {
           setShowFirstHoldModal(true);
         } else if (assistMode === 'guided') {
@@ -262,7 +286,9 @@ export function MatchActive() {
     setSession({ ...session, current_hold_index: nextIndex });
     setShowResetReminder(false);
 
-    if (assistMode === 'guided' && nextHold && !nextHold.started_at) {
+    if (session.distance_mode === 'ukjent' && nextHold && !nextHold.field_figure_id && !nextHold.started_at) {
+      setShowUnknownSetup(true);
+    } else if (assistMode === 'guided' && nextHold && !nextHold.started_at) {
       setShowHoldSetupModal(true);
     }
 
@@ -313,9 +339,57 @@ export function MatchActive() {
     setCurrentHold(nextHold);
     setSession({ ...session, current_hold_index: nextIndex });
 
-    if (assistMode === 'guided' && nextHold && !nextHold.started_at) {
+    if (session.distance_mode === 'ukjent' && nextHold && !nextHold.field_figure_id && !nextHold.started_at) {
+      setShowUnknownSetup(true);
+    } else if (assistMode === 'guided' && nextHold && !nextHold.started_at) {
       setShowHoldSetupModal(true);
     }
+  };
+
+  const handleUnknownHoldConfirm = async (config: UnknownHoldConfirmConfig) => {
+    if (!currentHold || !session) return;
+
+    await updateMatchHold({
+      holdId: currentHold.id,
+      fieldFigureId: config.field_figure_id,
+      distanceM: config.distance_m,
+      recommendedClicks: config.clicks ?? undefined,
+      shotCount: config.shot_count,
+      shootingTimeSeconds: config.shooting_time_seconds,
+    });
+
+    if (config.is_composite) {
+      await supabase
+        .from('match_holds')
+        .update({ is_composite: true })
+        .eq('id', currentHold.id);
+
+      for (let i = 0; i < config.sub_holds.length; i++) {
+        const sh = config.sub_holds[i];
+        await createSubHold({
+          matchHoldId: currentHold.id,
+          orderIndex: i,
+          fieldFigureId: sh.fieldFigureId,
+          distanceM: sh.distanceM,
+          shotCount: sh.shotCount,
+          elevationClicks: sh.elevationClicks,
+          windClicks: sh.windClicks,
+        });
+      }
+
+      await syncCompositeHoldShotCount(currentHold.id);
+    }
+
+    if (session.click_table_id && config.distance_m > 0) {
+      await recalculateHoldClicks(session.id, currentHold.id, config.distance_m);
+    }
+
+    if (config.wind_clicks != null) {
+      await updateHoldWindCorrection(currentHold.id, config.wind_clicks);
+    }
+
+    await fetchData();
+    setShowUnknownSetup(false);
   };
 
   const handleClockStart = async () => {
@@ -350,26 +424,18 @@ export function MatchActive() {
     fileInputRef.current?.click();
   };
 
-  const handlePhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0 || !currentHold || !user) return;
 
     const file = e.target.files[0];
-    console.log('[MatchActive] handlePhotoSelected:', {
-      fileName: file.name,
-      fileSize: file.size,
-      fileType: file.type,
+    const storagePath = `${user.id}/${currentHold.id}_${Date.now()}.jpg`;
+
+    enqueueUpload({
+      blob: file,
+      storagePath,
       holdId: currentHold.id,
+      holdType: 'match_hold',
     });
-
-    const { url, error } = await uploadMonitorPhoto(currentHold.id, user.id, file);
-
-    if (error) {
-      console.error('[MatchActive] photo upload error:', error);
-      alert('Kunne ikke laste opp bilde: ' + (error.message || JSON.stringify(error)));
-    } else {
-      console.log('[MatchActive] photo upload OK, stored path:', url);
-      alert('Bilde lastet opp!');
-    }
 
     e.target.value = '';
   };
@@ -379,19 +445,20 @@ export function MatchActive() {
     subHoldPhotoInputRef.current?.click();
   };
 
-  const handleSubHoldPhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSubHoldPhotoSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0 || !user) return;
     const subHoldId = pendingSubHoldIdRef.current;
     if (!subHoldId) return;
 
     const file = e.target.files[0];
-    const { error } = await uploadSubHoldImage(subHoldId, user.id, file);
+    const storagePath = `${user.id}/sub_${subHoldId}_${Date.now()}.jpg`;
 
-    if (error) {
-      alert('Kunne ikke laste opp bilde: ' + (error.message || JSON.stringify(error)));
-    } else {
-      alert('Bilde lastet opp!');
-    }
+    enqueueUpload({
+      blob: file,
+      storagePath,
+      holdId: subHoldId,
+      holdType: 'sub_hold',
+    });
 
     e.target.value = '';
     pendingSubHoldIdRef.current = null;
@@ -423,6 +490,23 @@ export function MatchActive() {
     );
   }
 
+  if (showUnknownSetup && currentHold && session) {
+    return (
+      <Layout>
+        <MatchUnknownHoldSetup
+          holdIndex={session.current_hold_index}
+          totalHolds={holds.length}
+          shootingTimeSeconds={currentHold.shooting_time_seconds}
+          shotCount={currentHold.shot_count}
+          figures={fieldFigures}
+          clickTableId={session.click_table_id}
+          competitionType={session.competition_type}
+          onConfirm={handleUnknownHoldConfirm}
+        />
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <div className="h-[calc(100dvh-4rem-2rem)] md:h-[calc(100dvh-4rem-4rem)] flex flex-col overflow-hidden -mx-4 sm:-mx-6 lg:-mx-8 -my-4 sm:-my-8">
@@ -432,7 +516,15 @@ export function MatchActive() {
               currentHold={session.current_hold_index}
               totalHolds={holds.length}
             />
+            <button
+              onClick={() => setShowEditMeta(true)}
+              className="text-xs text-slate-500 hover:text-slate-700 truncate max-w-[120px] transition"
+              title="Rediger stevneinfo"
+            >
+              {session.match_name}
+            </button>
             <div className="flex items-center gap-2 flex-shrink-0">
+              <UploadQueueStatus />
               {ammoName && (
                 <div className="flex items-center gap-1.5 text-xs text-slate-500">
                   <span className="font-medium text-slate-700">{ammoName}</span>
@@ -554,6 +646,24 @@ export function MatchActive() {
           className="hidden"
         />
       </div>
+
+      {showEditMeta && session && (
+        <EditMetadataModal
+          title="Rediger stevneinfo"
+          currentName={session.match_name}
+          currentNotes={session.notes || ''}
+          onSave={async (name, notes) => {
+            const { error } = await updateMatchMetadata({
+              sessionId: session.id,
+              matchName: name,
+              notes,
+            });
+            if (error) throw error;
+            setSession({ ...session, match_name: name, notes: notes || undefined });
+          }}
+          onClose={() => setShowEditMeta(false)}
+        />
+      )}
     </Layout>
   );
 }

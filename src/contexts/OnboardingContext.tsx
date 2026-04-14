@@ -1,0 +1,168 @@
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { useAuth } from './AuthContext';
+import { supabase } from '../lib/supabase';
+import type { ShootingType, CaliberType, UsageIntent, UserMode } from '../types/database';
+
+interface OnboardingState {
+  shootingType: ShootingType | null;
+  caliberType: CaliberType | null;
+  usageIntent: UsageIntent | null;
+}
+
+interface OnboardingContextType {
+  needsOnboarding: boolean;
+  onboardingLoading: boolean;
+  userMode: UserMode;
+  state: OnboardingState;
+  setState: (s: Partial<OnboardingState>) => void;
+  completeOnboarding: () => Promise<void>;
+  skipOnboarding: () => Promise<void>;
+  refreshOnboarding: () => Promise<void>;
+  resetOnboarding: () => Promise<void>;
+}
+
+const OnboardingContext = createContext<OnboardingContextType>({
+  needsOnboarding: false,
+  onboardingLoading: true,
+  userMode: 'grovfelt',
+  state: { shootingType: null, caliberType: null, usageIntent: null },
+  setState: () => {},
+  completeOnboarding: async () => {},
+  skipOnboarding: async () => {},
+  refreshOnboarding: async () => {},
+  resetOnboarding: async () => {},
+});
+
+export const useOnboarding = () => useContext(OnboardingContext);
+
+function deriveUserMode(shootingType: ShootingType | null): UserMode {
+  if (shootingType === 'finfelt') return 'finfelt_only';
+  return 'grovfelt';
+}
+
+function normalizeUserMode(mode: string | null): UserMode {
+  if (mode === 'finfelt_only') return 'finfelt_only';
+  return 'grovfelt';
+}
+
+export function OnboardingProvider({ children }: { children: ReactNode }) {
+  const { user, loading: authLoading } = useAuth();
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [onboardingLoading, setOnboardingLoading] = useState(true);
+  const [userMode, setUserMode] = useState<UserMode>('grovfelt');
+  const [state, setStateInternal] = useState<OnboardingState>({
+    shootingType: null,
+    caliberType: null,
+    usageIntent: null,
+  });
+
+  const checkOnboarding = async () => {
+    if (!user) {
+      setNeedsOnboarding(false);
+      setOnboardingLoading(false);
+      return;
+    }
+
+    const { data } = await supabase
+      .from('profiles')
+      .select('onboarding_completed, shooting_type, caliber_type, usage_intent, user_mode')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (!data || !data.onboarding_completed) {
+      setNeedsOnboarding(true);
+      if (data) {
+        setStateInternal({
+          shootingType: data.shooting_type,
+          caliberType: data.caliber_type,
+          usageIntent: data.usage_intent,
+        });
+      }
+    } else {
+      setNeedsOnboarding(false);
+      setUserMode(normalizeUserMode(data.user_mode));
+    }
+    setOnboardingLoading(false);
+  };
+
+  useEffect(() => {
+    if (authLoading) return;
+    checkOnboarding();
+  }, [user, authLoading]);
+
+  const setState = (partial: Partial<OnboardingState>) => {
+    setStateInternal(prev => ({ ...prev, ...partial }));
+  };
+
+  const saveProfile = async (completed: boolean) => {
+    if (!user) return;
+    const mode = deriveUserMode(state.shootingType);
+    await supabase
+      .from('profiles')
+      .update({
+        onboarding_completed: completed,
+        shooting_type: state.shootingType,
+        caliber_type: state.caliberType,
+        usage_intent: state.usageIntent,
+        user_mode: mode,
+      })
+      .eq('id', user.id);
+    setUserMode(mode);
+    if (completed) setNeedsOnboarding(false);
+  };
+
+  const completeOnboarding = async () => {
+    await saveProfile(true);
+  };
+
+  const skipOnboarding = async () => {
+    if (!user) return;
+    await supabase
+      .from('profiles')
+      .update({
+        onboarding_completed: true,
+        user_mode: 'grovfelt',
+      })
+      .eq('id', user.id);
+    setUserMode('grovfelt');
+    setNeedsOnboarding(false);
+  };
+
+  const refreshOnboarding = async () => {
+    setOnboardingLoading(true);
+    await checkOnboarding();
+  };
+
+  const resetOnboarding = async () => {
+    if (!user) return;
+    await supabase
+      .from('profiles')
+      .update({
+        onboarding_completed: false,
+        shooting_type: null,
+        caliber_type: null,
+        usage_intent: null,
+        user_mode: 'grovfelt',
+      })
+      .eq('id', user.id);
+    setStateInternal({ shootingType: null, caliberType: null, usageIntent: null });
+    setUserMode('grovfelt');
+    setNeedsOnboarding(true);
+  };
+
+  return (
+    <OnboardingContext.Provider value={{
+      needsOnboarding,
+      onboardingLoading,
+      userMode,
+      state,
+      setState,
+      completeOnboarding,
+      skipOnboarding,
+      refreshOnboarding,
+      resetOnboarding,
+    }}>
+      {children}
+    </OnboardingContext.Provider>
+  );
+}

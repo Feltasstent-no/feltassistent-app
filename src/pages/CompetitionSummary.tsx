@@ -9,8 +9,9 @@ import {
   CompetitionStageImage,
   FieldFigure,
 } from '../types/database';
-import { ArrowLeft, Target, TrendingUp, Sparkles, AlertCircle, CheckCircle, HelpCircle, Trash2, MoreVertical, X, ZoomIn } from 'lucide-react';
+import { ArrowLeft, Target, TrendingUp, Sparkles, AlertCircle, CheckCircle, HelpCircle, Trash2, MoreVertical, X, ZoomIn, Pencil } from 'lucide-react';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { EditMetadataModal } from '../components/EditMetadataModal';
 import { deleteCompetitionEntry } from '../lib/deletion-service';
 
 export function CompetitionSummary() {
@@ -28,6 +29,7 @@ export function CompetitionSummary() {
   const [aiError, setAiError] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showEditMeta, setShowEditMeta] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<{ url: string; alt: string } | null>(null);
 
@@ -204,9 +206,20 @@ export function CompetitionSummary() {
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6 mb-6">
           <div className="flex items-start justify-between gap-3 mb-4">
             <div className="min-w-0 flex-1">
-              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2 break-words">
-                {competition.name}
-              </h1>
+              <div className="flex items-center gap-2 mb-2">
+                <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 break-words">
+                  {competition.name}
+                </h1>
+                {competition.user_id === user?.id && (
+                  <button
+                    onClick={() => setShowEditMeta(true)}
+                    className="p-1.5 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition flex-shrink-0"
+                    title="Rediger stevneinfo"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
               <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-sm text-slate-600">
                 <span>
                   {new Date(entry.created_at).toLocaleDateString('nb-NO', {
@@ -562,6 +575,23 @@ export function CompetitionSummary() {
             onError={(e) => console.error('[CompetitionSummary] Lightbox image FAILED:', (e.target as HTMLImageElement).currentSrc)}
           />
         </div>
+      )}
+
+      {showEditMeta && competition && (
+        <EditMetadataModal
+          title="Rediger stevneinfo"
+          currentName={competition.name}
+          currentNotes={competition.notes || ''}
+          onSave={async (name, notes) => {
+            const { error } = await supabase
+              .from('competitions')
+              .update({ name, notes: notes || null })
+              .eq('id', competition.id);
+            if (error) throw error;
+            setCompetition({ ...competition, name, notes: notes || null });
+          }}
+          onClose={() => setShowEditMeta(false)}
+        />
       )}
     </div>
   );

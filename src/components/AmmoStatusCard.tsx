@@ -15,7 +15,7 @@ import { AmmoHistoryModal } from './AmmoHistoryModal';
 const REASON_LABELS: Record<string, string> = {
   match: 'stevne',
   manual: 'manuell',
-  purchase: 'pafyll',
+  purchase: 'påfyll',
   adjustment: 'justering',
 };
 

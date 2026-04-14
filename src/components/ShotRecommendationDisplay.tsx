@@ -1,6 +1,6 @@
 import { ShotRecommendation } from '../lib/field-assistant';
 import { Target, ArrowUp, Wind, Info, Database, FileText, Calculator } from 'lucide-react';
-import WindCompass from './WindCompass';
+
 
 interface ShotRecommendationDisplayProps {
   recommendation: ShotRecommendation;
@@ -71,22 +71,6 @@ export function ShotRecommendationDisplay({ recommendation }: ShotRecommendation
           )}
         </div>
 
-        {wind_clicks !== undefined && wind_direction !== undefined && recommendation.wind_speed_ms !== undefined && (
-          <div className="mt-6 pt-6 border-t border-slate-200">
-            <div className="flex justify-center">
-              <WindCompass
-                windAngleDeg={parseFloat(wind_direction)}
-                windSpeedMs={recommendation.wind_speed_ms}
-                size={140}
-              />
-            </div>
-            <div className="mt-4 text-center">
-              <p className="text-xs text-slate-600">
-                Hold i sentrum - Juster med siktet
-              </p>
-            </div>
-          </div>
-        )}
       </div>
 
       {notes && notes.length > 0 && (

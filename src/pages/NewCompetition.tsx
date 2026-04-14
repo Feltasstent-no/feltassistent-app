@@ -3,8 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Discipline, CompetitionTemplate } from '../types/database';
-import { Trophy, Calendar, MapPin, FileText, Target, Settings } from 'lucide-react';
+import { Discipline, CompetitionTemplate, DistanceMode } from '../types/database';
+import { Trophy, Calendar, MapPin, FileText, Target, Settings, AlertCircle, Eye, EyeOff, Shuffle } from 'lucide-react';
+
+interface DisciplineAvailability {
+  grovfelt: boolean;
+  finfelt: boolean;
+  hasWeaponWithBarrel: boolean;
+  hasClickTable: boolean;
+}
 
 export function NewCompetition() {
   const { user } = useAuth();
@@ -13,11 +20,19 @@ export function NewCompetition() {
   const [disciplines, setDisciplines] = useState<Discipline[]>([]);
   const [templates, setTemplates] = useState<CompetitionTemplate[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<CompetitionTemplate | null>(null);
+  const [availability, setAvailability] = useState<DisciplineAvailability>({
+    grovfelt: false,
+    finfelt: false,
+    hasWeaponWithBarrel: false,
+    hasClickTable: false,
+  });
+  const [setupLoading, setSetupLoading] = useState(true);
 
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    competition_type: 'grovfelt' as 'bane' | 'grovfelt' | 'finfelt',
+    competition_type: '' as '' | 'bane' | 'grovfelt' | 'finfelt',
+    distance_mode: 'kjent' as DistanceMode,
     discipline_id: '',
     location: '',
     competition_date: new Date().toISOString().split('T')[0],
@@ -44,6 +59,7 @@ export function NewCompetition() {
           custom_shots_per_stage: template.default_shots_per_stage,
           custom_shoot_time: template.default_shoot_time,
           custom_prep_time: template.default_prep_time,
+          distance_mode: (template.distance_mode as DistanceMode) || 'kjent',
         });
       }
     } else {
@@ -52,20 +68,45 @@ export function NewCompetition() {
   }, [formData.template_id, templates]);
 
   const fetchData = async () => {
-    const [disciplinesRes, templatesRes] = await Promise.all([
+    if (!user) return;
+
+    const [disciplinesRes, templatesRes, weaponsRes, barrelsRes, clickTablesRes] = await Promise.all([
       supabase.from('disciplines').select('*').eq('is_active', true).order('name'),
       supabase.from('competition_templates').select('*').eq('is_active', true).order('sort_order'),
+      supabase.from('weapons').select('id').eq('user_id', user.id).eq('is_active', true),
+      supabase.from('weapon_barrels').select('id, weapon_id').eq('is_active', true),
+      supabase.from('click_tables').select('id').eq('user_id', user.id).eq('is_active', true),
     ]);
 
     if (disciplinesRes.data) setDisciplines(disciplinesRes.data);
     if (templatesRes.data) setTemplates(templatesRes.data);
+
+    const weaponIds = new Set((weaponsRes.data || []).map(w => w.id));
+    const hasWeaponWithBarrel = (barrelsRes.data || []).some(b => weaponIds.has(b.weapon_id));
+    const hasClickTable = (clickTablesRes.data || []).length > 0;
+
+    const grovfeltReady = hasWeaponWithBarrel && hasClickTable;
+    const finfeltReady = hasWeaponWithBarrel;
+
+    setAvailability({
+      grovfelt: grovfeltReady,
+      finfelt: finfeltReady,
+      hasWeaponWithBarrel,
+      hasClickTable,
+    });
+
+    const defaultType = grovfeltReady ? 'grovfelt' : finfeltReady ? 'finfelt' : '';
+    setFormData(prev => ({ ...prev, competition_type: defaultType as '' | 'bane' | 'grovfelt' | 'finfelt' }));
+    setSetupLoading(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user || !formData.competition_type) return;
 
     setLoading(true);
+
+    const isUnknownHold = formData.distance_mode === 'ukjent';
 
     const { data, error } = await supabase
       .from('competitions')
@@ -74,24 +115,46 @@ export function NewCompetition() {
         name: formData.name,
         notes: formData.description || null,
         competition_type: formData.competition_type,
+        distance_mode: formData.distance_mode,
         discipline_id: formData.discipline_id || null,
         location: formData.location || null,
         competition_date: formData.competition_date,
         total_stages: formData.custom_stages,
-        status: 'draft',
+        status: isUnknownHold ? 'configured' : 'draft',
       })
       .select()
       .single();
 
-    setLoading(false);
-
     if (error) {
+      setLoading(false);
       alert('Feil ved opprettelse av stevne: ' + error.message);
       return;
     }
 
+    if (data && isUnknownHold) {
+      const shellStages = Array.from({ length: formData.custom_stages }, (_, i) => ({
+        competition_id: data.id,
+        stage_number: i + 1,
+        field_figure_id: null,
+        field_figure_code: null,
+        field_figure_name: null,
+        distance_m: null,
+        clicks: null,
+        clicks_to_zero: null,
+        total_shots: formData.custom_shots_per_stage,
+        time_limit_seconds: formData.custom_shoot_time,
+        is_preconfigured: false,
+      }));
+
+      await supabase.from('competition_stages').insert(shellStages);
+    }
+
+    setLoading(false);
+
     if (data) {
-      if (formData.competition_type === 'grovfelt' || formData.competition_type === 'finfelt') {
+      if (isUnknownHold) {
+        navigate(`/competitions/${data.id}/start`);
+      } else if (formData.competition_type === 'grovfelt' || formData.competition_type === 'finfelt') {
         navigate(`/competitions/${data.id}/configure`);
       } else {
         navigate(`/competitions/${data.id}`);
@@ -142,41 +205,82 @@ export function NewCompetition() {
               <Target className="w-4 h-4 inline mr-2" />
               Type stevne
             </label>
-            <div className="grid grid-cols-3 gap-2 sm:gap-4">
-              <button
-                type="button"
-                onClick={() => setFormData({ ...formData, competition_type: 'bane' })}
-                className={`p-3 sm:p-4 border-2 rounded-lg text-center transition ${
-                  formData.competition_type === 'bane'
-                    ? 'border-emerald-600 bg-emerald-50 text-emerald-900'
-                    : 'border-slate-200 hover:border-slate-300'
-                }`}
-              >
-                <div className="font-semibold text-sm sm:text-base">Bane</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => setFormData({ ...formData, competition_type: 'grovfelt' })}
-                className={`p-3 sm:p-4 border-2 rounded-lg text-center transition ${
-                  formData.competition_type === 'grovfelt'
-                    ? 'border-emerald-600 bg-emerald-50 text-emerald-900'
-                    : 'border-slate-200 hover:border-slate-300'
-                }`}
-              >
-                <div className="font-semibold text-sm sm:text-base">Grovfelt</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => setFormData({ ...formData, competition_type: 'finfelt' })}
-                className={`p-3 sm:p-4 border-2 rounded-lg text-center transition ${
-                  formData.competition_type === 'finfelt'
-                    ? 'border-emerald-600 bg-emerald-50 text-emerald-900'
-                    : 'border-slate-200 hover:border-slate-300'
-                }`}
-              >
-                <div className="font-semibold text-sm sm:text-base">Finfelt</div>
-              </button>
-            </div>
+            {setupLoading ? (
+              <div className="grid grid-cols-3 gap-2 sm:gap-4">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="p-3 sm:p-4 border-2 border-slate-100 rounded-lg animate-pulse bg-slate-50 h-12 sm:h-14" />
+                ))}
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-3 gap-2 sm:gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, competition_type: 'bane' })}
+                    className={`p-3 sm:p-4 border-2 rounded-lg text-center transition ${
+                      formData.competition_type === 'bane'
+                        ? 'border-emerald-600 bg-emerald-50 text-emerald-900'
+                        : 'border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="font-semibold text-sm sm:text-base">Bane</div>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!availability.grovfelt}
+                    onClick={() => availability.grovfelt && setFormData({ ...formData, competition_type: 'grovfelt' })}
+                    className={`p-3 sm:p-4 border-2 rounded-lg text-center transition ${
+                      !availability.grovfelt
+                        ? 'border-slate-100 bg-slate-50 text-slate-300 cursor-not-allowed'
+                        : formData.competition_type === 'grovfelt'
+                          ? 'border-emerald-600 bg-emerald-50 text-emerald-900'
+                          : 'border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="font-semibold text-sm sm:text-base">Grovfelt</div>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!availability.finfelt}
+                    onClick={() => availability.finfelt && setFormData({ ...formData, competition_type: 'finfelt' })}
+                    className={`p-3 sm:p-4 border-2 rounded-lg text-center transition ${
+                      !availability.finfelt
+                        ? 'border-slate-100 bg-slate-50 text-slate-300 cursor-not-allowed'
+                        : formData.competition_type === 'finfelt'
+                          ? 'border-emerald-600 bg-emerald-50 text-emerald-900'
+                          : 'border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="font-semibold text-sm sm:text-base">Finfelt</div>
+                  </button>
+                </div>
+                {(!availability.grovfelt || !availability.finfelt) && (
+                  <div className="mt-3 space-y-2">
+                    {!availability.hasWeaponWithBarrel && (
+                      <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                        <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                        <div className="text-xs text-amber-800">
+                          <span className="font-semibold">Ingen våpen med løp funnet.</span>{' '}
+                          Du må legge til et våpen med løp under{' '}
+                          <button type="button" onClick={() => navigate('/weapons')} className="underline font-semibold hover:text-amber-900">Våpen</button>
+                          {' '}for å opprette felt-stevner.
+                        </div>
+                      </div>
+                    )}
+                    {availability.hasWeaponWithBarrel && !availability.grovfelt && (
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                        <AlertCircle className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
+                        <div className="text-xs text-slate-600">
+                          <span className="font-semibold">Grovfelt er deaktivert.</span>{' '}
+                          Du trenger en knepptabell for grovfelt.{' '}
+                          <button type="button" onClick={() => navigate('/click-tables')} className="underline font-semibold hover:text-slate-800">Opprett knepptabell</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
           <div>
@@ -210,7 +314,12 @@ export function NewCompetition() {
               >
                 <option value="">Ingen mal - lag fra bunn</option>
                 {templates
-                  .filter((t) => t.competition_type === formData.competition_type)
+                  .filter((t) => {
+                    if (formData.competition_type === 'grovfelt' || formData.competition_type === 'finfelt') {
+                      return t.competition_type === 'felt' || t.competition_type === formData.competition_type;
+                    }
+                    return t.competition_type === formData.competition_type;
+                  })
                   .map((template) => {
                     const discipline = disciplines.find(d => d.id === template.discipline_id);
                     const distanceLabel = template.distance_mode === 'kjent' ? 'kjente' :
@@ -365,6 +474,60 @@ export function NewCompetition() {
             </div>
           )}
 
+          {(formData.competition_type === 'grovfelt' || formData.competition_type === 'finfelt') && (
+            <div>
+              <label className="block text-sm font-medium text-slate-900 mb-2">
+                Avstandsmodus
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, distance_mode: 'kjent' })}
+                  className={`p-3 border-2 rounded-lg text-center transition ${
+                    formData.distance_mode === 'kjent'
+                      ? 'border-emerald-600 bg-emerald-50 text-emerald-900'
+                      : 'border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <Eye className="w-4 h-4 mx-auto mb-1 opacity-70" />
+                  <div className="font-semibold text-xs sm:text-sm">Kjente</div>
+                  <div className="text-[10px] sm:text-xs text-slate-500 mt-0.5">Forhåndsoppsett</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, distance_mode: 'ukjent' })}
+                  className={`p-3 border-2 rounded-lg text-center transition ${
+                    formData.distance_mode === 'ukjent'
+                      ? 'border-emerald-600 bg-emerald-50 text-emerald-900'
+                      : 'border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <EyeOff className="w-4 h-4 mx-auto mb-1 opacity-70" />
+                  <div className="font-semibold text-xs sm:text-sm">Ukjente</div>
+                  <div className="text-[10px] sm:text-xs text-slate-500 mt-0.5">Settes per hold</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, distance_mode: 'blandet' })}
+                  className={`p-3 border-2 rounded-lg text-center transition ${
+                    formData.distance_mode === 'blandet'
+                      ? 'border-emerald-600 bg-emerald-50 text-emerald-900'
+                      : 'border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <Shuffle className="w-4 h-4 mx-auto mb-1 opacity-70" />
+                  <div className="font-semibold text-xs sm:text-sm">Blandet</div>
+                  <div className="text-[10px] sm:text-xs text-slate-500 mt-0.5">Noen kjente</div>
+                </button>
+              </div>
+              {formData.distance_mode === 'ukjent' && (
+                <p className="mt-2 text-xs text-slate-500">
+                  Figur og avstand velges rett for hvert hold under stevnet. Du trenger ikke konfigurere hold på forhånd.
+                </p>
+              )}
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-slate-900 mb-2">
               <MapPin className="w-4 h-4 inline mr-2" />
@@ -415,10 +578,10 @@ export function NewCompetition() {
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !formData.competition_type}
               className="flex-1 px-4 sm:px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold transition disabled:opacity-50 text-sm sm:text-base"
             >
-              {loading ? 'Oppretter...' : (formData.competition_type === 'grovfelt' || formData.competition_type === 'finfelt') ? 'Opprett og konfigurer' : 'Opprett stevne'}
+              {loading ? 'Oppretter...' : formData.distance_mode === 'ukjent' ? 'Opprett og start' : (formData.competition_type === 'grovfelt' || formData.competition_type === 'finfelt') ? 'Opprett og konfigurer' : formData.competition_type ? 'Opprett stevne' : 'Velg type stevne'}
             </button>
           </div>
         </form>

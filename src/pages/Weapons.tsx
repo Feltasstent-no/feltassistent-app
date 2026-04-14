@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useActiveSetup } from '../contexts/ActiveSetupContext';
+import { useOnboarding } from '../contexts/OnboardingContext';
 import { Weapon, WeaponBarrel } from '../types/database';
-import { Plus, Crosshair, Trash2, Save, X, Calendar, CreditCard as Edit, PlusCircle, ChevronDown, ChevronUp, History, Pencil, AlertTriangle, Info } from 'lucide-react';
+import { Plus, Crosshair, Trash2, Save, X, Calendar, CreditCard as Edit, PlusCircle, ChevronDown, ChevronUp, History, Pencil, AlertTriangle, Info, ArrowRight } from 'lucide-react';
 import { getBarrelHealthStatus, getBarrelLifespanLimit } from '../lib/barrel-lifespan';
 import { logWeaponShots } from '../lib/weapon-shot-service';
 import { AmmoInventorySection } from '../components/AmmoInventorySection';
@@ -23,11 +25,17 @@ interface WeaponShotLog {
 
 export function Weapons() {
   const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const { activeSetup, setWeapon } = useActiveSetup();
+  const { state: onboardingState } = useOnboarding();
   const [weapons, setWeapons] = useState<Weapon[]>([]);
   const [selectedWeapon, setSelectedWeapon] = useState<Weapon | null>(null);
   const [barrels, setBarrels] = useState<WeaponBarrel[]>([]);
   const [loading, setLoading] = useState(true);
+  const [onboardingStep, setOnboardingStep] = useState<'weapon' | 'barrel' | null>(
+    (location.state as { fromOnboarding?: boolean })?.fromOnboarding ? 'weapon' : null
+  );
   const [showNewWeapon, setShowNewWeapon] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [showNewBarrel, setShowNewBarrel] = useState(false);
@@ -72,6 +80,29 @@ export function Weapons() {
     fetchWeapons();
   }, [user]);
 
+  useEffect(() => {
+    if (onboardingStep === 'weapon' && !loading) {
+      setShowNewWeapon(true);
+      setSelectedWeapon(null);
+      resetWeaponForm();
+    }
+  }, [onboardingStep, loading]);
+
+  const finishOnboardingAndRoute = () => {
+    setOnboardingStep(null);
+
+    const isFinfelt = onboardingState.shootingType === 'finfelt';
+    const isGrovfelt = onboardingState.shootingType === 'grovfelt';
+    const skipBallistics = isGrovfelt && onboardingState.usageIntent === 'knepp_vind';
+
+    if (isFinfelt) {
+      navigate('/match', { state: { fromSetup: true } });
+    } else if (isGrovfelt && skipBallistics) {
+      navigate('/click-tables/new', { state: { fromSetup: true } });
+    } else {
+      navigate('/ballistics/new', { state: { fromSetup: true } });
+    }
+  };
 
   const fetchWeapons = async () => {
     if (!user) return;
@@ -146,7 +177,7 @@ export function Weapons() {
         const { data: barrelData } = await supabase.from('weapon_barrels').insert({
           weapon_id: data.id,
           barrel_number: '1',
-          barrel_name: '\u004C\u00F8p 1',
+          barrel_name: 'Løp 1',
           serial_number: weaponForm.serial_number,
           installed_date: new Date().toISOString().split('T')[0],
           is_active: true,
@@ -163,6 +194,16 @@ export function Weapons() {
       selectWeapon(data);
       setShowNewWeapon(false);
       resetWeaponForm();
+
+      if (onboardingStep === 'weapon') {
+        if (firstBarrelId) {
+          finishOnboardingAndRoute();
+        } else {
+          setOnboardingStep('barrel');
+          setShowNewBarrel(true);
+          resetBarrelForm();
+        }
+      }
     }
   };
 
@@ -236,6 +277,7 @@ export function Weapons() {
         selectWeapon(selectedWeapon);
         setShowNewBarrel(false);
         resetBarrelForm();
+        if (onboardingStep === 'barrel') finishOnboardingAndRoute();
       }
     } else {
       const { error } = await supabase.from('weapon_barrels').insert({
@@ -257,6 +299,7 @@ export function Weapons() {
         selectWeapon(selectedWeapon);
         setShowNewBarrel(false);
         resetBarrelForm();
+        if (onboardingStep === 'barrel') finishOnboardingAndRoute();
       }
     }
   };
@@ -553,6 +596,35 @@ export function Weapons() {
             <span className="sm:hidden">Ny</span>
           </button>
         </div>
+
+        {onboardingStep && (
+          <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <div className={`flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold ${
+                  onboardingStep === 'weapon' ? 'bg-emerald-600 text-white' : 'bg-emerald-200 text-emerald-700'
+                }`}>1</div>
+                <span className={`text-sm font-medium ${
+                  onboardingStep === 'weapon' ? 'text-emerald-900' : 'text-emerald-600'
+                }`}>Opprett våpen</span>
+              </div>
+              <ArrowRight className="w-4 h-4 text-emerald-400" />
+              <div className="flex items-center gap-2">
+                <div className={`flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold ${
+                  onboardingStep === 'barrel' ? 'bg-emerald-600 text-white' : 'bg-emerald-200 text-emerald-700'
+                }`}>2</div>
+                <span className={`text-sm font-medium ${
+                  onboardingStep === 'barrel' ? 'text-emerald-900' : 'text-emerald-600'
+                }`}>Legg til løp</span>
+              </div>
+            </div>
+            <p className="text-xs text-emerald-700 mt-2">
+              {onboardingStep === 'weapon'
+                ? 'Start med å registrere våpenet ditt.'
+                : 'Bra! Legg nå til et løp på våpenet for å fullføre oppsettet.'}
+            </p>
+          </div>
+        )}
 
         {weapons.length === 0 && !showNewWeapon ? (
           <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">

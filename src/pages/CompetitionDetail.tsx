@@ -3,8 +3,9 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { EditMetadataModal } from '../components/EditMetadataModal';
 import { Competition, CompetitionStage, Discipline } from '../types/database';
-import { Trophy, Calendar, MapPin, Pencil, Play, List, Target } from 'lucide-react';
+import { Trophy, Calendar, MapPin, Pencil, Play, List, Target, EyeOff } from 'lucide-react';
 
 export function CompetitionDetail() {
   const { competitionId } = useParams();
@@ -15,6 +16,7 @@ export function CompetitionDetail() {
   const [stages, setStages] = useState<CompetitionStage[]>([]);
   const [discipline, setDiscipline] = useState<Discipline | null>(null);
   const [isOwner, setIsOwner] = useState(false);
+  const [showEditMeta, setShowEditMeta] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -84,7 +86,18 @@ export function CompetitionDetail() {
       <div className="pb-20 md:pb-8 max-w-4xl mx-auto">
         <div className="mb-8">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 min-w-0 break-words">{competition.name}</h1>
+            <div className="flex items-center gap-2 min-w-0">
+              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 break-words">{competition.name}</h1>
+              {isOwner && (
+                <button
+                  onClick={() => setShowEditMeta(true)}
+                  className="p-1.5 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition flex-shrink-0"
+                  title="Rediger stevneinfo"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+              )}
+            </div>
             {isOwner && (
               <>
                 {competition.status === 'draft' && (
@@ -151,11 +164,45 @@ export function CompetitionDetail() {
 
         {(competition.competition_type === 'grovfelt' || competition.competition_type === 'finfelt') && (
           <>
-            {stages.length === 0 ? (
+            {competition.distance_mode === 'ukjent' ? (
+              <div className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
+                <div className="flex items-start space-x-3 mb-4">
+                  <EyeOff className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h3 className="font-semibold text-slate-900">Ukjente hold</h3>
+                    <p className="text-sm text-slate-600 mt-1">
+                      Figur og avstand settes for hvert hold under stevnet.
+                    </p>
+                    <div className="mt-3 flex items-center space-x-4 text-sm text-slate-500">
+                      <span>{stages.length} hold</span>
+                      {stages[0]?.time_limit_seconds && <span>{stages[0].time_limit_seconds}s skytetid</span>}
+                      {stages[0]?.total_shots && <span>{stages[0].total_shots} skudd/hold</span>}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-3 mt-4">
+                  <Link
+                    to="/competitions"
+                    className="flex-1 px-4 py-3 border border-slate-300 rounded-lg font-semibold text-slate-700 hover:bg-slate-50 transition text-center"
+                  >
+                    Tilbake
+                  </Link>
+                  {isOwner && competition.status === 'configured' && (
+                    <button
+                      onClick={() => navigate(`/competitions/${competitionId}/start`)}
+                      className="flex-1 px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition flex items-center justify-center space-x-2"
+                    >
+                      <Play className="w-4 h-4" />
+                      <span>Start stevne</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : stages.length === 0 ? (
               <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
                 <Target className="w-16 h-16 text-slate-300 mx-auto mb-4" />
                 <h3 className="text-xl font-semibold text-slate-900 mb-2">Ingen hold konfigurert</h3>
-                <p className="text-slate-600 mb-6">Dette feltstevnet har ingen hold ennå</p>
+                <p className="text-slate-600 mb-6">Dette feltstevnet har ingen hold enna</p>
                 {isOwner && (
                   <button
                     onClick={() => navigate(`/competitions/${competitionId}/configure`)}
@@ -180,26 +227,24 @@ export function CompetitionDetail() {
                         <div className="flex items-center justify-between mb-2">
                           <h3 className="text-base sm:text-lg font-semibold text-slate-900">
                             Hold {stage.stage_number}
-                            {stage.name && stage.name.trim() !== '' && ` – ${stage.name}`}
+                            {stage.name && stage.name.trim() !== '' && ` - ${stage.name}`}
                           </h3>
                         </div>
 
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 text-sm">
-                          <div>
-                            <span className="text-slate-600">Stilling:</span>
-                            <p className="font-medium text-slate-900 capitalize">{stage.position || 'Ikke satt'}</p>
-                          </div>
+                          {stage.distance_m && (
+                            <div>
+                              <span className="text-slate-600">Avstand:</span>
+                              <p className="font-medium text-slate-900">{stage.distance_m}m</p>
+                            </div>
+                          )}
                           <div>
                             <span className="text-slate-600">Skytetid:</span>
-                            <p className="font-medium text-slate-900">{stage.shoot_seconds}s</p>
-                          </div>
-                          <div>
-                            <span className="text-slate-600">Klargjøring:</span>
-                            <p className="font-medium text-slate-900">{stage.prep_seconds}s</p>
+                            <p className="font-medium text-slate-900">{stage.time_limit_seconds}s</p>
                           </div>
                           <div>
                             <span className="text-slate-600">Skudd:</span>
-                            <p className="font-medium text-slate-900">{stage.shots_count}</p>
+                            <p className="font-medium text-slate-900">{stage.total_shots}</p>
                           </div>
                         </div>
 
@@ -249,6 +294,23 @@ export function CompetitionDetail() {
           </div>
         )}
       </div>
+
+      {showEditMeta && competition && (
+        <EditMetadataModal
+          title="Rediger stevneinfo"
+          currentName={competition.name}
+          currentNotes={competition.notes || ''}
+          onSave={async (name, notes) => {
+            const { error } = await supabase
+              .from('competitions')
+              .update({ name, notes: notes || null })
+              .eq('id', competition.id);
+            if (error) throw error;
+            setCompetition({ ...competition, name, notes: notes || null });
+          }}
+          onClose={() => setShowEditMeta(false)}
+        />
+      )}
     </Layout>
   );
 }

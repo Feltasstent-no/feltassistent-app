@@ -507,7 +507,7 @@ export async function calculateShotRecommendationResolved(
       notes.push(`Betydelig vindkorreksjon nødvendig (${windResult.clicks} knepp)`);
     }
 
-    notes.push(`Effektiv kryssvind: ${effective_crosswind.toFixed(1)} m/s (${wind_angle_deg}\u00B0)`);
+    notes.push(`Effektiv kryssvind: ${effective_crosswind.toFixed(1)} m/s (${wind_angle_deg}°)`);
   }
 
   return recommendation;

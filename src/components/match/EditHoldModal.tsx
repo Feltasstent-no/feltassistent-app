@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, AlertTriangle, Minus, Plus, Layers } from 'lucide-react';
+import { X, AlertTriangle, Layers } from 'lucide-react';
 import { CompactFigureSelector } from '../CompactFigureSelector';
 import { SubHoldEditor, type SubHoldFormData } from './SubHoldEditor';
 import { getFieldFigures } from '../../lib/field-assistant';
@@ -15,6 +15,8 @@ import {
 import { supabase } from '../../lib/supabase';
 import type { MatchHoldWithFigure } from '../../lib/match-service';
 import type { FieldFigure } from '../../types/database';
+import { ShotCountInput } from '../inputs/ShotCountInput';
+import { ShootingTimeInput } from '../inputs/ShootingTimeInput';
 
 interface EditHoldModalProps {
   hold: MatchHoldWithFigure;
@@ -186,7 +188,7 @@ export function EditHoldModal({
             Redigere hold?
           </h3>
           <p className="text-sm text-slate-600 text-center mb-6">
-            Dette b{'\u00f8'}r kun gj{'\u00f8'}res ved feil.
+            Dette bør kun gjøres ved feil.
           </p>
           <div className="flex gap-3">
             <button
@@ -287,26 +289,7 @@ export function EditHoldModal({
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Antall skudd</label>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setShotCount(Math.max(1, shotCount - 1))}
-                    className="w-10 h-10 rounded-lg border-2 border-slate-300 hover:bg-slate-100 flex items-center justify-center transition"
-                  >
-                    <Minus className="w-4 h-4 text-slate-600" />
-                  </button>
-                  <div className="flex-1 text-center text-xl font-bold text-slate-900">
-                    {shotCount}
-                  </div>
-                  <button
-                    onClick={() => setShotCount(shotCount + 1)}
-                    className="w-10 h-10 rounded-lg border-2 border-slate-300 hover:bg-slate-100 flex items-center justify-center transition"
-                  >
-                    <Plus className="w-4 h-4 text-slate-600" />
-                  </button>
-                </div>
-              </div>
+              <ShotCountInput value={shotCount} onChange={setShotCount} />
             </>
           )}
 
@@ -328,54 +311,11 @@ export function EditHoldModal({
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-              Skytetid (sek){isComposite ? ' - samlet for alle delhold' : ''}
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {[30, 45, 60, 90, 120].map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setShootingTimeInput(String(t))}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                    parsedShootingTime === t
-                      ? 'bg-emerald-600 text-white'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                  }`}
-                >
-                  {t}s
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-3 mt-2">
-              <button
-                onClick={() => setShootingTimeInput(String(Math.max(10, parsedShootingTime - 5)))}
-                className="w-10 h-10 rounded-lg border-2 border-slate-300 hover:bg-slate-100 flex items-center justify-center transition"
-              >
-                <Minus className="w-4 h-4 text-slate-600" />
-              </button>
-              <input
-                type="number"
-                inputMode="numeric"
-                value={shootingTimeInput}
-                onChange={(e) => setShootingTimeInput(e.target.value)}
-                className={`flex-1 text-center text-xl font-bold border-2 rounded-lg py-2 outline-none transition ${
-                  timeInvalid && shootingTimeInput !== ''
-                    ? 'border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500'
-                    : 'border-slate-300 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500'
-                }`}
-              />
-              <button
-                onClick={() => setShootingTimeInput(String(parsedShootingTime + 5))}
-                className="w-10 h-10 rounded-lg border-2 border-slate-300 hover:bg-slate-100 flex items-center justify-center transition"
-              >
-                <Plus className="w-4 h-4 text-slate-600" />
-              </button>
-            </div>
-            {timeInvalid && shootingTimeInput !== '' && (
-              <p className="text-xs text-red-500 mt-1">Minimum 10 sekunder</p>
-            )}
-          </div>
+          <ShootingTimeInput
+            value={shootingTimeInput}
+            onChange={setShootingTimeInput}
+            suffix={isComposite ? '- samlet for alle delhold' : undefined}
+          />
         </div>
 
         <div className="p-4 border-t border-slate-200 space-y-2">

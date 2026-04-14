@@ -3,14 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { useActiveSetup } from '../contexts/ActiveSetupContext';
+import { useOnboarding } from '../contexts/OnboardingContext';
 import { ActiveSetupSelector } from '../components/ActiveSetupSelector';
-import { getActiveMatchSessions, getMatchHistory, cancelMatchSession } from '../lib/match-service';
-import { History, Play, BookOpen, XCircle, Clock, Crosshair, Minus, CheckCircle, CheckCircle2, ArrowRight, Target } from 'lucide-react';
+import { getActiveMatchSessions, getMatchHistory, cancelMatchSession, updateMatchMetadata } from '../lib/match-service';
+import { History, Play, BookOpen, XCircle, Clock, Crosshair, Minus, CheckCircle, CheckCircle2, ArrowRight, Target, Pencil } from 'lucide-react';
+import { EditMetadataModal } from '../components/EditMetadataModal';
 import apertureIcon from '../assets/aperture_icon_light.svg';
 import { AmmoStatusCard } from '../components/AmmoStatusCard';
 import type { MatchSession } from '../lib/match-service';
 import { supabase } from '../lib/supabase';
 import { logWeaponShots } from '../lib/weapon-shot-service';
+import { CompetitionStatsSection } from '../components/stats/CompetitionStatsSection';
 
 interface WeaponWithBarrel {
   id: string;
@@ -36,6 +39,7 @@ function hasValidActiveSetup(setup: any) {
 export function MatchHome() {
   const { user } = useAuth();
   const { activeSetup } = useActiveSetup();
+  const { userMode } = useOnboarding();
   const navigate = useNavigate();
   const [activeSessions, setActiveSessions] = useState<MatchSession[]>([]);
   const [recentMatches, setRecentMatches] = useState<MatchSession[]>([]);
@@ -44,8 +48,10 @@ export function MatchHome() {
   const [shotInputValue, setShotInputValue] = useState('');
   const [shotAdjustMode, setShotAdjustMode] = useState<'add' | 'remove'>('add');
   const [loading, setLoading] = useState(true);
+  const [editSession, setEditSession] = useState<MatchSession | null>(null);
 
-  const setupComplete = hasValidActiveSetup(activeSetup);
+  const fullSetupComplete = hasValidActiveSetup(activeSetup);
+  const setupComplete = userMode === 'finfelt_only' ? true : fullSetupComplete;
 
   useEffect(() => {
     fetchData();
@@ -157,7 +163,9 @@ export function MatchHome() {
           <p className="text-slate-600">Guidet stevnemodus for DFS Felt</p>
         </div>
 
-        {!setupComplete && (
+        <CompetitionStatsSection />
+
+        {!setupComplete && userMode !== 'finfelt_only' && (
           <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 sm:p-6 mb-8">
             <h2 className="text-lg font-bold text-slate-900 mb-4">Før du kan bruke appen må du sette opp:</h2>
             <ul className="space-y-2 mb-6">
@@ -192,7 +200,7 @@ export function MatchHome() {
           </div>
         )}
 
-        {setupComplete && (
+        {fullSetupComplete && (
           <div className="mb-8">
             <ActiveSetupSelector />
           </div>
@@ -226,7 +234,16 @@ export function MatchHome() {
                       <p className="text-sm text-emerald-700 font-medium mb-1">
                         {isSetup ? 'Stevne under oppsett' : 'Aktivt stevne'}
                       </p>
-                      <h2 className="text-xl font-bold text-slate-900">{sess.match_name}</h2>
+                      <div className="flex items-center gap-1.5">
+                        <h2 className="text-xl font-bold text-slate-900">{sess.match_name}</h2>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setEditSession(sess); }}
+                          className="p-1 rounded-md hover:bg-white/60 text-slate-400 hover:text-slate-600 transition"
+                          title="Rediger stevneinfo"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                       {!isSetup && (
                         <p className="text-sm text-slate-600 mt-1">
                           Hold {sess.current_hold_index + 1}
@@ -302,37 +319,39 @@ export function MatchHome() {
             </div>
           </button>
 
-          <button
-            onClick={() => setupComplete ? navigate('/shot-assistant') : null}
-            disabled={!setupComplete}
-            className={`bg-white border-2 rounded-xl p-4 sm:p-6 transition group text-left ${
-              setupComplete
-                ? 'border-slate-200 hover:border-violet-600 cursor-pointer'
-                : 'border-slate-200 opacity-50 cursor-not-allowed'
-            }`}
-          >
-            <div className="flex items-center space-x-4">
-              <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition ${
+          {userMode !== 'finfelt_only' && (
+            <button
+              onClick={() => setupComplete ? navigate('/shot-assistant') : null}
+              disabled={!setupComplete}
+              className={`bg-white border-2 rounded-xl p-4 sm:p-6 transition group text-left ${
                 setupComplete
-                  ? 'bg-violet-100 group-hover:bg-violet-600'
-                  : 'bg-slate-100'
-              }`}>
-                <Crosshair className={`w-7 h-7 transition ${
+                  ? 'border-slate-200 hover:border-violet-600 cursor-pointer'
+                  : 'border-slate-200 opacity-50 cursor-not-allowed'
+              }`}
+            >
+              <div className="flex items-center space-x-4">
+                <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition ${
                   setupComplete
-                    ? 'text-violet-600 group-hover:text-white'
-                    : 'text-slate-400'
-                }`} />
+                    ? 'bg-violet-100 group-hover:bg-violet-600'
+                    : 'bg-slate-100'
+                }`}>
+                  <Crosshair className={`w-7 h-7 transition ${
+                    setupComplete
+                      ? 'text-violet-600 group-hover:text-white'
+                      : 'text-slate-400'
+                  }`} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-slate-900 mb-1">Kneppassistent</h3>
+                  <p className="text-sm text-slate-600">
+                    {setupComplete
+                      ? 'Rask kneppberegning'
+                      : 'Fullfør oppsett for å bruke'}
+                  </p>
+                </div>
               </div>
-              <div className="flex-1">
-                <h3 className="text-xl font-bold text-slate-900 mb-1">Knepp</h3>
-                <p className="text-sm text-slate-600">
-                  {setupComplete
-                    ? 'Rask kneppberegning'
-                    : 'Fullfør oppsett for å bruke'}
-                </p>
-              </div>
-            </div>
-          </button>
+            </button>
+          )}
 
           <button
             onClick={() => navigate('/training')}
@@ -494,7 +513,7 @@ export function MatchHome() {
           </div>
         )}
 
-        {setupComplete && <AmmoStatusCard />}
+        {fullSetupComplete && <AmmoStatusCard />}
 
         {recentMatches.length > 0 && (
           <div>
@@ -561,6 +580,29 @@ export function MatchHome() {
           </div>
         )}
       </div>
+
+      {editSession && (
+        <EditMetadataModal
+          title="Rediger stevneinfo"
+          currentName={editSession.match_name}
+          currentNotes={editSession.notes || ''}
+          onSave={async (name, notes) => {
+            const { error } = await updateMatchMetadata({
+              sessionId: editSession.id,
+              matchName: name,
+              notes,
+            });
+            if (error) throw error;
+            setActiveSessions(prev =>
+              prev.map(s => s.id === editSession.id ? { ...s, match_name: name, notes: notes || undefined } : s)
+            );
+            setRecentMatches(prev =>
+              prev.map(s => s.id === editSession.id ? { ...s, match_name: name, notes: notes || undefined } : s)
+            );
+          }}
+          onClose={() => setEditSession(null)}
+        />
+      )}
     </Layout>
   );
 }

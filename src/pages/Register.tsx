@@ -45,7 +45,7 @@ export function Register() {
         : error.message);
       setLoading(false);
     } else {
-      navigate('/match');
+      navigate('/onboarding');
     }
   };
 

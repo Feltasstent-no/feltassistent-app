@@ -4,7 +4,7 @@ import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { createMatchSession } from '../lib/match-service';
-import { ArrowLeft, Wind, HelpCircle, Minus, Eye, BookOpen } from 'lucide-react';
+import { ArrowLeft, Wind, HelpCircle, Minus, Eye, BookOpen, Settings, Shuffle } from 'lucide-react';
 import { WindInput } from '../components/WindInput';
 import { getAssistanceMode, setAssistanceMode, type AssistanceMode } from '../lib/user-preferences';
 import type { ClickTable, CompetitionTemplate } from '../types/database';
@@ -18,6 +18,7 @@ export function MatchSetup() {
   const [templates, setTemplates] = useState<CompetitionTemplate[]>([]);
 
   const [fieldType, setFieldType] = useState<'grovfelt' | 'finfelt'>('grovfelt');
+  const [distanceMode, setDistanceMode] = useState<'kjent' | 'ukjent'>('kjent');
   const [selectedTableId, setSelectedTableId] = useState<string>('');
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [matchName, setMatchName] = useState('');
@@ -135,6 +136,7 @@ export function MatchSetup() {
       windSpeedMps: fieldType === 'grovfelt' ? windSpeed : 0,
       windDirectionDegrees: fieldType === 'grovfelt' ? windDirection : 0,
       fieldType,
+      distanceMode: fieldType === 'grovfelt' ? distanceMode : 'kjent',
     });
 
     setCreating(false);
@@ -205,9 +207,44 @@ export function MatchSetup() {
             </div>
           </div>
 
+          {fieldType === 'grovfelt' && (
+            <div className="bg-white rounded-xl border border-slate-200 p-5">
+              <h2 className="text-lg font-bold text-slate-900 mb-1">2. Holdmodus</h2>
+              <p className="text-xs text-slate-500 mb-3">Velg om holdene settes opp på forhånd eller under stevnet</p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDistanceMode('kjent')}
+                  className={`flex flex-col items-center p-4 rounded-lg border-2 transition ${
+                    distanceMode === 'kjent'
+                      ? 'border-emerald-600 bg-emerald-50'
+                      : 'border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <Settings className={`w-5 h-5 mb-1.5 ${distanceMode === 'kjent' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                  <span className={`text-sm font-bold ${distanceMode === 'kjent' ? 'text-emerald-700' : 'text-slate-900'}`}>Kjente hold</span>
+                  <span className="text-[10px] text-slate-500 mt-0.5 leading-tight text-center">Ferdig oppsatte hold</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDistanceMode('ukjent')}
+                  className={`flex flex-col items-center p-4 rounded-lg border-2 transition ${
+                    distanceMode === 'ukjent'
+                      ? 'border-amber-600 bg-amber-50'
+                      : 'border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <Shuffle className={`w-5 h-5 mb-1.5 ${distanceMode === 'ukjent' ? 'text-amber-600' : 'text-slate-400'}`} />
+                  <span className={`text-sm font-bold ${distanceMode === 'ukjent' ? 'text-amber-700' : 'text-slate-900'}`}>Ukjente hold</span>
+                  <span className="text-[10px] text-slate-500 mt-0.5 leading-tight text-center">Konfigurer under stevnet</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className={`bg-white rounded-xl border border-slate-200 p-5 ${fieldType === 'finfelt' ? 'opacity-50' : ''}`}>
             <h2 className="text-lg font-bold text-slate-900 mb-3">
-              2. Velg knepptabell
+              {fieldType === 'grovfelt' ? '3' : '2'}. Velg knepptabell
               {fieldType === 'finfelt' && (
                 <span className="ml-2 text-sm font-normal text-slate-500">(brukes ikke i finfelt)</span>
               )}
@@ -244,7 +281,7 @@ export function MatchSetup() {
           </div>
 
           <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <h2 className="text-lg font-bold text-slate-900 mb-3">3. Velg stevneløype</h2>
+            <h2 className="text-lg font-bold text-slate-900 mb-3">{fieldType === 'grovfelt' ? '4' : '3'}. Velg stevneløype</h2>
             {templates.length === 0 ? (
               <div className="text-center py-4">
                 <p className="text-slate-600">Ingen stevneløyper tilgjengelig</p>
@@ -265,7 +302,7 @@ export function MatchSetup() {
           </div>
 
           <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <h2 className="text-lg font-bold text-slate-900 mb-3">4. Stevnedetaljer</h2>
+            <h2 className="text-lg font-bold text-slate-900 mb-3">{fieldType === 'grovfelt' ? '5' : '4'}. Stevnedetaljer</h2>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
                 Stevnenavn
@@ -283,7 +320,7 @@ export function MatchSetup() {
           <div className="bg-white rounded-xl border border-slate-200 p-5">
             <div className="flex items-center space-x-2 mb-1">
               <HelpCircle className="w-5 h-5 text-slate-600" />
-              <h2 className="text-lg font-bold text-slate-900">5. Stevneassistanse</h2>
+              <h2 className="text-lg font-bold text-slate-900">{fieldType === 'grovfelt' ? '6' : '5'}. Stevneassistanse</h2>
             </div>
             <p className="text-xs text-slate-500 mb-3">Velg hvor mye veiledning du vil ha under stevnet</p>
             <div className="grid grid-cols-3 gap-2">
@@ -314,7 +351,7 @@ export function MatchSetup() {
             <div className="flex items-center space-x-2 mb-3">
               <Wind className="w-5 h-5 text-slate-600" />
               <h2 className="text-lg font-bold text-slate-900">
-                6. Vind (valgfritt)
+                {fieldType === 'grovfelt' ? '7' : '6'}. Vind (valgfritt)
                 {fieldType === 'finfelt' && (
                   <span className="ml-2 text-sm font-normal text-slate-500">(brukes ikke i finfelt)</span>
                 )}

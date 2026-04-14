@@ -395,6 +395,11 @@ export default function CompetitionConfigure() {
     return null;
   }
 
+  if (competition.distance_mode === 'ukjent') {
+    navigate(`/competitions/${id}/start`, { replace: true });
+    return null;
+  }
+
   const isFinfelt = competition.competition_type === 'finfelt';
   const isGrovfelt = competition.competition_type === 'grovfelt';
 

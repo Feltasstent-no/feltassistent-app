@@ -4,7 +4,7 @@ import { Layout } from '../components/Layout';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Competition, CompetitionStage, ClickTable, FieldFigure, Weapon, WeaponBarrel } from '../types/database';
-import { ArrowLeft, Play, Target, Clock, CreditCard, Crosshair, Pencil } from 'lucide-react';
+import { ArrowLeft, Play, Target, Clock, CreditCard, Crosshair, Pencil, EyeOff } from 'lucide-react';
 
 export function CompetitionStart() {
   const navigate = useNavigate();
@@ -150,6 +150,10 @@ export function CompetitionStart() {
     );
   }
 
+  const isUnknownHold = competition.distance_mode === 'ukjent';
+  const requiresClickTable = !isUnknownHold && competition.competition_type === 'grovfelt';
+  const startDisabled = starting || (requiresClickTable && (!selectedTableId || clickTables.length === 0));
+
   return (
     <Layout>
       <div className="max-w-4xl pb-20 md:pb-8">
@@ -159,7 +163,6 @@ export function CompetitionStart() {
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              console.log('[CompetitionStart] Back arrow clicked, navigating to:', `/competitions/${competitionId}`);
               navigate(`/competitions/${competitionId}`);
             }}
             className="flex items-center space-x-2 text-slate-600 hover:text-slate-900 mb-4 py-2 -ml-2 pl-2 pr-4"
@@ -172,6 +175,25 @@ export function CompetitionStart() {
         </div>
 
         <div className="space-y-6">
+          {isUnknownHold && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 sm:p-6">
+              <div className="flex items-start space-x-3">
+                <EyeOff className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h3 className="font-semibold text-amber-900">Ukjente hold</h3>
+                  <p className="text-sm text-amber-800 mt-1">
+                    Figur og avstand velges for hvert hold under stevnet. Du setter opp hvert hold rett for det starter.
+                  </p>
+                  <div className="mt-3 flex items-center space-x-4 text-sm text-amber-700">
+                    <span>{stages.length} hold</span>
+                    <span>{stages[0]?.time_limit_seconds || 30}s skytetid</span>
+                    <span>{stages[0]?.total_shots || 1} skudd/hold</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6">
             <div className="flex items-center space-x-3 mb-4">
               <Crosshair className="w-5 h-5 text-emerald-600" />
@@ -307,86 +329,88 @@ export function CompetitionStart() {
             )}
           </div>
 
-          <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6">
-            <div className="flex items-center space-x-3 mb-4">
-              <Target className="w-5 h-5 text-emerald-600" />
-              <h2 className="text-lg font-semibold text-slate-900">Hold oversikt</h2>
-            </div>
+          {!isUnknownHold && (
+            <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6">
+              <div className="flex items-center space-x-3 mb-4">
+                <Target className="w-5 h-5 text-emerald-600" />
+                <h2 className="text-lg font-semibold text-slate-900">Hold oversikt</h2>
+              </div>
 
-            <div className="space-y-3">
-              {stages.map((stage) => {
-                const figure = getFigure(stage.field_figure_id);
-                return (
-                  <div key={stage.id} className="p-4 bg-slate-50 rounded-lg">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2 mb-2">
-                          <span className="inline-flex items-center justify-center w-6 h-6 bg-emerald-600 text-white text-sm font-bold rounded">
-                            {stage.stage_number}
-                          </span>
-                          <h3 className="font-semibold text-slate-900">
-                            Hold {stage.stage_number}
-                            {stage.name && stage.name.trim() !== '' && ` – ${stage.name}`}
-                          </h3>
-                        </div>
-
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm text-slate-600">
-                          {figure && (
-                            <div className="flex items-center space-x-1">
-                              <Target className="w-4 h-4" />
-                              <span className="font-semibold">{figure.code}</span>
-                              <span className="text-slate-500">–</span>
-                              <span>{figure.name}</span>
-                            </div>
-                          )}
-                          {stage.distance_m && (
-                            <div className="flex items-center space-x-1">
-                              <span>{stage.distance_m}m</span>
-                            </div>
-                          )}
-                          <div className="flex items-center space-x-1">
-                            <Clock className="w-4 h-4" />
-                            <span>{stage.time_limit_seconds}s skytetid</span>
+              <div className="space-y-3">
+                {stages.map((stage) => {
+                  const figure = getFigure(stage.field_figure_id);
+                  return (
+                    <div key={stage.id} className="p-4 bg-slate-50 rounded-lg">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-2">
+                            <span className="inline-flex items-center justify-center w-6 h-6 bg-emerald-600 text-white text-sm font-bold rounded">
+                              {stage.stage_number}
+                            </span>
+                            <h3 className="font-semibold text-slate-900">
+                              Hold {stage.stage_number}
+                              {stage.name && stage.name.trim() !== '' && ` – ${stage.name}`}
+                            </h3>
                           </div>
-                          {stage.total_shots && (
-                            <div>
-                              <span>{stage.total_shots} skudd</span>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm text-slate-600">
+                            {figure && (
+                              <div className="flex items-center space-x-1">
+                                <Target className="w-4 h-4" />
+                                <span className="font-semibold">{figure.code}</span>
+                                <span className="text-slate-500">--</span>
+                                <span>{figure.name}</span>
+                              </div>
+                            )}
+                            {stage.distance_m && (
+                              <div className="flex items-center space-x-1">
+                                <span>{stage.distance_m}m</span>
+                              </div>
+                            )}
+                            <div className="flex items-center space-x-1">
+                              <Clock className="w-4 h-4" />
+                              <span>{stage.time_limit_seconds}s skytetid</span>
                             </div>
-                          )}
+                            {stage.total_shots && (
+                              <div>
+                                <span>{stage.total_shots} skudd</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
 
-            {stages.length === 0 && (
-              <p className="text-center text-slate-600 py-8">Ingen hold definert for dette stevnet</p>
-            )}
-          </div>
+              {stages.length === 0 && (
+                <p className="text-center text-slate-600 py-8">Ingen hold definert for dette stevnet</p>
+              )}
+            </div>
+          )}
 
           <div className="flex flex-col sm:flex-row gap-3">
+            {!isUnknownHold && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/competitions/${competitionId}/configure?from=start`);
+                }}
+                className="px-5 py-4 border border-slate-300 rounded-lg font-semibold text-slate-700 hover:bg-slate-50 transition flex items-center justify-center space-x-2 w-full sm:w-auto sm:flex-shrink-0"
+              >
+                <Pencil className="w-5 h-5" />
+                <span>Rediger hold</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                console.log('[CompetitionStart] Rediger button clicked, navigating to configure');
-                navigate(`/competitions/${competitionId}/configure?from=start`);
-              }}
-              className="px-5 py-4 border border-slate-300 rounded-lg font-semibold text-slate-700 hover:bg-slate-50 transition flex items-center justify-center space-x-2 w-full sm:w-auto sm:flex-shrink-0"
-            >
-              <Pencil className="w-5 h-5" />
-              <span>Rediger hold</span>
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                console.log('[CompetitionStart] Start stevne button clicked');
                 handleStart();
               }}
-              disabled={starting || !selectedTableId || clickTables.length === 0}
+              disabled={startDisabled}
               className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-4 px-6 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-lg"
             >
               <Play className="w-6 h-6" />

@@ -3,7 +3,7 @@ import { Layout } from '../components/Layout';
 import { supabase } from '../lib/supabase';
 import { FieldClockPreset } from '../types/database';
 import { useWakeLock } from '../lib/use-wake-lock';
-import { Play, Pause, RotateCcw, X, ChevronDown, ChevronUp, AlertTriangle, Clock, Timer, BookOpen } from 'lucide-react';
+import { Play, Pause, RotateCcw, X, ChevronDown, ChevronUp, AlertTriangle, Clock, Timer, BookOpen, Minus, Plus } from 'lucide-react';
 
 function formatDisplayTime(seconds: number) {
   if (seconds <= 0) return '0s';
@@ -20,6 +20,12 @@ function formatClockTime(seconds: number) {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
+function formatClockLarge(seconds: number) {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return { mins: mins.toString().padStart(2, '0'), secs: secs.toString().padStart(2, '0') };
+}
+
 interface ManualSettings {
   prep_seconds: number;
   shoot_seconds: number;
@@ -27,139 +33,242 @@ interface ManualSettings {
   rule_reference: string;
 }
 
-function ManualTimeSection({
+const QUICK_TIMES = [
+  { label: '30s', seconds: 30 },
+  { label: '50s', seconds: 50 },
+  { label: '1:00', seconds: 60 },
+  { label: '1:15', seconds: 75 },
+  { label: '2:00', seconds: 120 },
+  { label: '3:00', seconds: 180 },
+];
+
+function ClockPreview({ seconds, status }: { seconds: number; status: string }) {
+  const { mins, secs } = formatClockLarge(seconds);
+
+  return (
+    <div className="relative bg-gradient-to-b from-slate-800 to-slate-900 rounded-2xl p-8 sm:p-10 text-center overflow-hidden">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(16,185,129,0.08),transparent_70%)]" />
+
+      <div className="relative">
+        <div className="flex items-center justify-center gap-2 sm:gap-3">
+          <span className="text-7xl sm:text-8xl md:text-9xl font-bold text-white tabular-nums tracking-tight">
+            {mins}
+          </span>
+          <span className="text-6xl sm:text-7xl md:text-8xl font-bold text-emerald-400 animate-pulse">
+            :
+          </span>
+          <span className="text-7xl sm:text-8xl md:text-9xl font-bold text-white tabular-nums tracking-tight">
+            {secs}
+          </span>
+        </div>
+
+        <p className="mt-4 text-sm sm:text-base text-slate-400 font-medium tracking-wide uppercase">
+          {status}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function TimeSetupSection({
   onSelect,
+  onPreviewChange,
 }: {
   onSelect: (settings: ManualSettings) => void;
+  onPreviewChange: (seconds: number) => void;
 }) {
-  const [shootInput, setShootInput] = useState('');
-  const [shootSeconds, setShootSeconds] = useState<number | null>(null);
-  const [inputError, setInputError] = useState('');
+  const [minutes, setMinutes] = useState(0);
+  const [seconds, setSeconds] = useState(0);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [prepSeconds, setPrepSeconds] = useState(15);
   const [warningSeconds, setWarningSeconds] = useState(0);
   const [ruleRef, setRuleRef] = useState('');
 
-  const parseTime = (input: string): number | null => {
-    setInputError('');
-    const cleaned = input.trim().toLowerCase();
-    if (!cleaned) return null;
+  const totalSeconds = minutes * 60 + seconds;
 
-    const minMatch = cleaned.match(/(\d+)\s*(min|minutter?)/);
-    if (minMatch) return parseInt(minMatch[1]) * 60;
+  useEffect(() => {
+    if (totalSeconds > 0) {
+      onPreviewChange(totalSeconds);
+    }
+  }, [totalSeconds, onPreviewChange]);
 
-    const secMatch = cleaned.match(/(\d+)\s*(s|sek|sekunder?)?$/);
-    if (secMatch) return parseInt(secMatch[1]);
-
-    if (/^\d+$/.test(cleaned)) return parseInt(cleaned);
-
-    setInputError('Ugyldig format. Prøv f.eks. 75, 75 sek, eller 2 min.');
-    return null;
+  const handleQuickTime = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    setMinutes(m);
+    setSeconds(s);
+    onPreviewChange(secs);
   };
 
-  const handleInputChange = (value: string) => {
-    setShootInput(value);
-    setShootSeconds(parseTime(value));
+  const adjustMinutes = (delta: number) => {
+    const newVal = Math.max(0, Math.min(59, minutes + delta));
+    setMinutes(newVal);
+  };
+
+  const adjustSeconds = (delta: number) => {
+    const newVal = Math.max(0, Math.min(59, seconds + delta));
+    setSeconds(newVal);
   };
 
   const handleUse = () => {
-    if (!shootSeconds || shootSeconds <= 0) return;
+    if (totalSeconds <= 0) return;
     onSelect({
       prep_seconds: prepSeconds,
-      shoot_seconds: shootSeconds,
+      shoot_seconds: totalSeconds,
       warning_seconds: warningSeconds,
       rule_reference: ruleRef,
     });
   };
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6">
-      <h2 className="text-lg font-semibold text-slate-900 mb-4">Manuell tid</h2>
-
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex-1">
-          <input
-            type="text"
-            value={shootInput}
-            onChange={(e) => handleInputChange(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleUse()}
-            placeholder="Skytetid: f.eks. 75 sek, 2 min"
-            className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition text-lg"
-          />
-          {inputError && <p className="text-sm text-red-600 mt-2">{inputError}</p>}
-          {shootSeconds && !inputError && (
-            <p className="text-sm text-emerald-600 mt-2">
-              Skytetid: {formatDisplayTime(shootSeconds)}
-              {prepSeconds > 0 && ` | Forberedelse: ${formatDisplayTime(prepSeconds)}`}
-              {warningSeconds > 0 && ` | Advarsel: ${formatDisplayTime(warningSeconds)}`}
-            </p>
-          )}
+    <div className="space-y-5">
+      <div>
+        <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Hurtigvalg</h3>
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+          {QUICK_TIMES.map((qt) => (
+            <button
+              key={qt.seconds}
+              onClick={() => handleQuickTime(qt.seconds)}
+              className={`py-3 px-2 rounded-xl text-base font-semibold transition active:scale-95 ${
+                totalSeconds === qt.seconds
+                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/25'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              {qt.label}
+            </button>
+          ))}
         </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-5">
+        <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Egen tid</h3>
+        <div className="flex items-center justify-center gap-4 sm:gap-6">
+          <div className="text-center">
+            <label className="block text-xs font-medium text-slate-500 mb-2">Minutter</label>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => adjustMinutes(-1)}
+                disabled={minutes <= 0}
+                className="w-10 h-10 rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition active:scale-95"
+              >
+                <Minus className="w-4 h-4 text-slate-600" />
+              </button>
+              <input
+                type="number"
+                value={minutes}
+                onChange={(e) => setMinutes(Math.max(0, Math.min(59, parseInt(e.target.value) || 0)))}
+                className="w-16 sm:w-20 text-center text-2xl sm:text-3xl font-bold text-slate-900 border border-slate-200 rounded-lg py-2 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                min="0"
+                max="59"
+              />
+              <button
+                onClick={() => adjustMinutes(1)}
+                disabled={minutes >= 59}
+                className="w-10 h-10 rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition active:scale-95"
+              >
+                <Plus className="w-4 h-4 text-slate-600" />
+              </button>
+            </div>
+          </div>
+
+          <span className="text-3xl font-bold text-slate-300 pt-5">:</span>
+
+          <div className="text-center">
+            <label className="block text-xs font-medium text-slate-500 mb-2">Sekunder</label>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => adjustSeconds(-1)}
+                disabled={seconds <= 0}
+                className="w-10 h-10 rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition active:scale-95"
+              >
+                <Minus className="w-4 h-4 text-slate-600" />
+              </button>
+              <input
+                type="number"
+                value={seconds}
+                onChange={(e) => setSeconds(Math.max(0, Math.min(59, parseInt(e.target.value) || 0)))}
+                className="w-16 sm:w-20 text-center text-2xl sm:text-3xl font-bold text-slate-900 border border-slate-200 rounded-lg py-2 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                min="0"
+                max="59"
+              />
+              <button
+                onClick={() => adjustSeconds(1)}
+                disabled={seconds >= 59}
+                className="w-10 h-10 rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition active:scale-95"
+              >
+                <Plus className="w-4 h-4 text-slate-600" />
+              </button>
+            </div>
+          </div>
+        </div>
+
         <button
-          onClick={handleUse}
-          disabled={!shootSeconds || shootSeconds <= 0}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-8 py-3 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+          type="button"
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          className="flex items-center space-x-1.5 text-sm text-slate-500 hover:text-slate-700 transition mt-4"
         >
-          Bruk
+          {showAdvanced ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          <span>{showAdvanced ? 'Skjul innstillinger' : 'Vis flere innstillinger'}</span>
         </button>
+
+        {showAdvanced && (
+          <div className="mt-4 pt-4 border-t border-slate-100 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="flex items-center space-x-1.5 text-sm font-medium text-slate-700 mb-1.5">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>Forberedelse (sek)</span>
+                </label>
+                <input
+                  type="number"
+                  value={prepSeconds}
+                  onChange={(e) => setPrepSeconds(Math.max(0, parseInt(e.target.value) || 0))}
+                  className="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-base"
+                  min="0"
+                />
+              </div>
+              <div>
+                <label className="flex items-center space-x-1.5 text-sm font-medium text-slate-700 mb-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>Advarsel (sek)</span>
+                </label>
+                <input
+                  type="number"
+                  value={warningSeconds}
+                  onChange={(e) => setWarningSeconds(Math.max(0, parseInt(e.target.value) || 0))}
+                  className="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-base"
+                  min="0"
+                  placeholder="0 = 10s standard"
+                />
+                <p className="text-xs text-slate-400 mt-1">0 = standard (10 sekunder for slutt)</p>
+              </div>
+            </div>
+            <div>
+              <label className="flex items-center space-x-1.5 text-sm font-medium text-slate-700 mb-1.5">
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>Regelreferanse (valgfri)</span>
+              </label>
+              <input
+                type="text"
+                value={ruleRef}
+                onChange={(e) => setRuleRef(e.target.value)}
+                className="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-base"
+                placeholder="F.eks. DFS Feltreglement kap. 4"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       <button
-        type="button"
-        onClick={() => setShowAdvanced(!showAdvanced)}
-        className="flex items-center space-x-1.5 text-sm text-slate-500 hover:text-slate-700 transition mt-3"
+        onClick={handleUse}
+        disabled={totalSeconds <= 0}
+        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-8 py-4 rounded-xl transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-lg shadow-lg shadow-emerald-600/20 active:scale-[0.98]"
       >
-        {showAdvanced ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-        <span>{showAdvanced ? 'Skjul innstillinger' : 'Vis flere innstillinger'}</span>
+        <Play className="w-5 h-5" />
+        <span>Start klokke</span>
       </button>
-
-      {showAdvanced && (
-        <div className="mt-4 pt-4 border-t border-slate-100 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="flex items-center space-x-1.5 text-sm font-medium text-slate-700 mb-1.5">
-                <Clock className="w-3.5 h-3.5" />
-                <span>Forberedelse (sek)</span>
-              </label>
-              <input
-                type="number"
-                value={prepSeconds}
-                onChange={(e) => setPrepSeconds(Math.max(0, parseInt(e.target.value) || 0))}
-                className="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-base"
-                min="0"
-              />
-            </div>
-            <div>
-              <label className="flex items-center space-x-1.5 text-sm font-medium text-slate-700 mb-1.5">
-                <AlertTriangle className="w-3.5 h-3.5" />
-                <span>Advarsel (sek)</span>
-              </label>
-              <input
-                type="number"
-                value={warningSeconds}
-                onChange={(e) => setWarningSeconds(Math.max(0, parseInt(e.target.value) || 0))}
-                className="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-base"
-                min="0"
-                placeholder="0 = 10s standard"
-              />
-              <p className="text-xs text-slate-400 mt-1">{`0 = standard (10 sekunder f\u00F8r slutt)`}</p>
-            </div>
-          </div>
-          <div>
-            <label className="flex items-center space-x-1.5 text-sm font-medium text-slate-700 mb-1.5">
-              <BookOpen className="w-3.5 h-3.5" />
-              <span>Regelreferanse (valgfri)</span>
-            </label>
-            <input
-              type="text"
-              value={ruleRef}
-              onChange={(e) => setRuleRef(e.target.value)}
-              className="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-base"
-              placeholder="F.eks. DFS Feltreglement kap. 4"
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -253,6 +362,7 @@ export function FieldClock() {
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
   const [phase, setPhase] = useState<'idle' | 'prep_normal' | 'prep_warning' | 'shooting_start' | 'shooting' | 'shooting_warning' | 'shooting_critical' | 'finished'>('idle');
+  const [previewSeconds, setPreviewSeconds] = useState(0);
   const intervalRef = useRef<number | null>(null);
 
   useWakeLock(selectedPreset !== null);
@@ -474,7 +584,7 @@ export function FieldClock() {
 
   const getPhaseSubtext = () => {
     if (phase === 'prep_normal' && timeRemaining > 5) {
-      return `Gj\u00F8r klar...`;
+      return 'Gjør klar...';
     }
     if (phase === 'prep_warning') {
       return 'Klar!';
@@ -482,49 +592,61 @@ export function FieldClock() {
     return null;
   };
 
+  const handlePreviewChange = useCallback((secs: number) => {
+    setPreviewSeconds(secs);
+  }, []);
+
   return (
     <Layout>
       <div className="max-w-4xl mx-auto pb-20 md:pb-8">
-        <div className="mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Feltklokke</h1>
-          <p className="text-slate-600 mt-1">Velg en preset eller sett opp tid manuelt</p>
-        </div>
-
         {!selectedPreset ? (
           <div className="space-y-6">
-            <ManualTimeSection onSelect={handleManualSelect} />
+            <ClockPreview
+              seconds={previewSeconds}
+              status={previewSeconds > 0 ? `Skytetid: ${formatDisplayTime(previewSeconds)}` : 'Velg tid og trykk start'}
+            />
+
+            <TimeSetupSection
+              onSelect={handleManualSelect}
+              onPreviewChange={handlePreviewChange}
+            />
 
             {presets.length > 0 && (
               <div>
-                <h2 className="text-lg font-semibold text-slate-900 mb-4">Faste tidsvalg</h2>
-                <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Faste tidsvalg</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {presets.map((preset) => (
                     <button
                       key={preset.id}
                       onClick={() => handlePresetSelect(preset)}
-                      className="w-full bg-white hover:bg-slate-50 border border-slate-200 rounded-xl p-4 sm:p-5 text-left transition active:scale-[0.99]"
+                      className="bg-white hover:bg-slate-50 border border-slate-200 rounded-xl p-4 text-left transition active:scale-[0.98] group"
                     >
-                      <h3 className="font-semibold text-slate-900">{preset.name}</h3>
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-sm text-slate-600">
+                      <div className="flex items-start justify-between">
+                        <h3 className="font-semibold text-slate-900 group-hover:text-emerald-700 transition-colors">{preset.name}</h3>
+                        <span className="text-lg font-bold text-emerald-600 tabular-nums">
+                          {formatClockTime(preset.shoot_seconds)}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-sm text-slate-500">
                         {preset.prep_seconds > 0 && (
                           <span className="flex items-center space-x-1">
                             <Clock className="w-3.5 h-3.5 text-blue-500" />
-                            <span>{formatDisplayTime(preset.prep_seconds)}</span>
+                            <span>Forb: {formatDisplayTime(preset.prep_seconds)}</span>
                           </span>
                         )}
                         <span className="flex items-center space-x-1">
                           <Timer className="w-3.5 h-3.5 text-emerald-500" />
-                          <span>{formatDisplayTime(preset.shoot_seconds)}</span>
+                          <span>Skyting: {formatDisplayTime(preset.shoot_seconds)}</span>
                         </span>
                         {preset.warning_seconds > 0 && (
                           <span className="flex items-center space-x-1">
                             <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
-                            <span>{formatDisplayTime(preset.warning_seconds)}</span>
+                            <span>Adv: {formatDisplayTime(preset.warning_seconds)}</span>
                           </span>
                         )}
                       </div>
                       {preset.rule_reference && (
-                        <p className="text-xs text-slate-400 mt-1.5">{preset.rule_reference}</p>
+                        <p className="text-xs text-slate-400 mt-2">{preset.rule_reference}</p>
                       )}
                     </button>
                   ))}
@@ -534,7 +656,6 @@ export function FieldClock() {
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Settings card */}
             <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-5">
               <div className="flex items-start justify-between">
                 <div className="min-w-0 flex-1 mr-2">
@@ -548,7 +669,6 @@ export function FieldClock() {
                 </button>
               </div>
 
-              {/* Summary pills */}
               <div className="flex flex-wrap gap-2 mt-3">
                 {effectivePrep > 0 && (
                   <span className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium">
@@ -568,7 +688,6 @@ export function FieldClock() {
                 )}
               </div>
 
-              {/* Override panel - only for DB presets, not custom */}
               {selectedPreset.id !== 'custom' && phase === 'idle' && (
                 <PresetOverridePanel
                   preset={selectedPreset}
@@ -578,9 +697,7 @@ export function FieldClock() {
               )}
             </div>
 
-            {/* Timer display */}
             <div className={`rounded-xl p-6 sm:p-10 md:p-14 text-center transition-colors duration-500 ${getPhaseColor()}`}>
-              {/* Phase label */}
               <div className="mb-4 sm:mb-6">
                 <p className="text-white text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold">
                   {getPhaseText()}
@@ -589,7 +706,6 @@ export function FieldClock() {
                   <p className="text-white/80 text-base sm:text-lg md:text-xl mt-2">{getPhaseSubtext()}</p>
                 )}
 
-                {/* Warning indicator */}
                 {phase === 'shooting_warning' && (
                   <div className="flex items-center justify-center mt-3 space-x-2 animate-pulse">
                     <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
@@ -599,14 +715,12 @@ export function FieldClock() {
                 )}
               </div>
 
-              {/* Clock */}
               <div className="mb-8 sm:mb-10">
                 <p className={`${getTimerColor()} text-7xl sm:text-8xl md:text-9xl font-bold tracking-tight transition-colors duration-300 tabular-nums`}>
                   {formatClockTime(timeRemaining)}
                 </p>
               </div>
 
-              {/* Controls */}
               <div className="flex flex-wrap justify-center gap-3">
                 {!isRunning && phase !== 'finished' && (
                   <button

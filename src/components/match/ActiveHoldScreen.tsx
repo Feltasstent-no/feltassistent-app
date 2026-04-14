@@ -252,7 +252,7 @@ export function ActiveHoldScreen({
                   {isOutOfRange && <p className="text-[9px] text-red-500">Utenfor DFS</p>}
                 </div>
                 <div className="bg-emerald-50 border-2 border-emerald-600 rounded-lg p-2 text-center">
-                  <p className="text-xs text-emerald-700 font-semibold mb-1">Hoyde</p>
+                  <p className="text-xs text-emerald-700 font-semibold mb-1">Høyde</p>
                   <p className="text-xl font-bold text-emerald-600">
                     {(hold.recommended_clicks || 0) > 0 ? '+' : ''}{hold.recommended_clicks || 0}
                   </p>
@@ -289,7 +289,7 @@ export function ActiveHoldScreen({
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs text-sky-600">
                   Anbefalt: {Math.abs(hold.recommended_wind_clicks || 0)} knepp
-                  {(hold.recommended_wind_clicks || 0) > 0 ? ' hoyre' : (hold.recommended_wind_clicks || 0) < 0 ? ' venstre' : ''}
+                  {(hold.recommended_wind_clicks || 0) > 0 ? ' høyre' : (hold.recommended_wind_clicks || 0) < 0 ? ' venstre' : ''}
                 </span>
                 {windDiffers && (
                   <button
@@ -308,7 +308,7 @@ export function ActiveHoldScreen({
               {showWindDelta && (
                 <div className="bg-sky-100 rounded-md px-2.5 py-1.5 mb-2">
                   <p className="text-xs font-semibold text-sky-800 text-center">
-                    {windDeltaFromPrev > 0 ? '+' : ''}{windDeltaFromPrev} knepp {windDeltaFromPrev > 0 ? 'hoyre' : 'venstre'} fra forrige hold
+                    {windDeltaFromPrev > 0 ? '+' : ''}{windDeltaFromPrev} knepp {windDeltaFromPrev > 0 ? 'høyre' : 'venstre'} fra forrige hold
                   </p>
                 </div>
               )}
@@ -325,7 +325,7 @@ export function ActiveHoldScreen({
                     {Math.abs(windClicks)}
                   </span>
                   <span className="text-xs font-medium text-sky-600 ml-1">
-                    {windClicks > 0 ? 'hoyre' : windClicks < 0 ? 'venstre' : ''}
+                    {windClicks > 0 ? 'høyre' : windClicks < 0 ? 'venstre' : ''}
                   </span>
                 </div>
                 <button

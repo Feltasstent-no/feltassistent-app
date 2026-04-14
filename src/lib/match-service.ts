@@ -14,6 +14,7 @@ export interface MatchSession {
   wind_speed_mps: number;
   wind_direction_degrees: number;
   competition_type: 'grovfelt' | 'finfelt';
+  distance_mode?: 'kjent' | 'ukjent';
   shooter_class_id?: string | null;
   notes?: string;
   total_hits?: number | null;
@@ -85,6 +86,7 @@ export async function createMatchSession(params: {
   windSpeedMps?: number;
   windDirectionDegrees?: number;
   fieldType?: 'grovfelt' | 'finfelt';
+  distanceMode?: 'kjent' | 'ukjent';
 }): Promise<{ session: MatchSession | null; holds: MatchHold[] | null; error: any }> {
   const { data: template, error: templateError } = await supabase
     .from('competition_templates')
@@ -113,6 +115,7 @@ export async function createMatchSession(params: {
       wind_speed_mps: params.windSpeedMps || 0,
       wind_direction_degrees: params.windDirectionDegrees || 0,
       competition_type: params.fieldType || 'grovfelt',
+      distance_mode: params.distanceMode || 'kjent',
       status: 'setup',
       current_hold_index: 0,
     })
@@ -512,6 +515,20 @@ export async function addMatchHold(params: {
 }
 
 export async function isMatchReadyToStart(sessionId: string): Promise<boolean> {
+  const { data: session } = await supabase
+    .from('match_sessions')
+    .select('distance_mode')
+    .eq('id', sessionId)
+    .maybeSingle();
+
+  if (session?.distance_mode === 'ukjent') {
+    const { data: holds } = await supabase
+      .from('match_holds')
+      .select('id')
+      .eq('match_session_id', sessionId);
+    return (holds?.length ?? 0) > 0;
+  }
+
   const { data: holds } = await supabase
     .from('match_holds')
     .select('field_figure_id, distance_m')
@@ -538,7 +555,7 @@ export async function startMatchSession(sessionId: string): Promise<{ error: any
 
   const { data: session } = await supabase
     .from('match_sessions')
-    .select('click_table_id, competition_type, wind_speed_mps, wind_direction_degrees')
+    .select('click_table_id, competition_type, wind_speed_mps, wind_direction_degrees, distance_mode')
     .eq('id', sessionId)
     .maybeSingle();
 
@@ -547,12 +564,13 @@ export async function startMatchSession(sessionId: string): Promise<{ error: any
   }
 
   const isFinfelt = session.competition_type === 'finfelt';
+  const isUnknown = session.distance_mode === 'ukjent';
 
-  if (!isFinfelt && !session.click_table_id) {
+  if (!isFinfelt && !isUnknown && !session.click_table_id) {
     return { error: new Error('No click table found for session') };
   }
 
-  if (!isFinfelt) {
+  if (!isFinfelt && !isUnknown) {
     const { data: holds } = await supabase
       .from('match_holds')
       .select('id, distance_m')
@@ -665,6 +683,22 @@ export async function updateMatchResult(params: {
   const { error } = await supabase
     .from('match_sessions')
     .update(updateData)
+    .eq('id', params.sessionId);
+
+  return { error };
+}
+
+export async function updateMatchMetadata(params: {
+  sessionId: string;
+  matchName: string;
+  notes: string;
+}): Promise<{ error: any }> {
+  const { error } = await supabase
+    .from('match_sessions')
+    .update({
+      match_name: params.matchName,
+      notes: params.notes || null,
+    })
     .eq('id', params.sessionId);
 
   return { error };
