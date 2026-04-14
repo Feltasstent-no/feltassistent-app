@@ -245,18 +245,55 @@ export async function getAllSeriesImagesForSession(sessionId: string): Promise<T
   return data || [];
 }
 
+function convertFileToJpeg(file: File, maxWidth = 1200, quality = 0.7): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width > maxWidth) {
+        height = Math.round(height * (maxWidth / width));
+        width = maxWidth;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { reject(new Error('Canvas not supported')); return; }
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => blob && blob.size > 0 ? resolve(blob) : reject(new Error('Conversion failed')),
+        'image/jpeg',
+        quality,
+      );
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not read image')); };
+    img.src = url;
+  });
+}
+
 export async function uploadSeriesImage(params: {
   seriesId: string;
   userId: string;
   file: File;
 }): Promise<{ data: TrainingSeriesImage | null; error: any }> {
-  const fileExt = params.file.name.split('.').pop() || 'jpg';
-  const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
+  let uploadBlob: Blob;
+  try {
+    uploadBlob = await convertFileToJpeg(params.file);
+  } catch {
+    uploadBlob = params.file;
+  }
+
+  const fileName = `${Math.random().toString(36).substring(2)}.jpg`;
   const filePath = `${params.userId}/training/${params.seriesId}/${fileName}`;
 
   const { error: uploadError } = await supabase.storage
     .from('target-images')
-    .upload(filePath, params.file);
+    .upload(filePath, uploadBlob, {
+      contentType: 'image/jpeg',
+      upsert: true,
+    });
 
   if (uploadError) return { data: null, error: uploadError };
 
@@ -285,6 +322,9 @@ export async function deleteSeriesImage(image: TrainingSeriesImage): Promise<{ e
 }
 
 export function getImageUrl(storagePath: string): string {
+  if (storagePath.startsWith('http://') || storagePath.startsWith('https://')) {
+    return storagePath;
+  }
   const { data } = supabase.storage.from('target-images').getPublicUrl(storagePath);
   return data.publicUrl;
 }

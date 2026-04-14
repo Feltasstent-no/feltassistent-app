@@ -796,15 +796,24 @@ export async function getMatchHoldImages(sessionId: string): Promise<Array<{
   }));
 }
 
-function resolveMonitorImageUrls(storedValues: string[]): Promise<string[]> {
-  return Promise.resolve(storedValues.map((stored) => {
+async function resolveMonitorImageUrls(storedValues: string[]): Promise<string[]> {
+  const results: string[] = [];
+  for (const stored of storedValues) {
     if (stored.startsWith('http://') || stored.startsWith('https://')) {
-      return stored;
+      results.push(stored);
+      continue;
     }
-
-    const { data } = supabase.storage.from('monitor-photos').getPublicUrl(stored);
-    return data.publicUrl;
-  }));
+    const { data, error } = await supabase.storage
+      .from('monitor-photos')
+      .createSignedUrl(stored, 3600);
+    if (error || !data?.signedUrl) {
+      const { data: pub } = supabase.storage.from('monitor-photos').getPublicUrl(stored);
+      results.push(pub.publicUrl);
+    } else {
+      results.push(data.signedUrl);
+    }
+  }
+  return results;
 }
 
 export async function getSubHolds(holdId: string): Promise<MatchSubHold[]> {

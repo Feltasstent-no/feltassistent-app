@@ -70,13 +70,33 @@ export function TrainingDetail() {
 
     try {
       const file = e.target.files[0];
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
+      let uploadBlob: Blob = file;
+      try {
+        uploadBlob = await new Promise<Blob>((resolve, reject) => {
+          const img = new Image();
+          const url = URL.createObjectURL(file);
+          img.onload = () => {
+            URL.revokeObjectURL(url);
+            let { width, height } = img;
+            if (width > 1200) { height = Math.round(height * (1200 / width)); width = 1200; }
+            const c = document.createElement('canvas');
+            c.width = width; c.height = height;
+            const ctx = c.getContext('2d');
+            if (!ctx) { reject(new Error('no canvas')); return; }
+            ctx.drawImage(img, 0, 0, width, height);
+            c.toBlob((b) => b ? resolve(b) : reject(new Error('no blob')), 'image/jpeg', 0.7);
+          };
+          img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('read fail')); };
+          img.src = url;
+        });
+      } catch { /* fallback to raw file */ }
+
+      const fileName = `${Math.random().toString(36).substring(2)}.jpg`;
       const filePath = `${user.id}/${id}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from('target-images')
-        .upload(filePath, file);
+        .upload(filePath, uploadBlob, { contentType: 'image/jpeg', upsert: true });
 
       if (uploadError) throw uploadError;
 
@@ -108,6 +128,7 @@ export function TrainingDetail() {
   };
 
   const getImageUrl = (path: string) => {
+    if (path.startsWith('http://') || path.startsWith('https://')) return path;
     const { data } = supabase.storage.from('target-images').getPublicUrl(path);
     return data.publicUrl;
   };

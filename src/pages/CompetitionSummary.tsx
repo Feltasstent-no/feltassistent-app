@@ -32,6 +32,7 @@ export function CompetitionSummary() {
   const [showEditMeta, setShowEditMeta] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<{ url: string; alt: string } | null>(null);
+  const [resolvedImageUrls, setResolvedImageUrls] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (entryId) {
@@ -85,22 +86,25 @@ export function CompetitionSummary() {
 
     if (imagesRes.data) {
       setStageImages(imagesRes.data);
-      console.log('[CompetitionSummary] Stage images loaded:', imagesRes.data.length);
-      imagesRes.data.forEach(img => {
-        console.log('[CompetitionSummary] Image record:', {
-          id: img.id,
-          stage_number: img.stage_number,
-          storage_path: img.storage_path,
-          image_url: img.image_url,
-          notes: img.notes ? img.notes.substring(0, 50) : null,
-        });
+      const urlMap: Record<string, string> = {};
+      for (const img of imagesRes.data) {
         if (img.storage_path) {
-          const url = supabase.storage.from('monitor-photos').getPublicUrl(img.storage_path).data.publicUrl;
-          console.log('[CompetitionSummary] Public URL for stage', img.stage_number, ':', url);
-        } else {
-          console.log('[CompetitionSummary] Stage', img.stage_number, ': NO storage_path, image will not render');
+          const path = img.storage_path;
+          if (path.startsWith('http://') || path.startsWith('https://')) {
+            urlMap[img.id] = path;
+          } else {
+            const { data: signed, error: signErr } = await supabase.storage
+              .from('monitor-photos')
+              .createSignedUrl(path, 3600);
+            if (signErr || !signed?.signedUrl) {
+              urlMap[img.id] = supabase.storage.from('monitor-photos').getPublicUrl(path).data.publicUrl;
+            } else {
+              urlMap[img.id] = signed.signedUrl;
+            }
+          }
         }
-      });
+      }
+      setResolvedImageUrls(urlMap);
     }
 
     setLoading(false);
@@ -278,9 +282,7 @@ export function CompetitionSummary() {
           {stages.map((stage) => {
             const figure = figures.find((f) => f.id === stage.field_figure_id);
             const stageImage = stageImages.find((img) => img.stage_number === stage.stage_number);
-            const resolvedImageUrl = stageImage?.storage_path
-              ? supabase.storage.from('monitor-photos').getPublicUrl(stageImage.storage_path).data.publicUrl
-              : null;
+            const resolvedImageUrl = stageImage ? resolvedImageUrls[stageImage.id] || null : null;
 
             return (
               <div

@@ -5,11 +5,18 @@ import { enqueueUpload } from '../../lib/upload-queue';
 import { CompetitionStageImage } from '../../types/database';
 import { Camera, Upload, X, Check, FileText, Loader2 } from 'lucide-react';
 
-function getPublicImageUrl(storagePath: string): string {
-  const { data } = supabase.storage
+async function resolveMonitorUrl(storagePath: string): Promise<string> {
+  if (storagePath.startsWith('http://') || storagePath.startsWith('https://')) {
+    return storagePath;
+  }
+  const { data, error } = await supabase.storage
     .from('monitor-photos')
-    .getPublicUrl(storagePath);
-  return data.publicUrl;
+    .createSignedUrl(storagePath, 3600);
+  if (error || !data?.signedUrl) {
+    const { data: pub } = supabase.storage.from('monitor-photos').getPublicUrl(storagePath);
+    return pub.publicUrl;
+  }
+  return data.signedUrl;
 }
 
 function convertToJpeg(file: File, maxWidth = 1200, quality = 0.7): Promise<Blob> {
@@ -75,8 +82,14 @@ export function HoldImageUpload({
 
   useEffect(() => {
     if (existingImage?.storage_path) {
-      setDisplayUrl(getPublicImageUrl(existingImage.storage_path));
-      setLocalPreview(null);
+      let cancelled = false;
+      resolveMonitorUrl(existingImage.storage_path).then((url) => {
+        if (!cancelled) {
+          setDisplayUrl(url);
+          setLocalPreview(null);
+        }
+      });
+      return () => { cancelled = true; };
     } else if (!localPreview) {
       setDisplayUrl(null);
     }

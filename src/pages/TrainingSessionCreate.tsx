@@ -105,7 +105,7 @@ export function TrainingSessionCreate() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">Dato</label>
                 <input
@@ -127,7 +127,7 @@ export function TrainingSessionCreate() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">Disiplin</label>
                 <select
@@ -159,7 +159,7 @@ export function TrainingSessionCreate() {
 
           <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
             <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">Forhold</h2>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">Vær</label>
                 <input

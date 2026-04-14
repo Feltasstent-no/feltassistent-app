@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { Camera, CheckCircle, Trash2, X, ChevronDown, ChevronUp, Target } from 'lucide-react';
 import { updateTrainingSeries, deleteTrainingSeries, uploadSeriesImage, deleteSeriesImage, getImageUrl } from '../../lib/training-session-service';
-import { TrainingSeriesTimer } from './TrainingSeriesTimer';
+import { FieldClockTimer } from '../FieldClockTimer';
 import type { TrainingSeries, TrainingSeriesImage } from '../../types/database';
 
 interface TrainingSeriesCardProps {
@@ -108,7 +108,10 @@ export function TrainingSeriesCard({ series, images, userId, readOnly, onUpdated
       {expanded && (
         <div className="px-4 pb-4 space-y-4 border-t border-slate-100 pt-4">
           {!readOnly && series.shooting_time_seconds && (
-            <TrainingSeriesTimer shootingTimeSeconds={series.shooting_time_seconds} />
+            <FieldClockTimer
+              shootSeconds={series.shooting_time_seconds}
+              compact
+            />
           )}
 
           {!readOnly && (

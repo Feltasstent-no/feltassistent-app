@@ -101,10 +101,21 @@ function notify() {
   listeners.forEach(fn => fn());
 }
 
+async function ensureAuth(): Promise<boolean> {
+  const { data } = await supabase.auth.getSession();
+  return !!data.session;
+}
+
+async function prepareBlob(blob: Blob): Promise<Blob> {
+  if (blob.size === 0) throw new Error('Empty blob');
+  if (blob.type === 'image/jpeg' && blob.size > 0) return blob;
+  const buf = await blob.arrayBuffer();
+  if (buf.byteLength === 0) throw new Error('Empty blob data');
+  return new Blob([buf], { type: 'image/jpeg' });
+}
+
 async function uploadOne(item: QueuedUpload): Promise<boolean> {
-  const uploadBlob = item.blob.type === 'image/jpeg'
-    ? item.blob
-    : new Blob([item.blob], { type: 'image/jpeg' });
+  const uploadBlob = await prepareBlob(item.blob);
 
   const { error: uploadError } = await supabase.storage
     .from(item.bucket)
@@ -175,6 +186,13 @@ async function processQueue(): Promise<void> {
   processing = true;
 
   try {
+    const authed = await ensureAuth();
+    if (!authed) {
+      processing = false;
+      setTimeout(() => processQueue(), RETRY_DELAY_MS);
+      return;
+    }
+
     const items = await getAllItems();
     const pending = items
       .filter(i => i.status === 'queued' || i.status === 'failed')
@@ -182,6 +200,12 @@ async function processQueue(): Promise<void> {
       .sort((a, b) => a.createdAt - b.createdAt);
 
     for (const item of pending) {
+      if (!item.blob || item.blob.size === 0) {
+        await removeItem(item.id);
+        notify();
+        continue;
+      }
+
       item.status = 'uploading';
       item.error = undefined;
       await putItem(item);
@@ -234,12 +258,22 @@ export function enqueueUpload(params: {
     createdAt: Date.now(),
   };
 
-  putItem(item).then(() => {
-    notify();
-    processQueue();
+  tryImmediateUpload(item).catch(() => {
+    putItem(item).then(() => {
+      notify();
+      processQueue();
+    });
   });
 
   return id;
+}
+
+async function tryImmediateUpload(item: QueuedUpload): Promise<void> {
+  const authed = await ensureAuth();
+  if (!authed) throw new Error('Not authenticated');
+
+  await uploadOne(item);
+  notify();
 }
 
 export function subscribeToQueue(fn: Listener): () => void {
@@ -258,5 +292,13 @@ export function retryAll(): void {
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {
     processQueue();
+  });
+
+  supabase.auth.onAuthStateChange((event) => {
+    if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+      (async () => {
+        processQueue();
+      })();
+    }
   });
 }
