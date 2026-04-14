@@ -796,26 +796,14 @@ export async function getMatchHoldImages(sessionId: string): Promise<Array<{
   }));
 }
 
-async function resolveMonitorImageUrls(storedValues: string[]): Promise<string[]> {
-  return Promise.all(storedValues.map(async (stored) => {
+function resolveMonitorImageUrls(storedValues: string[]): Promise<string[]> {
+  return Promise.resolve(storedValues.map((stored) => {
     if (stored.startsWith('http://') || stored.startsWith('https://')) {
-      console.log('[match-service] resolveImage: legacy full URL, using as-is:', stored);
       return stored;
     }
 
-    const { data, error } = await supabase.storage
-      .from('monitor-photos')
-      .createSignedUrl(stored, 3600);
-
-    if (error || !data?.signedUrl) {
-      console.error('[match-service] resolveImage: signedUrl FAILED for path:', stored, error);
-      const { data: pub } = supabase.storage.from('monitor-photos').getPublicUrl(stored);
-      console.log('[match-service] resolveImage: falling back to publicUrl:', pub.publicUrl);
-      return pub.publicUrl;
-    }
-
-    console.log('[match-service] resolveImage: signedUrl OK for path:', stored);
-    return data.signedUrl;
+    const { data } = supabase.storage.from('monitor-photos').getPublicUrl(stored);
+    return data.publicUrl;
   }));
 }
 

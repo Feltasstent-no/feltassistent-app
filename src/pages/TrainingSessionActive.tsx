@@ -143,25 +143,25 @@ export function TrainingSessionActive() {
               </button>
             )}
           </div>
-          <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
-            <span className="flex items-center gap-1">
-              <Calendar className="w-3.5 h-3.5" />
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-500 mt-1">
+            <span className="flex items-center gap-1 flex-shrink-0 whitespace-nowrap">
+              <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
               {new Date(session.session_date).toLocaleDateString('nb-NO')}
             </span>
             {session.location && (
-              <span className="flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5" />
-                {session.location}
+              <span className="flex items-center gap-1 flex-shrink-0 truncate max-w-[12rem]">
+                <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+                <span className="truncate">{session.location}</span>
               </span>
             )}
             {session.weather && (
-              <span className="flex items-center gap-1">
-                <Cloud className="w-3.5 h-3.5" />
-                {session.weather}
+              <span className="flex items-center gap-1 flex-shrink-0 truncate max-w-[10rem]">
+                <Cloud className="w-3.5 h-3.5 flex-shrink-0" />
+                <span className="truncate">{session.weather}</span>
               </span>
             )}
             {isActive && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 flex-shrink-0">
                 Aktiv
               </span>
             )}
