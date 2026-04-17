@@ -6,10 +6,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { useActiveSetup } from '../contexts/ActiveSetupContext';
 import { useOnboarding } from '../contexts/OnboardingContext';
 import { Weapon, WeaponBarrel } from '../types/database';
-import { Plus, Crosshair, Trash2, Save, X, Calendar, CreditCard as Edit, PlusCircle, ChevronDown, ChevronUp, History, Pencil, AlertTriangle, Info, ArrowRight } from 'lucide-react';
+import { Plus, Crosshair, Trash2, Save, X, Calendar, CreditCard as Edit, PlusCircle, ChevronDown, ChevronUp, History, Pencil, AlertTriangle, Info, ArrowRight, Loader2 } from 'lucide-react';
 import { getBarrelHealthStatus, getBarrelLifespanLimit } from '../lib/barrel-lifespan';
 import { logWeaponShots } from '../lib/weapon-shot-service';
 import { AmmoInventorySection } from '../components/AmmoInventorySection';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 
 interface WeaponShotLog {
   id: string;
@@ -55,6 +56,11 @@ export function Weapons() {
     barrel_id: '',
     comment: '',
   });
+  const [isCreatingWeapon, setIsCreatingWeapon] = useState(false);
+  const [createWeaponError, setCreateWeaponError] = useState<string | null>(null);
+  const [showDeleteWeaponConfirm, setShowDeleteWeaponConfirm] = useState(false);
+  const [isDeletingWeapon, setIsDeletingWeapon] = useState(false);
+  const [deleteWeaponError, setDeleteWeaponError] = useState<string | null>(null);
 
   const [weaponForm, setWeaponForm] = useState({
     weapon_number: '',
@@ -154,24 +160,32 @@ export function Weapons() {
   const handleCreateWeapon = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    if (isCreatingWeapon) return;
 
-    const { data, error } = await supabase
-      .from('weapons')
-      .insert({
-        user_id: user.id,
-        weapon_number: weaponForm.weapon_number,
-        weapon_name: weaponForm.weapon_name,
-        weapon_type: weaponForm.weapon_type || null,
-        caliber: weaponForm.caliber || null,
-        sight_type: weaponForm.sight_type || null,
-        notes: weaponForm.notes || null,
-        is_active: true,
-        total_shots_fired: 0,
-      })
-      .select()
-      .single();
+    setIsCreatingWeapon(true);
+    setCreateWeaponError(null);
 
-    if (!error && data) {
+    try {
+      const { data, error } = await supabase
+        .from('weapons')
+        .insert({
+          user_id: user.id,
+          weapon_number: weaponForm.weapon_number,
+          weapon_name: weaponForm.weapon_name,
+          weapon_type: weaponForm.weapon_type || null,
+          caliber: weaponForm.caliber || null,
+          sight_type: weaponForm.sight_type || null,
+          notes: weaponForm.notes || null,
+          is_active: true,
+          total_shots_fired: 0,
+        })
+        .select()
+        .single();
+
+      if (error || !data) {
+        throw error ?? new Error('Kunne ikke opprette våpen');
+      }
+
       let firstBarrelId: string | null = null;
       if (weaponForm.serial_number) {
         const { data: barrelData } = await supabase.from('weapon_barrels').insert({
@@ -204,6 +218,15 @@ export function Weapons() {
           resetBarrelForm();
         }
       }
+    } catch (err) {
+      console.error('Error creating weapon:', err);
+      setCreateWeaponError(
+        err instanceof Error && err.message
+          ? err.message
+          : 'Noe gikk galt under opprettelse av våpen. Prøv igjen.'
+      );
+    } finally {
+      setIsCreatingWeapon(false);
     }
   };
 
@@ -228,13 +251,34 @@ export function Weapons() {
     }
   };
 
-  const handleDeleteWeapon = async (weaponId: string) => {
-    if (!confirm('Er du sikker på at du vil deaktivere dette våpenet?')) return;
+  const confirmDeleteWeapon = async () => {
+    if (!selectedWeapon || isDeletingWeapon) return;
 
-    await supabase.from('weapons').update({ is_active: false }).eq('id', weaponId);
-    setSelectedWeapon(null);
-    setBarrels([]);
-    fetchWeapons();
+    setIsDeletingWeapon(true);
+    setDeleteWeaponError(null);
+
+    try {
+      const { error } = await supabase
+        .from('weapons')
+        .update({ is_active: false })
+        .eq('id', selectedWeapon.id);
+
+      if (error) throw error;
+
+      setShowDeleteWeaponConfirm(false);
+      setSelectedWeapon(null);
+      setBarrels([]);
+      await fetchWeapons();
+    } catch (err) {
+      console.error('Error deleting weapon:', err);
+      setDeleteWeaponError(
+        err instanceof Error && err.message
+          ? err.message
+          : 'Noe gikk galt under sletting av våpen. Prøv igjen.'
+      );
+    } finally {
+      setIsDeletingWeapon(false);
+    }
   };
 
   const handleAddBarrel = async (e: React.FormEvent) => {
@@ -787,12 +831,29 @@ export function Weapons() {
                       />
                     </div>
 
+                    {createWeaponError && (
+                      <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <p className="text-sm text-red-700">{createWeaponError}</p>
+                      </div>
+                    )}
+
                     <button
                       type="submit"
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-6 rounded-lg transition flex items-center justify-center space-x-2"
+                      disabled={isCreatingWeapon}
+                      aria-busy={isCreatingWeapon}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg transition flex items-center justify-center space-x-2"
                     >
-                      <Save className="w-5 h-5" />
-                      <span>Opprett våpen</span>
+                      {isCreatingWeapon ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          <span>Oppretter...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-5 h-5" />
+                          <span>Opprett våpen</span>
+                        </>
+                      )}
                     </button>
                   </form>
                 </div>
@@ -846,8 +907,12 @@ export function Weapons() {
                               <Pencil className="w-5 h-5" />
                             </button>
                             <button
-                              onClick={() => handleDeleteWeapon(selectedWeapon.id)}
+                              onClick={() => {
+                                setDeleteWeaponError(null);
+                                setShowDeleteWeaponConfirm(true);
+                              }}
                               className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+                              title="Slett våpen"
                             >
                               <Trash2 className="w-5 h-5" />
                             </button>
@@ -1654,6 +1719,26 @@ export function Weapons() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        isOpen={showDeleteWeaponConfirm}
+        title="Slett våpenprofil"
+        message={
+          deleteWeaponError
+            ? `Er du sikker på at du vil slette denne våpenprofilen? ${deleteWeaponError}`
+            : 'Er du sikker på at du vil slette denne våpenprofilen?'
+        }
+        confirmText="Slett"
+        cancelText="Avbryt"
+        isDestructive
+        isLoading={isDeletingWeapon}
+        onConfirm={confirmDeleteWeapon}
+        onCancel={() => {
+          if (isDeletingWeapon) return;
+          setShowDeleteWeaponConfirm(false);
+          setDeleteWeaponError(null);
+        }}
+      />
     </Layout>
   );
 }
