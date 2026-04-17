@@ -61,6 +61,11 @@ export function Weapons() {
   const [showDeleteWeaponConfirm, setShowDeleteWeaponConfirm] = useState(false);
   const [isDeletingWeapon, setIsDeletingWeapon] = useState(false);
   const [deleteWeaponError, setDeleteWeaponError] = useState<string | null>(null);
+  const [isSubmittingManualShots, setIsSubmittingManualShots] = useState(false);
+  const [manualShotsError, setManualShotsError] = useState<string | null>(null);
+  const [isUpdatingShotLog, setIsUpdatingShotLog] = useState(false);
+  const [updateShotLogError, setUpdateShotLogError] = useState<string | null>(null);
+  const [deletingShotLogId, setDeletingShotLogId] = useState<string | null>(null);
 
   const [weaponForm, setWeaponForm] = useState({
     weapon_number: '',
@@ -505,12 +510,16 @@ export function Weapons() {
   const handleUpdateShotLog = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingShotLog || !selectedWeapon) return;
+    if (isUpdatingShotLog) return;
 
     const shotsToUpdate = parseInt(editShotForm.shots_fired);
     if (isNaN(shotsToUpdate) || shotsToUpdate <= 0) {
       alert('Vennligst skriv inn et gyldig antall skudd');
       return;
     }
+
+    setIsUpdatingShotLog(true);
+    setUpdateShotLogError(null);
 
     try {
       const { error } = await supabase
@@ -538,13 +547,22 @@ export function Weapons() {
       });
     } catch (error) {
       console.error('Error updating shot log:', error);
-      alert('Feil ved oppdatering av skuddlogg');
+      setUpdateShotLogError(
+        error instanceof Error && error.message
+          ? error.message
+          : 'Feil ved oppdatering av skuddlogg'
+      );
+    } finally {
+      setIsUpdatingShotLog(false);
     }
   };
 
   const handleDeleteShotLog = async (logId: string) => {
     if (!selectedWeapon) return;
+    if (deletingShotLogId) return;
     if (!confirm('Er du sikker på at du vil slette denne skuddloggen?')) return;
+
+    setDeletingShotLogId(logId);
 
     try {
       const { error } = await supabase
@@ -560,6 +578,8 @@ export function Weapons() {
     } catch (error) {
       console.error('Error deleting shot log:', error);
       alert('Feil ved sletting av skuddlogg');
+    } finally {
+      setDeletingShotLogId(null);
     }
   };
 
@@ -567,12 +587,16 @@ export function Weapons() {
   const handleManualShotEntry = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedWeapon || !user) return;
+    if (isSubmittingManualShots) return;
 
     const shotsToAdd = parseInt(manualEntryForm.shots);
     if (isNaN(shotsToAdd) || shotsToAdd <= 0) {
       alert('Vennligst skriv inn et gyldig antall skudd');
       return;
     }
+
+    setIsSubmittingManualShots(true);
+    setManualShotsError(null);
 
     try {
       await logWeaponShots({
@@ -605,7 +629,13 @@ export function Weapons() {
       });
     } catch (error) {
       console.error('Error logging weapon shots:', error);
-      alert('Feil ved lagring av skudd');
+      setManualShotsError(
+        error instanceof Error && error.message
+          ? error.message
+          : 'Feil ved lagring av skudd'
+      );
+    } finally {
+      setIsSubmittingManualShots(false);
     }
   };
 
@@ -1107,24 +1137,40 @@ export function Weapons() {
                                   placeholder="F.eks. Trening på 200m"
                                 />
                               </div>
+                              {manualShotsError && (
+                                <div className="p-2 bg-red-50 border border-red-200 rounded-lg">
+                                  <p className="text-xs text-red-700">{manualShotsError}</p>
+                                </div>
+                              )}
                               <div className="flex space-x-2">
                                 <button
                                   type="submit"
-                                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg transition py-2"
+                                  disabled={isSubmittingManualShots}
+                                  aria-busy={isSubmittingManualShots}
+                                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition py-2 flex items-center justify-center gap-2"
                                 >
-                                  Legg til
+                                  {isSubmittingManualShots ? (
+                                    <>
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                      <span>Lagrer...</span>
+                                    </>
+                                  ) : (
+                                    <span>Legg til</span>
+                                  )}
                                 </button>
                                 <button
                                   type="button"
+                                  disabled={isSubmittingManualShots}
                                   onClick={() => {
                                     setShowManualEntry(false);
+                                    setManualShotsError(null);
                                     setManualEntryForm({
                                       shots: '',
                                       entry_date: new Date().toISOString().split('T')[0],
                                       comment: '',
                                     });
                                   }}
-                                  className="px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg transition"
+                                  className="px-4 bg-slate-200 hover:bg-slate-300 disabled:opacity-60 disabled:cursor-not-allowed text-slate-700 rounded-lg transition"
                                 >
                                   Avbryt
                                 </button>
@@ -1636,17 +1682,33 @@ export function Weapons() {
                                         className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                                       />
                                     </div>
+                                    {updateShotLogError && (
+                                      <div className="p-2 bg-red-50 border border-red-200 rounded-lg">
+                                        <p className="text-xs text-red-700">{updateShotLogError}</p>
+                                      </div>
+                                    )}
                                     <div className="flex space-x-2">
                                       <button
                                         type="submit"
-                                        className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+                                        disabled={isUpdatingShotLog}
+                                        aria-busy={isUpdatingShotLog}
+                                        className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"
                                       >
-                                        Lagre
+                                        {isUpdatingShotLog ? (
+                                          <>
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                            <span>Oppdaterer...</span>
+                                          </>
+                                        ) : (
+                                          <span>Lagre</span>
+                                        )}
                                       </button>
                                       <button
                                         type="button"
+                                        disabled={isUpdatingShotLog}
                                         onClick={() => {
                                           setEditingShotLog(null);
+                                          setUpdateShotLogError(null);
                                           setEditShotForm({
                                             shots_fired: '',
                                             shot_date: '',
@@ -1654,7 +1716,7 @@ export function Weapons() {
                                             comment: '',
                                           });
                                         }}
-                                        className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-sm font-medium"
+                                        className="px-4 py-2 bg-slate-200 hover:bg-slate-300 disabled:opacity-60 disabled:cursor-not-allowed text-slate-700 rounded-lg text-sm font-medium"
                                       >
                                         Avbryt
                                       </button>
@@ -1687,17 +1749,24 @@ export function Weapons() {
                                     <div className="flex items-center gap-2 ml-3">
                                       <button
                                         onClick={() => handleEditShotLog(log)}
-                                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition"
+                                        disabled={deletingShotLogId === log.id}
+                                        className="p-1.5 text-blue-600 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed rounded transition"
                                         title="Rediger"
                                       >
                                         <Pencil className="w-4 h-4" />
                                       </button>
                                       <button
                                         onClick={() => handleDeleteShotLog(log.id)}
-                                        className="p-1.5 text-red-600 hover:bg-red-50 rounded transition"
+                                        disabled={deletingShotLogId === log.id}
+                                        aria-busy={deletingShotLogId === log.id}
+                                        className="p-1.5 text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed rounded transition"
                                         title="Slett"
                                       >
-                                        <Trash2 className="w-4 h-4" />
+                                        {deletingShotLogId === log.id ? (
+                                          <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                          <Trash2 className="w-4 h-4" />
+                                        )}
                                       </button>
                                     </div>
                                   </div>
