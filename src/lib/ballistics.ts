@@ -434,7 +434,7 @@ export function getWindClickRecommendation(
 export function getSightDisplayName(sight_type: string): string {
   const models: Record<string, string> = {
     'busk_standard': 'Busk Standard (grovknepp)',
-    'busk_finknepp': 'Busk Finknepp',
+    'busk_finknepp': 'Busk (finknepp)',
     'moa_quarter': '1/4 MOA',
     'moa_half': '1/2 MOA',
     'moa_full': '1 MOA',
@@ -450,7 +450,7 @@ export function getSightDisplayName(sight_type: string): string {
 export function getAvailableSightTypes(): Array<{ value: string; label: string; isDFS: boolean }> {
   return [
     { value: 'busk_standard', label: 'Busk Standard (grovknepp)', isDFS: true },
-    { value: 'busk_finknepp', label: 'Busk Finknepp', isDFS: true },
+    { value: 'busk_finknepp', label: 'Busk (finknepp)', isDFS: true },
     { value: 'moa_quarter', label: '1/4 MOA', isDFS: false },
     { value: 'moa_half', label: '1/2 MOA', isDFS: false },
     { value: 'moa_full', label: '1 MOA', isDFS: false },

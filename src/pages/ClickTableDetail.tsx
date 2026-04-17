@@ -303,7 +303,7 @@ export function ClickTableDetail() {
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                   >
                     <option value="Busk Standard">Busk Standard (grovknepp)</option>
-                    <option value="Busk Finknepp">Busk Finknepp</option>
+                    <option value="Busk Finknepp">Busk (finknepp)</option>
                     <option value="1/4 MOA">1/4 MOA</option>
                     <option value="1/2 MOA">1/2 MOA</option>
                     <option value="1 MOA">1 MOA</option>

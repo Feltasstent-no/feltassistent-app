@@ -409,7 +409,7 @@ export function NewBallisticProfile() {
                   className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 >
                   <option value="busk_standard">Busk Standard (grovknepp)</option>
-                  <option value="busk_finknepp">Busk Finknepp</option>
+                  <option value="busk_finknepp">Busk (finknepp)</option>
                   <option value="moa_quarter">1/4 MOA</option>
                   <option value="moa_half">1/2 MOA</option>
                   <option value="moa_full">1 MOA</option>
