@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Pencil } from 'lucide-react';
+import { Pencil, RotateCw } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { ActiveHoldScreen } from '../components/match/ActiveHoldScreen';
@@ -32,6 +32,9 @@ import {
   recalculateHoldClicks,
   createSubHold,
   syncCompositeHoldShotCount,
+  createReshootHold,
+  hasReshoot,
+  setCountingAttempt,
 } from '../lib/match-service';
 import { enqueueUpload } from '../lib/upload-queue';
 import { UploadQueueStatus } from '../components/UploadQueueStatus';
@@ -62,6 +65,15 @@ export function MatchActive() {
   const [showHoldSetupModal, setShowHoldSetupModal] = useState(false);
   const [showUnknownSetup, setShowUnknownSetup] = useState(false);
   const [showEditMeta, setShowEditMeta] = useState(false);
+  const [showReshootConfirm, setShowReshootConfirm] = useState(false);
+  const [reshootBusy, setReshootBusy] = useState(false);
+  const [showReshootChoice, setShowReshootChoice] = useState<{
+    originalHoldId: string;
+    reshootHoldId: string;
+    originalIndex: number;
+    reshootIndex: number;
+  } | null>(null);
+  const [choiceBusy, setChoiceBusy] = useState(false);
   const [fieldFigures, setFieldFigures] = useState<FieldFigure[]>([]);
   const [assistMode] = useState<AssistanceMode>(getAssistanceMode);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -160,6 +172,24 @@ export function MatchActive() {
 
     await completeHold(currentHold.id);
 
+    if (currentHold.reshoot_of_hold_id) {
+      const originalIndex = holds.findIndex(h => h.id === currentHold.reshoot_of_hold_id);
+      const reshootIndex = holds.findIndex(h => h.id === currentHold.id);
+      setShowReshootChoice({
+        originalHoldId: currentHold.reshoot_of_hold_id,
+        reshootHoldId: currentHold.id,
+        originalIndex: originalIndex >= 0 ? originalIndex : 0,
+        reshootIndex: reshootIndex >= 0 ? reshootIndex : session.current_hold_index,
+      });
+      return;
+    }
+
+    await proceedAfterHoldComplete();
+  };
+
+  const proceedAfterHoldComplete = async () => {
+    if (!session) return;
+
     const nextIndex = session.current_hold_index + 1;
     const isFinfelt = session.competition_type === 'finfelt';
     const isLast = nextIndex >= holds.length;
@@ -182,6 +212,86 @@ export function MatchActive() {
     } else {
       handleNextHold();
     }
+  };
+
+  const handleReshootChoice = async (winner: 'original' | 'reshoot') => {
+    if (!showReshootChoice) return;
+    setChoiceBusy(true);
+
+    const { error } = await setCountingAttempt({
+      originalHoldId: showReshootChoice.originalHoldId,
+      reshootHoldId: showReshootChoice.reshootHoldId,
+      winner,
+    });
+
+    if (error) {
+      alert('Kunne ikke lagre valget. Prøv igjen.');
+      setChoiceBusy(false);
+      return;
+    }
+
+    setHolds(prev => prev.map(h => {
+      if (h.id === showReshootChoice.originalHoldId) {
+        return { ...h, counts_for_score: winner === 'original' };
+      }
+      if (h.id === showReshootChoice.reshootHoldId) {
+        return { ...h, counts_for_score: winner === 'reshoot' };
+      }
+      return h;
+    }));
+
+    setShowReshootChoice(null);
+    setChoiceBusy(false);
+    await proceedAfterHoldComplete();
+  };
+
+  const handleCreateReshoot = async () => {
+    if (!currentHold || !session || reshootBusy) return;
+
+    const already = await hasReshoot(currentHold.id);
+    if (already) {
+      alert('Dette holdet har allerede en omskyting.');
+      setShowReshootConfirm(false);
+      return;
+    }
+
+    setReshootBusy(true);
+    const { hold: newHold, error } = await createReshootHold(currentHold.id);
+
+    if (error || !newHold) {
+      alert(error?.message || 'Kunne ikke opprette omskyting.');
+      setReshootBusy(false);
+      setShowReshootConfirm(false);
+      return;
+    }
+
+    const [updatedHolds, subHoldsMap] = await Promise.all([
+      getMatchHolds(session.id),
+      getSubHoldsForSession(session.id),
+    ]);
+
+    const holdsWithSubs = updatedHolds.map(h => ({
+      ...h,
+      sub_holds: subHoldsMap[h.id] || undefined,
+    }));
+
+    const newIndex = holdsWithSubs.findIndex(h => h.id === newHold.id);
+    const targetIndex = newIndex >= 0 ? newIndex : holdsWithSubs.length - 1;
+
+    await updateMatchSessionHoldIndex(session.id, targetIndex);
+
+    const nextCurrent = holdsWithSubs[targetIndex] ?? null;
+
+    setHolds(holdsWithSubs);
+    setCurrentHold(nextCurrent);
+    setSession({ ...session, current_hold_index: targetIndex });
+    setInitialElapsedTime(0);
+    setClockStarted(false);
+    setShowResetReminder(false);
+    setIsLastHoldReset(false);
+    setShowEditModal(false);
+    setShowReshootConfirm(false);
+    setReshootBusy(false);
   };
 
   const finishMatch = async () => {
@@ -530,6 +640,14 @@ export function MatchActive() {
                 </div>
               )}
               <button
+                onClick={() => setShowReshootConfirm(true)}
+                disabled={clockStarted || !!currentHold?.reshoot_of_hold_id}
+                className="w-8 h-8 rounded-lg border border-slate-300 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition"
+                title={currentHold?.reshoot_of_hold_id ? 'Dette er allerede en omskyting' : 'Opprett omskyting'}
+              >
+                <RotateCw className="w-3.5 h-3.5 text-amber-600" />
+              </button>
+              <button
                 onClick={() => setShowEditModal(true)}
                 disabled={clockStarted}
                 className="w-8 h-8 rounded-lg border border-slate-300 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition"
@@ -540,6 +658,18 @@ export function MatchActive() {
             </div>
           </div>
         </div>
+
+        {currentHold?.reshoot_of_hold_id && (() => {
+          const origIdx = holds.findIndex(h => h.id === currentHold.reshoot_of_hold_id);
+          return (
+            <div className="bg-amber-50 border-b border-amber-200 px-3 py-1.5 flex items-center justify-center gap-2 flex-shrink-0">
+              <RotateCw className="w-3.5 h-3.5 text-amber-700" />
+              <span className="text-xs font-bold text-amber-800">
+                Omskyting av hold {origIdx >= 0 ? origIdx + 1 : '?'}
+              </span>
+            </div>
+          );
+        })()}
 
         <div className="flex-1 min-h-0 overflow-hidden">
           <ActiveHoldScreen
@@ -640,6 +770,74 @@ export function MatchActive() {
           className="hidden"
         />
       </div>
+
+      {showReshootConfirm && currentHold && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+            <div className="flex items-center justify-center mb-4">
+              <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center">
+                <RotateCw className="w-7 h-7 text-amber-600" />
+              </div>
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 text-center mb-2">
+              Opprett omskyting av hold {session ? session.current_hold_index + 1 : ''}?
+            </h3>
+            <p className="text-sm text-slate-600 text-center mb-6">
+              Et nytt hold opprettes som kopi. Originalt hold beholdes. Du velger selv hvilket forsøk som teller.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowReshootConfirm(false)}
+                disabled={reshootBusy}
+                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl transition disabled:opacity-50"
+              >
+                Avbryt
+              </button>
+              <button
+                onClick={handleCreateReshoot}
+                disabled={reshootBusy}
+                className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl transition disabled:opacity-50"
+              >
+                {reshootBusy ? 'Oppretter...' : 'Opprett omskyting'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showReshootChoice && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+            <div className="flex items-center justify-center mb-4">
+              <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center">
+                <RotateCw className="w-7 h-7 text-emerald-600" />
+              </div>
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 text-center mb-2">
+              Hvilket forsøk skal telle?
+            </h3>
+            <p className="text-sm text-slate-600 text-center mb-6">
+              Velg hvilket av forsøkene som skal telle som resultat for dette holdet. Alle skudd teller fortsatt for ammunisjon og slitasje.
+            </p>
+            <div className="space-y-2">
+              <button
+                onClick={() => handleReshootChoice('original')}
+                disabled={choiceBusy}
+                className="w-full py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold rounded-xl transition disabled:opacity-50 text-left"
+              >
+                Behold originalt resultat (hold {showReshootChoice.originalIndex + 1})
+              </button>
+              <button
+                onClick={() => handleReshootChoice('reshoot')}
+                disabled={choiceBusy}
+                className="w-full py-3 px-4 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl transition disabled:opacity-50 text-left"
+              >
+                Bruk omskyting som tellende (hold {showReshootChoice.reshootIndex + 1})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showEditMeta && session && (
         <EditMetadataModal
