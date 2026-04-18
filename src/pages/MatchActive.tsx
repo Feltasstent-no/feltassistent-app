@@ -215,7 +215,7 @@ export function MatchActive() {
   };
 
   const handleReshootChoice = async (winner: 'original' | 'reshoot') => {
-    if (!showReshootChoice) return;
+    if (!showReshootChoice || !session) return;
     setChoiceBusy(true);
 
     const { error } = await setCountingAttempt({
@@ -230,7 +230,7 @@ export function MatchActive() {
       return;
     }
 
-    setHolds(prev => prev.map(h => {
+    const updatedHolds = holds.map(h => {
       if (h.id === showReshootChoice.originalHoldId) {
         return { ...h, counts_for_score: winner === 'original' };
       }
@@ -238,11 +238,42 @@ export function MatchActive() {
         return { ...h, counts_for_score: winner === 'reshoot' };
       }
       return h;
-    }));
+    });
+    setHolds(updatedHolds);
+
+    const originalIdx = showReshootChoice.originalIndex;
+    const resumeIdx = originalIdx + 1;
+    const resumeHold = updatedHolds[resumeIdx] ?? null;
+    const isFinfelt = session.competition_type === 'finfelt';
+    const showReset = assistMode !== 'minimal' && !isFinfelt;
 
     setShowReshootChoice(null);
     setChoiceBusy(false);
-    await proceedAfterHoldComplete();
+
+    const noRealNext =
+      resumeIdx >= updatedHolds.length ||
+      !resumeHold ||
+      !!resumeHold.reshoot_of_hold_id;
+
+    if (noRealNext) {
+      if (showReset) {
+        setIsLastHoldReset(true);
+        setShowResetReminder(true);
+      } else {
+        await finishMatch();
+      }
+      return;
+    }
+
+    if (showReset) {
+      setSession({ ...session, current_hold_index: originalIdx });
+      setIsLastHoldReset(false);
+      setShowResetReminder(true);
+    } else {
+      await updateMatchSessionHoldIndex(session.id, resumeIdx);
+      setCurrentHold(resumeHold);
+      setSession({ ...session, current_hold_index: resumeIdx });
+    }
   };
 
   const handleCreateReshoot = async () => {
