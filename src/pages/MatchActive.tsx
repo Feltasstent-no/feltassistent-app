@@ -187,12 +187,19 @@ export function MatchActive() {
     await proceedAfterHoldComplete();
   };
 
+  const findNextOrdinaryIndex = (fromIndex: number, holdsArr = holds): number => {
+    for (let i = fromIndex + 1; i < holdsArr.length; i++) {
+      if (!holdsArr[i]?.reshoot_of_hold_id) return i;
+    }
+    return -1;
+  };
+
   const proceedAfterHoldComplete = async () => {
     if (!session) return;
 
-    const nextIndex = session.current_hold_index + 1;
+    const nextIndex = findNextOrdinaryIndex(session.current_hold_index);
     const isFinfelt = session.competition_type === 'finfelt';
-    const isLast = nextIndex >= holds.length;
+    const isLast = nextIndex === -1;
     const showReset = assistMode !== 'minimal' && !isFinfelt;
 
     if (isLast && showReset) {
@@ -242,18 +249,15 @@ export function MatchActive() {
     setHolds(updatedHolds);
 
     const originalIdx = showReshootChoice.originalIndex;
-    const resumeIdx = originalIdx + 1;
-    const resumeHold = updatedHolds[resumeIdx] ?? null;
+    const resumeIdx = findNextOrdinaryIndex(originalIdx, updatedHolds);
+    const resumeHold = resumeIdx >= 0 ? updatedHolds[resumeIdx] ?? null : null;
     const isFinfelt = session.competition_type === 'finfelt';
     const showReset = assistMode !== 'minimal' && !isFinfelt;
 
     setShowReshootChoice(null);
     setChoiceBusy(false);
 
-    const noRealNext =
-      resumeIdx >= updatedHolds.length ||
-      !resumeHold ||
-      !!resumeHold.reshoot_of_hold_id;
+    const noRealNext = resumeIdx === -1 || !resumeHold;
 
     if (noRealNext) {
       if (showReset) {
@@ -394,7 +398,14 @@ export function MatchActive() {
     if (!session) return;
 
     const prevIndex = session.current_hold_index;
-    const nextIndex = prevIndex + 1;
+    const nextIndex = findNextOrdinaryIndex(prevIndex);
+
+    if (nextIndex === -1) {
+      setShowResetReminder(false);
+      await finishMatch();
+      return;
+    }
+
     const nextHoldFromState = holds[nextIndex] ?? null;
 
     if (!nextHoldFromState) {
