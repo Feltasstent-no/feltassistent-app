@@ -46,6 +46,8 @@ export interface MatchHold {
   started_at?: string;
   completed_at?: string;
   created_at: string;
+  reshoot_of_hold_id?: string | null;
+  counts_for_score?: boolean;
 }
 
 export interface MatchHoldWithFigure extends MatchHold {
@@ -512,6 +514,113 @@ export async function addMatchHold(params: {
     .single();
 
   return { hold: data, error };
+}
+
+export async function hasReshoot(originalHoldId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('match_holds')
+    .select('id')
+    .eq('reshoot_of_hold_id', originalHoldId)
+    .limit(1)
+    .maybeSingle();
+  return !!data;
+}
+
+export async function createReshootHold(originalHoldId: string): Promise<{ hold: MatchHold | null; error: any }> {
+  const { data: original, error: readError } = await supabase
+    .from('match_holds')
+    .select('*')
+    .eq('id', originalHoldId)
+    .maybeSingle();
+
+  if (readError || !original) {
+    return { hold: null, error: readError || new Error('Original hold not found') };
+  }
+
+  if (original.reshoot_of_hold_id) {
+    return { hold: null, error: new Error('Kan ikke opprette omskyting av en omskyting') };
+  }
+
+  const existing = await hasReshoot(originalHoldId);
+  if (existing) {
+    return { hold: null, error: new Error('Hold har allerede en omskyting') };
+  }
+
+  const { data: last } = await supabase
+    .from('match_holds')
+    .select('order_index')
+    .eq('match_session_id', original.match_session_id)
+    .order('order_index', { ascending: false })
+    .limit(1);
+
+  const nextIndex = last && last.length > 0 ? last[0].order_index + 1 : 0;
+
+  const { data: inserted, error: insertError } = await supabase
+    .from('match_holds')
+    .insert({
+      match_session_id: original.match_session_id,
+      order_index: nextIndex,
+      field_figure_id: original.field_figure_id,
+      distance_m: original.distance_m,
+      recommended_clicks: original.recommended_clicks,
+      recommended_wind_clicks: original.recommended_wind_clicks,
+      shooting_time_seconds: original.shooting_time_seconds,
+      shot_count: original.shot_count,
+      wind_correction_clicks: original.wind_correction_clicks,
+      is_composite: original.is_composite,
+      completed: false,
+      reshoot_of_hold_id: original.id,
+      counts_for_score: false,
+    })
+    .select()
+    .single();
+
+  if (insertError || !inserted) {
+    return { hold: null, error: insertError };
+  }
+
+  if (original.is_composite) {
+    const { data: subs } = await supabase
+      .from('match_sub_holds')
+      .select('*')
+      .eq('match_hold_id', original.id)
+      .order('order_index');
+
+    if (subs && subs.length > 0) {
+      const copies = subs.map((sh: any) => ({
+        match_hold_id: inserted.id,
+        order_index: sh.order_index,
+        field_figure_id: sh.field_figure_id,
+        distance_m: sh.distance_m,
+        shot_count: sh.shot_count,
+        elevation_clicks: sh.elevation_clicks,
+        wind_clicks: sh.wind_clicks,
+        wind_direction: sh.wind_direction,
+      }));
+      await supabase.from('match_sub_holds').insert(copies);
+    }
+  }
+
+  return { hold: inserted, error: null };
+}
+
+export async function setCountingAttempt(params: {
+  originalHoldId: string;
+  reshootHoldId: string;
+  winner: 'original' | 'reshoot';
+}): Promise<{ error: any }> {
+  const originalCounts = params.winner === 'original';
+  const { error: err1 } = await supabase
+    .from('match_holds')
+    .update({ counts_for_score: originalCounts })
+    .eq('id', params.originalHoldId);
+  if (err1) return { error: err1 };
+
+  const { error: err2 } = await supabase
+    .from('match_holds')
+    .update({ counts_for_score: !originalCounts })
+    .eq('id', params.reshootHoldId);
+  return { error: err2 };
 }
 
 export async function isMatchReadyToStart(sessionId: string): Promise<boolean> {

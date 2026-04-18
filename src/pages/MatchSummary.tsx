@@ -21,7 +21,7 @@ import { supabase } from '../lib/supabase';
 import {
   ArrowLeft, CheckCircle, Clock, Wind, Camera,
   Trophy, X, Save, CreditCard as Edit3, Package, Check, Minus, Pencil, Target, ImageOff,
-  Layers, ChevronDown, ChevronUp,
+  Layers, ChevronDown, ChevronUp, RotateCw,
 } from 'lucide-react';
 import { BulletIcon } from '../components/BulletIcon';
 import { FieldFigureSvg } from '../components/FieldFigureSvg';
@@ -670,11 +670,18 @@ export function MatchSummary() {
             {holds.map((hold, index) => {
               const isComp = hold.is_composite && hold.sub_holds && hold.sub_holds.length > 0;
               const isExpanded = expandedComposite.has(hold.id);
+              const isReshoot = !!hold.reshoot_of_hold_id;
+              const reshootOrigIndex = isReshoot
+                ? holds.findIndex(h => h.id === hold.reshoot_of_hold_id)
+                : -1;
+              const supersededByReshoot = !isReshoot && holds.some(h => h.reshoot_of_hold_id === hold.id);
+              const counts = hold.counts_for_score !== false;
+              const dimmed = (isReshoot || supersededByReshoot) && !counts;
 
               return (
                 <div key={hold.id}>
                   <div
-                    className={`flex items-center justify-between p-3 bg-slate-50 rounded-lg ${isComp ? 'cursor-pointer hover:bg-slate-100 transition' : ''}`}
+                    className={`flex items-center justify-between p-3 bg-slate-50 rounded-lg ${isComp ? 'cursor-pointer hover:bg-slate-100 transition' : ''} ${dimmed ? 'opacity-60' : ''}`}
                     onClick={isComp ? () => {
                       setExpandedComposite(prev => {
                         const next = new Set(prev);
@@ -705,13 +712,29 @@ export function MatchSummary() {
                         </div>
                       </div>
                       <div>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <p className="font-semibold text-slate-900 text-sm">
                             {isComp ? 'Sammensatt hold' : (hold.field_figure?.name || 'Ukjent figur')}
                           </p>
                           {isComp && (
                             <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-md font-bold">
                               {hold.sub_holds!.length} delhold
+                            </span>
+                          )}
+                          {isReshoot && (
+                            <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-md font-bold inline-flex items-center gap-1">
+                              <RotateCw className="w-2.5 h-2.5" />
+                              Omskyting av {reshootOrigIndex >= 0 ? reshootOrigIndex + 1 : '?'}
+                            </span>
+                          )}
+                          {(isReshoot || supersededByReshoot) && counts && (
+                            <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-md font-bold">
+                              Tellende
+                            </span>
+                          )}
+                          {(isReshoot || supersededByReshoot) && !counts && (
+                            <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded-md font-bold">
+                              Ikke tellende
                             </span>
                           )}
                         </div>
