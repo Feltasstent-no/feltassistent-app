@@ -252,47 +252,41 @@ export function MatchActive() {
   const handleNextHold = async () => {
     if (!session) return;
 
-    const nextIndex = session.current_hold_index + 1;
+    const prevIndex = session.current_hold_index;
+    const nextIndex = prevIndex + 1;
+    const nextHoldFromState = holds[nextIndex] ?? null;
 
-    console.log('[MatchActive] ========== HANDLE NEXT HOLD ==========');
-    console.log('[MatchActive] Moving from hold index:', session.current_hold_index);
-    console.log('[MatchActive] Moving to hold index:', nextIndex);
-    console.log('[MatchActive] Current hold BEFORE fetch:', {
-      id: currentHold?.id,
-      field_figure_id: currentHold?.field_figure_id,
-      figure_code: currentHold?.field_figure?.code,
-      figure_name: currentHold?.field_figure?.name
-    });
-
-    await updateMatchSessionHoldIndex(session.id, nextIndex);
-
-    const [nextHold, updatedHolds, subHoldsMap] = await Promise.all([
-      getCurrentHold(session.id, nextIndex),
-      getMatchHolds(session.id),
-      getSubHoldsForSession(session.id),
-    ]);
-
-    if (nextHold && subHoldsMap[nextHold.id]) {
-      nextHold.sub_holds = subHoldsMap[nextHold.id];
+    if (!nextHoldFromState) {
+      console.warn('[MatchActive] handleNextHold: no local hold at index', nextIndex, '- falling back to fetch');
+      try {
+        await updateMatchSessionHoldIndex(session.id, nextIndex);
+        const fetched = await getCurrentHold(session.id, nextIndex);
+        setCurrentHold(fetched);
+        setSession({ ...session, current_hold_index: nextIndex });
+        setShowResetReminder(false);
+      } catch (err) {
+        console.error('[MatchActive] handleNextHold fallback failed:', err);
+      }
+      return;
     }
 
-    const holdsWithSubs = updatedHolds.map(h => ({
-      ...h,
-      sub_holds: subHoldsMap[h.id] || undefined,
-    }));
-
-    setCurrentHold(nextHold);
-    setHolds(holdsWithSubs);
+    setCurrentHold(nextHoldFromState);
     setSession({ ...session, current_hold_index: nextIndex });
     setShowResetReminder(false);
 
-    if (session.distance_mode === 'ukjent' && nextHold && !nextHold.field_figure_id && !nextHold.started_at) {
+    if (session.distance_mode === 'ukjent' && !nextHoldFromState.field_figure_id && !nextHoldFromState.started_at) {
       setShowUnknownSetup(true);
-    } else if (assistMode === 'guided' && nextHold && !nextHold.started_at) {
+    } else if (assistMode === 'guided' && !nextHoldFromState.started_at) {
       setShowHoldSetupModal(true);
     }
 
-    console.log('[MatchActive] State updated - currentHold should now be:', nextHold?.id);
+    updateMatchSessionHoldIndex(session.id, nextIndex).catch((err) => {
+      console.error('[MatchActive] Failed to persist hold index, rolling back:', err);
+      setSession((prev) => (prev ? { ...prev, current_hold_index: prevIndex } : prev));
+      setCurrentHold(holds[prevIndex] ?? null);
+      setShowUnknownSetup(false);
+      setShowHoldSetupModal(false);
+    });
   };
 
   const handlePause = async () => {
