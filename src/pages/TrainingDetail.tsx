@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { TrainingEntry, Discipline, TrainingEntryImage } from '../types/database';
 import { ArrowLeft, CreditCard as Edit, Trash2, Upload, X, Image as ImageIcon } from 'lucide-react';
+import { compressImage } from '../lib/image-compression';
 
 export function TrainingDetail() {
   const { id } = useParams<{ id: string }>();
@@ -69,7 +70,8 @@ export function TrainingDetail() {
     setUploading(true);
 
     try {
-      const file = e.target.files[0];
+      const originalFile = e.target.files[0];
+      const file = await compressImage(originalFile);
       let uploadBlob: Blob = file;
       try {
         uploadBlob = await new Promise<Blob>((resolve, reject) => {

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { enqueueUpload } from '../../lib/upload-queue';
+import { compressImage } from '../../lib/image-compression';
 import { CompetitionStageImage } from '../../types/database';
 import { Camera, Upload, X, Check, FileText, Loader2 } from 'lucide-react';
 
@@ -96,14 +97,19 @@ export function HoldImageUpload({
   }, [existingImage?.storage_path]);
 
   const [queued, setQueued] = useState(false);
+  const [optimizing, setOptimizing] = useState(false);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !user) return;
+    const originalFile = event.target.files?.[0];
+    if (!originalFile || !user) return;
 
     setError(null);
     setSuccess(false);
     setQueued(false);
+    setOptimizing(true);
+
+    const file = await compressImage(originalFile);
+    setOptimizing(false);
 
     let uploadBlob: Blob;
     try {
@@ -304,6 +310,13 @@ export function HoldImageUpload({
         <div className="mt-3 p-2 bg-green-50 border border-green-200 rounded text-sm text-green-700 flex items-center gap-2">
           <Check className="w-4 h-4" />
           Bilde lagret!
+        </div>
+      )}
+
+      {optimizing && (
+        <div className="mt-3 p-2 bg-slate-50 border border-slate-200 rounded text-sm text-slate-700 flex items-center gap-2">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Optimaliserer bilde...
         </div>
       )}
 

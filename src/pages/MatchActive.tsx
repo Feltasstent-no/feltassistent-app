@@ -37,6 +37,7 @@ import {
   setCountingAttempt,
 } from '../lib/match-service';
 import { enqueueUpload } from '../lib/upload-queue';
+import { compressImage } from '../lib/image-compression';
 import { UploadQueueStatus } from '../components/UploadQueueStatus';
 import { EditMetadataModal } from '../components/EditMetadataModal';
 import { deductAmmoFromInventory } from '../lib/ammo-inventory-service';
@@ -570,10 +571,12 @@ export function MatchActive() {
     fileInputRef.current?.click();
   };
 
-  const handlePhotoSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0 || !currentHold || !user) return;
 
-    const file = e.target.files[0];
+    const originalFile = e.target.files[0];
+    e.target.value = '';
+    const file = await compressImage(originalFile);
     const storagePath = `${user.id}/${currentHold.id}_${Date.now()}.jpg`;
 
     enqueueUpload({
@@ -582,8 +585,6 @@ export function MatchActive() {
       holdId: currentHold.id,
       holdType: 'match_hold',
     });
-
-    e.target.value = '';
   };
 
   const handleTakeSubHoldPhoto = (subHoldId: string) => {
@@ -591,12 +592,14 @@ export function MatchActive() {
     subHoldPhotoInputRef.current?.click();
   };
 
-  const handleSubHoldPhotoSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSubHoldPhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0 || !user) return;
     const subHoldId = pendingSubHoldIdRef.current;
     if (!subHoldId) return;
 
-    const file = e.target.files[0];
+    const originalFile = e.target.files[0];
+    e.target.value = '';
+    const file = await compressImage(originalFile);
     const storagePath = `${user.id}/sub_${subHoldId}_${Date.now()}.jpg`;
 
     enqueueUpload({
@@ -605,8 +608,6 @@ export function MatchActive() {
       holdId: subHoldId,
       holdType: 'sub_hold',
     });
-
-    e.target.value = '';
     pendingSubHoldIdRef.current = null;
   };
 

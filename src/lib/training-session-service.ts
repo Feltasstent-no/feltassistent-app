@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import type { TrainingSession, TrainingSeries, TrainingSeriesImage } from '../types/database';
+import { compressImage } from './image-compression';
 
 export interface CreateSessionParams {
   userId: string;
@@ -292,11 +293,12 @@ export async function uploadSeriesImage(params: {
   userId: string;
   file: File;
 }): Promise<{ data: TrainingSeriesImage | null; error: any }> {
+  const compressedFile = await compressImage(params.file);
   let uploadBlob: Blob;
   try {
-    uploadBlob = await convertFileToJpeg(params.file);
+    uploadBlob = await convertFileToJpeg(compressedFile);
   } catch {
-    uploadBlob = params.file;
+    uploadBlob = compressedFile;
   }
 
   const fileName = `${Math.random().toString(36).substring(2)}.jpg`;
