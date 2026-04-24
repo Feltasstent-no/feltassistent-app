@@ -14,6 +14,7 @@ export interface CreateSessionParams {
   weather?: string | null;
   windNotes?: string | null;
   notes?: string | null;
+  sessionType?: 'training' | 'range_match';
 }
 
 export async function createTrainingSession(params: CreateSessionParams): Promise<{ data: TrainingSession | null; error: any }> {
@@ -32,6 +33,7 @@ export async function createTrainingSession(params: CreateSessionParams): Promis
       weather: params.weather || null,
       wind_notes: params.windNotes || null,
       notes: params.notes || null,
+      session_type: params.sessionType || 'training',
     })
     .select()
     .single();
@@ -66,6 +68,18 @@ export async function getTrainingSessionHistory(userId: string, limit = 50): Pro
     .select('*')
     .eq('user_id', userId)
     .in('status', ['completed', 'cancelled'])
+    .order('session_date', { ascending: false })
+    .limit(limit);
+
+  return data || [];
+}
+
+export async function getRangeMatchSessions(userId: string, limit = 50): Promise<TrainingSession[]> {
+  const { data } = await supabase
+    .from('training_sessions')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('session_type', 'range_match')
     .order('session_date', { ascending: false })
     .limit(limit);
 

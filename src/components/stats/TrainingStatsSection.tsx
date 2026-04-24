@@ -14,8 +14,8 @@ export function TrainingStatsSection() {
       <div className="grid grid-cols-2 gap-3">
         {hasScoreData && (
           <StatCard
-            label="Snitt poeng"
-            value={stats.avgScore!.toFixed(1)}
+            label="Snitt poeng %"
+            value={`${stats.avgScore!.toFixed(1)}%`}
             icon={<Target className="w-4 h-4 text-emerald-600" />}
           />
         )}
@@ -31,7 +31,7 @@ export function TrainingStatsSection() {
         {stats.avgInnerHits != null && (
           <StatCard
             label="Snitt inner"
-            value={stats.avgInnerHits.toFixed(1)}
+            value={`${stats.avgInnerHits.toFixed(1)} i snitt`}
             icon={<Award className="w-4 h-4 text-amber-600" />}
           />
         )}

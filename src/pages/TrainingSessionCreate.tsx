@@ -1,21 +1,25 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { useActiveSetup } from '../contexts/ActiveSetupContext';
 import { supabase } from '../lib/supabase';
 import { createTrainingSession } from '../lib/training-session-service';
 import { getLastShooterClassCode, setLastShooterClassCode, getLastTrainingLocation, setLastTrainingLocation } from '../lib/user-preferences';
-import { ArrowLeft, Play } from 'lucide-react';
+import { ArrowLeft, Play, Target, Info } from 'lucide-react';
 import type { Discipline, ShooterClass } from '../types/database';
 
 export function TrainingSessionCreate() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isRangeMatch = searchParams.get('mode') === 'range_match';
   const { user } = useAuth();
   const { activeSetup } = useActiveSetup();
   const [disciplines, setDisciplines] = useState<Discipline[]>([]);
   const [shooterClasses, setShooterClasses] = useState<ShooterClass[]>([]);
   const [saving, setSaving] = useState(false);
+  const [showSightTip, setShowSightTip] = useState(false);
+  const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
 
   const [title, setTitle] = useState('');
   const [sessionDate, setSessionDate] = useState(new Date().toISOString().split('T')[0]);
@@ -49,7 +53,10 @@ export function TrainingSessionCreate() {
     if (!user || saving) return;
     setSaving(true);
 
-    const sessionTitle = title.trim() || `Trening ${new Date(sessionDate).toLocaleDateString('nb-NO')}`;
+    const defaultTitle = isRangeMatch
+      ? `Banestevne ${new Date(sessionDate).toLocaleDateString('nb-NO')}`
+      : `Trening ${new Date(sessionDate).toLocaleDateString('nb-NO')}`;
+    const sessionTitle = title.trim() || defaultTitle;
 
     if (classCode) setLastShooterClassCode(classCode);
     if (location) setLastTrainingLocation(location);
@@ -65,6 +72,7 @@ export function TrainingSessionCreate() {
       classCode: classCode || null,
       weather: weather || null,
       windNotes: windNotes || null,
+      sessionType: isRangeMatch ? 'range_match' : 'training',
     });
 
     if (error) {
@@ -74,7 +82,12 @@ export function TrainingSessionCreate() {
     }
 
     if (data) {
-      navigate(`/training/session/${data.id}`, { replace: true });
+      if (isRangeMatch) {
+        setPendingSessionId(data.id);
+        setShowSightTip(true);
+      } else {
+        navigate(`/training/session/${data.id}`, { replace: true });
+      }
     }
   };
 
@@ -82,15 +95,29 @@ export function TrainingSessionCreate() {
     <Layout>
       <div className="max-w-lg mx-auto pb-20 md:pb-8">
         <button
-          onClick={() => navigate('/training')}
+          onClick={() => navigate(isRangeMatch ? '/match' : '/training')}
           className="flex items-center gap-2 text-slate-600 hover:text-slate-900 mb-6 transition"
         >
           <ArrowLeft className="w-5 h-5" />
           <span>Tilbake</span>
         </button>
 
-        <h1 className="text-2xl font-bold text-slate-900 mb-1">Ny treningsøkt</h1>
-        <p className="text-slate-500 text-sm mb-6">Start en aktiv økt og legg til serier underveis</p>
+        <div className="flex items-center gap-2 mb-1">
+          <h1 className="text-2xl font-bold text-slate-900">
+            {isRangeMatch ? 'Nytt banestevne' : 'Ny treningsøkt'}
+          </h1>
+          {isRangeMatch && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
+              <Target className="w-3 h-3" />
+              Banestevne
+            </span>
+          )}
+        </div>
+        <p className="text-slate-500 text-sm mb-6">
+          {isRangeMatch
+            ? 'Baneskyting: registrer serier med skudd, tid og resultat'
+            : 'Start en aktiv økt og legg til serier underveis'}
+        </p>
 
         <div className="space-y-5">
           <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
@@ -101,7 +128,7 @@ export function TrainingSessionCreate() {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition text-slate-900"
-                placeholder="F.eks. Felttrening Osen"
+                placeholder={isRangeMatch ? 'F.eks. Banestevne Ikornnes' : 'F.eks. sted / type'}
               />
             </div>
 
@@ -189,10 +216,34 @@ export function TrainingSessionCreate() {
             className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white text-lg font-bold rounded-xl transition shadow-lg flex items-center justify-center gap-3"
           >
             <Play className="w-6 h-6" />
-            {saving ? 'Oppretter...' : 'Start treningsøkt'}
+            {saving ? 'Oppretter...' : isRangeMatch ? 'Start banestevne' : 'Start treningsøkt'}
           </button>
         </div>
       </div>
+
+      {showSightTip && pendingSessionId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                <Info className="w-5 h-5 text-emerald-700" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 mb-1">Tips</h2>
+                <p className="text-slate-700 text-sm leading-relaxed">
+                  Still siktet etter avstand (100 / 200 / 300m) før start.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => navigate(`/training/session/${pendingSessionId}`, { replace: true })}
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }

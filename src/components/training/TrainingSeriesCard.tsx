@@ -9,11 +9,12 @@ interface TrainingSeriesCardProps {
   images: TrainingSeriesImage[];
   userId: string;
   readOnly?: boolean;
+  hideTimer?: boolean;
   onUpdated: () => void;
   onDeleted: () => void;
 }
 
-export function TrainingSeriesCard({ series, images, userId, readOnly, onUpdated, onDeleted }: TrainingSeriesCardProps) {
+export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer, onUpdated, onDeleted }: TrainingSeriesCardProps) {
   const [expanded, setExpanded] = useState(!series.completed);
   const [score, setScore] = useState(series.score != null ? String(series.score) : '');
   const [innerHits, setInnerHits] = useState(series.inner_hits != null ? String(series.inner_hits) : '');
@@ -107,7 +108,7 @@ export function TrainingSeriesCard({ series, images, userId, readOnly, onUpdated
 
       {expanded && (
         <div className="px-4 pb-4 space-y-4 border-t border-slate-100 pt-4">
-          {!readOnly && series.shooting_time_seconds && (
+          {!readOnly && !hideTimer && series.shooting_time_seconds && (
             <FieldClockTimer
               shootSeconds={series.shooting_time_seconds}
               compact

@@ -14,6 +14,7 @@ import {
 import { TrainingSeriesCard } from '../components/training/TrainingSeriesCard';
 import { AddSeriesModal } from '../components/training/AddSeriesModal';
 import { EditMetadataModal } from '../components/EditMetadataModal';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useWakeLock } from '../lib/use-wake-lock';
 import {
   ArrowLeft, Plus, CheckCircle, XCircle, Pencil, Target,
@@ -36,6 +37,7 @@ export function TrainingSessionActive() {
   const [finishing, setFinishing] = useState(false);
 
   const isActive = session?.status === 'active';
+  const isRangeMatch = session?.session_type === 'range_match';
   useWakeLock(isActive);
 
   const fetchData = useCallback(async () => {
@@ -132,8 +134,14 @@ export function TrainingSessionActive() {
         </button>
 
         <div className="mb-6">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
             <h1 className="text-2xl font-bold text-slate-900">{session.title}</h1>
+            {session.session_type === 'range_match' && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
+                <Target className="w-3 h-3" />
+                Banestevne
+              </span>
+            )}
             {isActive && (
               <button
                 onClick={() => setShowEditMeta(true)}
@@ -199,13 +207,14 @@ export function TrainingSessionActive() {
               <p className="text-sm text-slate-400">Legg til din første serie for å starte</p>
             </div>
           ) : (
-            seriesList.map((s) => (
+            seriesList.map((s, idx) => (
               <TrainingSeriesCard
                 key={s.id}
                 series={s}
                 images={seriesImages[s.id] || []}
                 userId={user!.id}
                 readOnly={readOnly}
+                hideTimer={idx !== seriesList.length - 1}
                 onUpdated={fetchData}
                 onDeleted={fetchData}
               />
@@ -224,41 +233,22 @@ export function TrainingSessionActive() {
             </button>
 
             <div className="grid grid-cols-2 gap-3">
-              {!showCancelConfirm ? (
-                <button
-                  onClick={() => setShowCancelConfirm(true)}
-                  className="py-3 border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 font-semibold rounded-xl transition flex items-center justify-center gap-2"
-                >
-                  <XCircle className="w-4 h-4" />
-                  Avbryt økt
-                </button>
-              ) : (
-                <button
-                  onClick={handleCancel}
-                  className="py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl transition"
-                >
-                  Bekreft avbryt
-                </button>
-              )}
+              <button
+                onClick={() => setShowCancelConfirm(true)}
+                className="py-3 border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 font-semibold rounded-xl transition flex items-center justify-center gap-2"
+              >
+                <XCircle className="w-4 h-4" />
+                {isRangeMatch ? 'Avbryt stevne' : 'Avbryt økt'}
+              </button>
 
-              {!showFinishConfirm ? (
-                <button
-                  onClick={() => setShowFinishConfirm(true)}
-                  disabled={seriesList.length === 0}
-                  className="py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold rounded-xl transition flex items-center justify-center gap-2"
-                >
-                  <CheckCircle className="w-4 h-4" />
-                  Fullfør økt
-                </button>
-              ) : (
-                <button
-                  onClick={handleFinish}
-                  disabled={finishing}
-                  className="py-3 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl transition"
-                >
-                  {finishing ? 'Lagrer...' : 'Bekreft fullfør'}
-                </button>
-              )}
+              <button
+                onClick={() => setShowFinishConfirm(true)}
+                disabled={seriesList.length === 0}
+                className="py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold rounded-xl transition flex items-center justify-center gap-2"
+              >
+                <CheckCircle className="w-4 h-4" />
+                {isRangeMatch ? 'Avslutt stevne' : 'Fullfør økt'}
+              </button>
             </div>
           </div>
         )}
@@ -272,6 +262,33 @@ export function TrainingSessionActive() {
             onClose={() => setShowAddModal(false)}
           />
         )}
+
+        <ConfirmDialog
+          open={showFinishConfirm}
+          title={isRangeMatch ? 'Avslutt banestevnet?' : 'Avslutt treningsøkten?'}
+          message={
+            isRangeMatch
+              ? 'Er du sikker på at du vil avslutte banestevnet? Du kan fortsatt se resultatet i treningsloggen etterpå.'
+              : 'Er du sikker på at du vil avslutte treningsøkten? Du kan fortsatt se resultatet i treningsloggen etterpå.'
+          }
+          confirmLabel={finishing ? 'Lagrer...' : isRangeMatch ? 'Avslutt stevne' : 'Avslutt økt'}
+          cancelLabel="Fortsett økt"
+          variant="warning"
+          isLoading={finishing}
+          onConfirm={handleFinish}
+          onCancel={() => setShowFinishConfirm(false)}
+        />
+
+        <ConfirmDialog
+          open={showCancelConfirm}
+          title={isRangeMatch ? 'Avbryt banestevnet?' : 'Avbryt treningsøkten?'}
+          message="Dette vil forkaste økten. Registrerte serier beholdes i historikken, men økten markeres som avbrutt."
+          confirmLabel="Avbryt økt"
+          cancelLabel="Fortsett økt"
+          variant="danger"
+          onConfirm={handleCancel}
+          onCancel={() => setShowCancelConfirm(false)}
+        />
 
         {showEditMeta && session && (
           <EditMetadataModal

@@ -92,12 +92,13 @@ export function useTrainingStats() {
     if (!user) return;
 
     async function load() {
-      const [sessionsRes, seriesRes] = await Promise.all([
+      const [sessionsRes, seriesRes, entriesRes] = await Promise.all([
         supabase
           .from('training_sessions')
-          .select('id, total_score, total_shots, total_inner_hits, session_date, wind_notes')
+          .select('id, total_score, total_shots, total_inner_hits, session_date, wind_notes, session_type')
           .eq('user_id', user!.id)
           .eq('status', 'completed')
+          .neq('session_type', 'range_match')
           .order('session_date', { ascending: false })
           .limit(50),
         supabase
@@ -105,18 +106,50 @@ export function useTrainingStats() {
           .select('session_id, score, inner_hits, hits, shot_count')
           .eq('user_id', user!.id)
           .eq('completed', true),
+      supabase
+        .from('training_entries')
+        .select('id, entry_date, score, shots_total, inner_hits, hits, wind_notes')
+        .eq('user_id', user!.id),
       ]);
 
-      const sessions = sessionsRes.data || [];
+      const sessions = (sessionsRes.data || []).map(s => ({
+        id: s.id,
+        total_score: s.total_score,
+        total_shots: s.total_shots,
+        total_inner_hits: s.total_inner_hits,
+        session_date: s.session_date,
+        wind_notes: s.wind_notes,
+      }));
       const series = seriesRes.data || [];
+      const entries = entriesRes.data || [];
 
-      if (sessions.length === 0 && series.length === 0) {
+      const entrySessions = entries.map(e => ({
+        id: `entry-${e.id}`,
+        total_score: e.score ?? 0,
+        total_shots: e.shots_total ?? 0,
+        total_inner_hits: e.inner_hits ?? 0,
+        session_date: e.entry_date,
+        wind_notes: e.wind_notes,
+      }));
+
+      const entrySeries = entries.map(e => ({
+        session_id: `entry-${e.id}`,
+        score: e.score,
+        inner_hits: e.inner_hits,
+        hits: e.hits,
+        shot_count: e.shots_total ?? 0,
+      }));
+
+      const combinedSessions = [...sessions, ...entrySessions];
+      const combinedSeries = [...series, ...entrySeries];
+
+      if (combinedSessions.length === 0 && combinedSeries.length === 0) {
         setStats(null);
         setLoading(false);
         return;
       }
 
-      setStats(computeStats(sessions, series));
+      setStats(computeStats(combinedSessions, combinedSeries));
       setLoading(false);
     }
 

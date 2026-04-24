@@ -160,7 +160,7 @@ export function MatchHome() {
       <div className="max-w-2xl mx-auto pb-20 md:pb-8">
         <div className="text-center mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2">Feltassistent</h1>
-          <p className="text-slate-600">Guidet stevnemodus for DFS Felt</p>
+          <p className="text-slate-600">Guidet stevnemodus for DFS Skyting</p>
         </div>
 
         <CompetitionStatsSection />
@@ -297,6 +297,23 @@ export function MatchHome() {
                   {setupComplete
                     ? 'Guidet gjennomføring av DFS feltløp'
                     : 'Fullfør oppsett for å starte'}
+                </p>
+              </div>
+            </div>
+          </button>
+
+          <button
+            onClick={() => navigate('/training/session/new?mode=range_match')}
+            className="bg-white border-2 border-slate-200 hover:border-amber-600 rounded-xl p-4 sm:p-6 transition group text-left"
+          >
+            <div className="flex items-center space-x-4">
+              <div className="w-14 h-14 bg-amber-100 group-hover:bg-amber-600 rounded-xl flex items-center justify-center transition">
+                <Target className="w-7 h-7 text-amber-600 group-hover:text-white transition" strokeWidth={2.25} />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-xl font-bold text-slate-900 mb-1">Start banestevne</h3>
+                <p className="text-sm text-slate-600">
+                  Baneskyting med serier, tid og resultat
                 </p>
               </div>
             </div>

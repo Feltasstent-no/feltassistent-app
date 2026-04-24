@@ -563,6 +563,7 @@ export interface TrainingSession {
   wind_notes: string | null;
   notes: string | null;
   status: 'active' | 'completed' | 'cancelled';
+  session_type: 'training' | 'range_match';
   total_shots: number;
   total_score: number;
   total_inner_hits: number;
