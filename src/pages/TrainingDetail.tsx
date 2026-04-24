@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { TrainingEntry, Discipline, TrainingEntryImage } from '../types/database';
 import { ArrowLeft, CreditCard as Edit, Trash2, Upload, X, Image as ImageIcon } from 'lucide-react';
 import { compressImage } from '../lib/image-compression';
+import { ImageLightbox } from '../components/ImageLightbox';
 
 export function TrainingDetail() {
   const { id } = useParams<{ id: string }>();
@@ -16,6 +17,7 @@ export function TrainingDetail() {
   const [images, setImages] = useState<TrainingEntryImage[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   useEffect(() => {
     fetchEntry();
@@ -371,26 +373,36 @@ export function TrainingDetail() {
               </div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {images.map((image) => (
-                  <div key={image.id} className="relative group">
-                    <img
-                      src={getImageUrl(image.storage_path)}
-                      alt="Skivebilde"
-                      className="w-full h-48 object-cover rounded-lg"
-                    />
-                    <button
-                      onClick={() => handleDeleteImage(image)}
-                      className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white p-2 rounded-lg opacity-0 group-hover:opacity-100 transition"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
+                {images.map((image) => {
+                  const url = getImageUrl(image.storage_path);
+                  return (
+                    <div key={image.id} className="relative group">
+                      <button
+                        type="button"
+                        onClick={() => setLightboxUrl(url)}
+                        className="block w-full focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg"
+                      >
+                        <img
+                          src={url}
+                          alt="Skivebilde"
+                          className="w-full h-48 object-cover rounded-lg cursor-zoom-in"
+                        />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteImage(image)}
+                        className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white p-2 rounded-lg opacity-0 group-hover:opacity-100 transition"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
         </div>
       </div>
+      <ImageLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} alt="Skivebilde" />
     </Layout>
   );
 }

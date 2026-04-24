@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { Camera, CheckCircle, Trash2, X, ChevronDown, ChevronUp, Target } from 'lucide-react';
 import { updateTrainingSeries, deleteTrainingSeries, uploadSeriesImage, deleteSeriesImage, getImageUrl } from '../../lib/training-session-service';
 import { FieldClockTimer } from '../FieldClockTimer';
+import { ImageLightbox } from '../ImageLightbox';
 import type { TrainingSeries, TrainingSeriesImage } from '../../types/database';
 
 interface TrainingSeriesCardProps {
@@ -23,6 +24,7 @@ export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleSaveResult = async () => {
@@ -192,23 +194,32 @@ export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer
 
           {images.length > 0 && (
             <div className="flex gap-2 overflow-x-auto pb-1">
-              {images.map((img) => (
-                <div key={img.id} className="relative flex-shrink-0 group">
-                  <img
-                    src={getImageUrl(img.storage_path)}
-                    alt="Skivebilde"
-                    className="w-20 h-20 object-cover rounded-lg border border-slate-200"
-                  />
-                  {!readOnly && (
+              {images.map((img) => {
+                const url = getImageUrl(img.storage_path);
+                return (
+                  <div key={img.id} className="relative flex-shrink-0 group">
                     <button
-                      onClick={() => handleDeleteImage(img)}
-                      className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+                      type="button"
+                      onClick={() => setLightboxUrl(url)}
+                      className="block focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg"
                     >
-                      <X className="w-3 h-3" />
+                      <img
+                        src={url}
+                        alt="Skivebilde"
+                        className="w-20 h-20 object-cover rounded-lg border border-slate-200 cursor-zoom-in"
+                      />
                     </button>
-                  )}
-                </div>
-              ))}
+                    {!readOnly && (
+                      <button
+                        onClick={() => handleDeleteImage(img)}
+                        className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -257,6 +268,7 @@ export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer
           )}
         </div>
       )}
+      <ImageLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} alt="Skivebilde" />
     </div>
   );
 }
