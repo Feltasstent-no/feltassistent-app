@@ -6,7 +6,7 @@ import { useActiveSetup } from '../contexts/ActiveSetupContext';
 import { supabase } from '../lib/supabase';
 import { createTrainingSession } from '../lib/training-session-service';
 import { getLastShooterClassCode, setLastShooterClassCode, getLastTrainingLocation, setLastTrainingLocation } from '../lib/user-preferences';
-import { ArrowLeft, Play, Target, Info } from 'lucide-react';
+import { ArrowLeft, Play, Target, Trophy, Info } from 'lucide-react';
 import type { Discipline, ShooterClass } from '../types/database';
 
 export function TrainingSessionCreate() {
@@ -30,6 +30,7 @@ export function TrainingSessionCreate() {
   const [windNotes, setWindNotes] = useState('');
 
   useEffect(() => {
+    window.scrollTo({ top: 0 });
     const savedClass = getLastShooterClassCode();
     const savedLocation = getLastTrainingLocation();
     if (savedClass) setClassCode(savedClass);
@@ -108,7 +109,7 @@ export function TrainingSessionCreate() {
           </h1>
           {isRangeMatch && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
-              <Target className="w-3 h-3" />
+              <Trophy className="w-3 h-3" />
               Banestevne
             </span>
           )}
@@ -236,7 +237,7 @@ export function TrainingSessionCreate() {
               </div>
             </div>
             <button
-              onClick={() => navigate(`/training/session/${pendingSessionId}`, { replace: true })}
+              onClick={() => navigate(`/match/range/${pendingSessionId}/setup`, { replace: true })}
               className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition"
             >
               OK

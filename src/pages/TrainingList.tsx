@@ -135,7 +135,7 @@ export function TrainingList() {
           </Link>
         </div>
 
-        {hasAnyData && <TrainingStatsSection />}
+        <TrainingStatsSection />
 
         {activeSessions.length > 0 && (
           <div className="mb-8">

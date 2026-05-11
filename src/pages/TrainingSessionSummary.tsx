@@ -13,8 +13,7 @@ import { TrainingSeriesCard } from '../components/training/TrainingSeriesCard';
 import { EditMetadataModal } from '../components/EditMetadataModal';
 import { supabase } from '../lib/supabase';
 import {
-  ArrowLeft, TrendingUp, Target, Pencil, Trash2, MapPin, Calendar, Cloud,
-  CheckCircle,
+  ArrowLeft, TrendingUp, Trophy, Pencil, Trash2, MapPin, Calendar, Cloud,
 } from 'lucide-react';
 import type { TrainingSession, TrainingSeries, TrainingSeriesImage, Discipline } from '../types/database';
 
@@ -95,7 +94,7 @@ export function TrainingSessionSummary() {
     return (
       <Layout>
         <div className="text-center py-12">
-          <p className="text-slate-600">Treningsøkt ikke funnet</p>
+          <p className="text-slate-600">Ikke funnet</p>
         </div>
       </Layout>
     );
@@ -118,14 +117,20 @@ export function TrainingSessionSummary() {
         </button>
 
         <div className="text-center mb-6">
-          <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-3">
-            <TrendingUp className="w-7 h-7 text-emerald-600" />
+          <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3 ${
+            session.session_type === 'range_match' ? 'bg-amber-100' : 'bg-emerald-100'
+          }`}>
+            {session.session_type === 'range_match' ? (
+              <Trophy className="w-7 h-7 text-amber-600" />
+            ) : (
+              <TrendingUp className="w-7 h-7 text-emerald-600" />
+            )}
           </div>
           <div className="flex items-center justify-center gap-2 flex-wrap">
             <h1 className="text-2xl font-bold text-slate-900">{session.title}</h1>
             {session.session_type === 'range_match' && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
-                <Target className="w-3 h-3" />
+                <Trophy className="w-3 h-3" />
                 Banestevne
               </span>
             )}
@@ -209,7 +214,8 @@ export function TrainingSessionSummary() {
                 series={s}
                 images={seriesImages[s.id] || []}
                 userId={user!.id}
-                readOnly
+                readOnly={session.session_type !== 'range_match'}
+                hideTimer
                 onUpdated={fetchData}
                 onDeleted={fetchData}
               />
@@ -219,7 +225,9 @@ export function TrainingSessionSummary() {
 
         <div className="bg-white border border-slate-200 rounded-xl p-5 mb-6">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Læringspunkter</h2>
+            <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
+              {session.session_type === 'range_match' ? 'Forbedringspunkter' : 'Læringspunkter'}
+            </h2>
             {!showNotesEdit && (
               <button
                 onClick={() => setShowNotesEdit(true)}
@@ -269,7 +277,7 @@ export function TrainingSessionSummary() {
               className="flex items-center gap-2 px-4 py-2 text-sm text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
             >
               <Trash2 className="w-4 h-4" />
-              Slett økt
+              {session.session_type === 'range_match' ? 'Slett stevne' : 'Slett økt'}
             </button>
           ) : (
             <div className="flex gap-2">
@@ -291,7 +299,7 @@ export function TrainingSessionSummary() {
 
         {showEditMeta && session && (
           <EditMetadataModal
-            title="Rediger treningsøkt"
+            title={session.session_type === 'range_match' ? 'Rediger banestevne' : 'Rediger treningsøkt'}
             currentName={session.title}
             currentNotes={session.notes || ''}
             nameLabel="Tittel"

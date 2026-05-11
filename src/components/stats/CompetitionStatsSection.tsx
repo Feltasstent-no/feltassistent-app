@@ -1,125 +1,68 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { Trophy, TrendingUp, TrendingDown, Minus, Award, Target } from 'lucide-react';
+import { Trophy, Award, Target, Medal } from 'lucide-react';
 
-interface ResultEntry {
+interface FieldEntry {
+  kind: 'field';
   hits: number;
   maxShots: number;
   innerHits: number;
   date: string;
 }
 
-interface CompStats {
+interface RangeEntry {
+  kind: 'range';
+  score: number;
+  innerHits: number;
+  date: string;
+}
+
+type AnyEntry = FieldEntry | RangeEntry;
+
+interface DashStats {
   totalCompleted: number;
-  best: ResultEntry | null;
-  last: ResultEntry | null;
-  avgHitPct: number | null;
-  trend: number | null;
-  bestHitRate: number | null;
-  bestHitRateBasis: ResultEntry | null;
-  denominatorConsistent: boolean;
-  commonDenominator: number | null;
-  avgHitsRaw: number | null;
+  bestField: FieldEntry | null;
+  bestRange: RangeEntry | null;
+  last: AnyEntry | null;
 }
 
-function computeCompStats(results: ResultEntry[]): CompStats | null {
-  const totalCompleted = results.length;
-
-  if (totalCompleted === 0) return null;
-
-  const withMax = results.filter(r => r.maxShots > 0);
-  const sorted = [...results].sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-  );
-
-  const best = withMax.length > 0
-    ? withMax.reduce((best, r) => {
-        const rPct = r.maxShots > 0 ? r.hits / r.maxShots : 0;
-        const bPct = best.maxShots > 0 ? best.hits / best.maxShots : 0;
-        return rPct > bPct || (rPct === bPct && r.innerHits > best.innerHits) ? r : best;
-      })
-    : sorted[0] || null;
-
-  const last = sorted[0] || null;
-
-  const denominators = withMax.map(r => r.maxShots);
-  const uniqueDenominators = [...new Set(denominators)];
-  const denominatorConsistent = uniqueDenominators.length <= 1;
-  const commonDenominator = denominatorConsistent && uniqueDenominators.length === 1
-    ? uniqueDenominators[0]
-    : null;
-
-  const avgHitPct = withMax.length > 0
-    ? withMax.reduce((sum, r) => sum + (r.hits / r.maxShots) * 100, 0) / withMax.length
-    : null;
-
-  const avgHitsRaw = results.length > 0
-    ? results.reduce((sum, r) => sum + r.hits, 0) / results.length
-    : null;
-
-  let trend: number | null = null;
-  if (sorted.length >= 4) {
-    const recentCount = Math.min(3, Math.floor(sorted.length / 2));
-    const recent = sorted.slice(0, recentCount).filter(r => r.maxShots > 0);
-    const older = sorted.slice(recentCount, recentCount * 2).filter(r => r.maxShots > 0);
-
-    if (recent.length > 0 && older.length > 0) {
-      const recentPct = recent.reduce((s, r) => s + (r.hits / r.maxShots) * 100, 0) / recent.length;
-      const olderPct = older.reduce((s, r) => s + (r.hits / r.maxShots) * 100, 0) / older.length;
-      trend = recentPct - olderPct;
-    }
+function computeBestField(entries: FieldEntry[]): FieldEntry | null {
+  if (entries.length === 0) return null;
+  const withMax = entries.filter(e => e.maxShots > 0);
+  if (withMax.length === 0) {
+    return entries.reduce((best, e) =>
+      e.hits > best.hits || (e.hits === best.hits && e.innerHits > best.innerHits) ? e : best
+    );
   }
-
-  let bestHitRate: number | null = null;
-  let bestHitRateBasis: ResultEntry | null = null;
-  if (withMax.length > 0) {
-    bestHitRateBasis = withMax.reduce((best, r) => {
-      const rPct = r.hits / r.maxShots;
-      const bPct = best.hits / best.maxShots;
-      return rPct > bPct ? r : best;
-    });
-    bestHitRate = (bestHitRateBasis.hits / bestHitRateBasis.maxShots) * 100;
-  }
-
-  return {
-    totalCompleted,
-    best,
-    last,
-    avgHitPct,
-    trend,
-    bestHitRate,
-    bestHitRateBasis,
-    denominatorConsistent,
-    commonDenominator,
-    avgHitsRaw,
-  };
+  return withMax.reduce((best, e) => {
+    const ePct = e.hits / e.maxShots;
+    const bPct = best.hits / best.maxShots;
+    if (ePct > bPct) return e;
+    if (ePct === bPct && e.innerHits > best.innerHits) return e;
+    return best;
+  });
 }
 
-function formatHits(entry: ResultEntry): string {
-  if (entry.maxShots > 0) {
-    return `${entry.hits}/${entry.maxShots} treff`;
-  }
-  return `${entry.hits} treff`;
-}
-
-function formatInner(entry: ResultEntry): string | null {
-  if (entry.innerHits > 0) {
-    return `${entry.innerHits} inner`;
-  }
-  return null;
+function computeBestRange(entries: RangeEntry[]): RangeEntry | null {
+  if (entries.length === 0) return null;
+  return entries.reduce((best, e) => {
+    if (e.score > best.score) return e;
+    if (e.score === best.score && e.innerHits > best.innerHits) return e;
+    return best;
+  });
 }
 
 export function CompetitionStatsSection() {
   const { user } = useAuth();
-  const [stats, setStats] = useState<CompStats | null>(null);
+  const [stats, setStats] = useState<DashStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
 
     async function load() {
-      const [matchRes, entryRes] = await Promise.all([
+      const [matchRes, entryRes, rangeRes] = await Promise.all([
         supabase
           .from('match_sessions')
           .select('id, total_hits, inner_hits, calculated_shot_count, actual_shot_count, match_date, completed_at')
@@ -134,13 +77,22 @@ export function CompetitionStatsSection() {
           .not('completed_at', 'is', null)
           .order('completed_at', { ascending: false })
           .limit(50),
+        supabase
+          .from('training_sessions')
+          .select('id, total_score, total_inner_hits, session_date, completed_at')
+          .eq('user_id', user!.id)
+          .eq('session_type', 'range_match')
+          .eq('status', 'completed')
+          .order('session_date', { ascending: false })
+          .limit(50),
       ]);
 
       const matchSessions = matchRes.data || [];
       const compEntries = entryRes.data || [];
+      const rangeSessions = rangeRes.data || [];
 
       const compIds = [...new Set(compEntries.map(e => e.competition_id).filter(Boolean))];
-      let stageMaxMap: Record<string, number> = {};
+      const stageMaxMap: Record<string, number> = {};
 
       if (compIds.length > 0) {
         const { data: stages } = await supabase
@@ -150,32 +102,46 @@ export function CompetitionStatsSection() {
 
         if (stages) {
           for (const s of stages) {
-            const cid = s.competition_id;
-            stageMaxMap[cid] = (stageMaxMap[cid] || 0) + (s.total_shots || 0);
+            stageMaxMap[s.competition_id] = (stageMaxMap[s.competition_id] || 0) + (s.total_shots || 0);
           }
         }
       }
 
-      const matchResults: ResultEntry[] = matchSessions
-        .filter(m => m.total_hits != null && m.total_hits > 0)
-        .map(m => ({
-          hits: m.total_hits!,
+      const fieldEntries: FieldEntry[] = [
+        ...matchSessions.map<FieldEntry>(m => ({
+          kind: 'field',
+          hits: m.total_hits ?? 0,
           maxShots: m.actual_shot_count || m.calculated_shot_count || 0,
           innerHits: m.inner_hits || 0,
           date: m.completed_at || m.match_date,
-        }));
-
-      const compResults: ResultEntry[] = compEntries
-        .filter(e => (e.total_hits != null && e.total_hits > 0) || (e.total_score != null && e.total_score > 0))
-        .map(e => ({
-          hits: e.total_hits || e.total_score || 0,
+        })),
+        ...compEntries.map<FieldEntry>(e => ({
+          kind: 'field',
+          hits: e.total_hits ?? e.total_score ?? 0,
           maxShots: stageMaxMap[e.competition_id] || 0,
           innerHits: e.total_inner_hits || 0,
           date: e.completed_at || '',
-        }));
+        })),
+      ];
 
-      const allResults = [...matchResults, ...compResults];
-      setStats(computeCompStats(allResults));
+      const rangeEntries: RangeEntry[] = rangeSessions.map<RangeEntry>(s => ({
+        kind: 'range',
+        score: s.total_score ?? 0,
+        innerHits: s.total_inner_hits ?? 0,
+        date: s.completed_at || s.session_date || '',
+      }));
+
+      const totalCompleted = fieldEntries.length + rangeEntries.length;
+
+      const bestField = computeBestField(fieldEntries.filter(e => e.hits > 0));
+      const bestRange = computeBestRange(rangeEntries.filter(e => e.score > 0));
+
+      const allSorted: AnyEntry[] = [...fieldEntries, ...rangeEntries].sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+      const last = allSorted[0] || null;
+
+      setStats({ totalCompleted, bestField, bestRange, last });
       setLoading(false);
     }
 
@@ -183,8 +149,6 @@ export function CompetitionStatsSection() {
   }, [user]);
 
   if (loading || !stats) return null;
-
-  const hasResults = stats.best != null;
 
   return (
     <div className="mb-6">
@@ -199,97 +163,96 @@ export function CompetitionStatsSection() {
           icon={<Trophy className="w-4 h-4 text-emerald-600" />}
         />
 
-        {hasResults && stats.best && (
-          <ResultCard
-            label="Beste resultat"
-            entry={stats.best}
-            icon={<Award className="w-4 h-4 text-amber-600" />}
-          />
-        )}
+        <FieldBestCard entry={stats.bestField} />
 
-        {hasResults && stats.avgHitPct != null && (
-          <div className="bg-white rounded-xl border border-slate-200 p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <Target className="w-4 h-4 text-blue-600" />
-              <span className="text-xs text-slate-500 font-medium">Snitt treffprosent</span>
-            </div>
-            <p className="text-lg font-bold text-slate-900">
-              {stats.avgHitPct.toFixed(0)}%
-            </p>
-            {stats.denominatorConsistent && stats.commonDenominator && stats.avgHitsRaw != null && (
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                ~{stats.avgHitsRaw.toFixed(1)}/{stats.commonDenominator} treff
-              </p>
-            )}
-          </div>
-        )}
+        <RangeBestCard entry={stats.bestRange} />
 
-        {hasResults && stats.last && (
-          <ResultCard
-            label="Siste resultat"
-            entry={stats.last}
-            icon={<Target className="w-4 h-4 text-slate-500" />}
-          />
-        )}
+        <LastResultCard entry={stats.last} />
       </div>
-
-      {/* Hidden for now – Trend and Beste treff % cards.
-         Re-enable when statistics model is stronger.
-      {(stats.trend != null || stats.bestHitRate != null) && (
-        <div className="grid grid-cols-2 gap-3 mt-3">
-          {stats.trend != null && (
-            <div className="bg-white rounded-xl border border-slate-200 p-3">
-              <div className="flex items-center gap-2 mb-1">
-                {stats.trend > 0 ? (
-                  <TrendingUp className="w-4 h-4 text-emerald-600" />
-                ) : stats.trend < 0 ? (
-                  <TrendingDown className="w-4 h-4 text-red-500" />
-                ) : (
-                  <Minus className="w-4 h-4 text-slate-400" />
-                )}
-                <span className="text-xs text-slate-500 font-medium">Trend</span>
-              </div>
-              <p className={`text-lg font-bold ${
-                stats.trend > 0 ? 'text-emerald-600' : stats.trend < 0 ? 'text-red-600' : 'text-slate-700'
-              }`}>
-                {stats.trend > 0 ? '+' : ''}{stats.trend.toFixed(1)}%
-              </p>
-              <p className="text-[11px] text-slate-400 mt-0.5">Siste vs. tidligere</p>
-            </div>
-          )}
-
-          {stats.bestHitRate != null && stats.bestHitRateBasis && (
-            <div className="bg-white rounded-xl border border-slate-200 p-3">
-              <div className="flex items-center gap-2 mb-1">
-                <Target className="w-4 h-4 text-emerald-600" />
-                <span className="text-xs text-slate-500 font-medium">Beste treff %</span>
-              </div>
-              <p className="text-lg font-bold text-slate-900">
-                {stats.bestHitRate.toFixed(0)}%
-              </p>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                {stats.bestHitRateBasis.hits}/{stats.bestHitRateBasis.maxShots} treff
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-      */}
     </div>
   );
 }
 
-function ResultCard({ label, entry, icon }: { label: string; entry: ResultEntry; icon: React.ReactNode }) {
-  const inner = formatInner(entry);
+function FieldBestCard({ entry }: { entry: FieldEntry | null }) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-3">
       <div className="flex items-center gap-2 mb-1">
-        {icon}
-        <span className="text-xs text-slate-500 font-medium">{label}</span>
+        <Award className="w-4 h-4 text-amber-600" />
+        <span className="text-xs text-slate-500 font-medium">Beste feltstevne</span>
       </div>
-      <p className="text-lg font-bold text-slate-900">{formatHits(entry)}</p>
-      {inner && (
-        <p className="text-[11px] text-slate-400 mt-0.5">{inner}</p>
+      {entry ? (
+        <>
+          <p className="text-lg font-bold text-slate-900 text-center">
+            {entry.maxShots > 0 ? `${entry.hits}/${entry.maxShots} treff` : `${entry.hits} treff`}
+          </p>
+          {entry.innerHits > 0 && (
+            <p className="text-[11px] text-slate-400 mt-0.5 text-center">{entry.innerHits} inner</p>
+          )}
+        </>
+      ) : (
+        <>
+          <p className="text-lg font-bold text-slate-400 text-center">—</p>
+          <p className="text-[11px] text-slate-400 mt-0.5 text-center">Ingen feltstevner</p>
+        </>
+      )}
+    </div>
+  );
+}
+
+function RangeBestCard({ entry }: { entry: RangeEntry | null }) {
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 p-3">
+      <div className="flex items-center gap-2 mb-1">
+        <Medal className="w-4 h-4 text-amber-600" />
+        <span className="text-xs text-slate-500 font-medium">Beste banestevne</span>
+      </div>
+      {entry ? (
+        <>
+          <p className="text-lg font-bold text-slate-900 text-center">{entry.score}p</p>
+          {entry.innerHits > 0 && (
+            <p className="text-[11px] text-slate-400 mt-0.5 text-center">{entry.innerHits} inner</p>
+          )}
+        </>
+      ) : (
+        <>
+          <p className="text-lg font-bold text-slate-400 text-center">—</p>
+          <p className="text-[11px] text-slate-400 mt-0.5 text-center">Ingen banestevner</p>
+        </>
+      )}
+    </div>
+  );
+}
+
+function LastResultCard({ entry }: { entry: AnyEntry | null }) {
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 p-3">
+      <div className="flex items-center gap-2 mb-1">
+        <Target className="w-4 h-4 text-slate-500" />
+        <span className="text-xs text-slate-500 font-medium">Siste resultat</span>
+      </div>
+      {entry ? (
+        entry.kind === 'field' ? (
+          <>
+            <p className="text-lg font-bold text-slate-900 text-center">
+              Feltstevne: {entry.maxShots > 0 ? `${entry.hits}/${entry.maxShots} treff` : `${entry.hits} treff`}
+            </p>
+            <p className="text-[11px] text-slate-400 mt-0.5 text-center">
+              Feltstevne{entry.innerHits > 0 ? ` • ${entry.innerHits} inner` : ''}
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="text-lg font-bold text-slate-900 text-center">Banestevne: {entry.score}p</p>
+            <p className="text-[11px] text-slate-400 mt-0.5 text-center">
+              Banestevne{entry.innerHits > 0 ? ` • ${entry.innerHits} inner` : ''}
+            </p>
+          </>
+        )
+      ) : (
+        <>
+          <p className="text-lg font-bold text-slate-400 text-center">—</p>
+          <p className="text-[11px] text-slate-400 mt-0.5 text-center">Ingen stevner enda</p>
+        </>
       )}
     </div>
   );
@@ -302,7 +265,7 @@ function MiniCard({ label, value, icon }: { label: string; value: string; icon: 
         {icon}
         <span className="text-xs text-slate-500 font-medium">{label}</span>
       </div>
-      <p className="text-lg font-bold text-slate-900">{value}</p>
+      <p className="text-lg font-bold text-slate-900 text-center">{value}</p>
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { getMatchHistory } from '../lib/match-service';
 import { getRangeMatchSessions, deleteTrainingSession } from '../lib/training-session-service';
-import { ArrowLeft, Calendar, CheckCircle, Pause, Trash2, Target } from 'lucide-react';
+import { ArrowLeft, Calendar, CheckCircle, Pause, Trash2, Target, Trophy } from 'lucide-react';
 import type { MatchSession } from '../lib/match-service';
 import type { TrainingSession } from '../types/database';
 import { deleteMatchSession } from '../lib/deletion-service';
@@ -41,7 +41,13 @@ export function MatchHistory() {
       ...matches.map<HistoryItem>((m) => ({ kind: 'match', date: m.match_date, data: m })),
       ...ranges.map<HistoryItem>((r) => ({ kind: 'range_match', date: r.session_date, data: r })),
     ];
-    merged.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+    merged.sort((a, b) => {
+      if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+      const aCreated = a.data.created_at || '';
+      const bCreated = b.data.created_at || '';
+      if (aCreated !== bCreated) return aCreated < bCreated ? 1 : -1;
+      return a.data.id < b.data.id ? 1 : a.data.id > b.data.id ? -1 : 0;
+    });
     setItems(merged);
     setLoading(false);
   };
@@ -192,7 +198,7 @@ export function MatchHistory() {
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <h3 className="text-lg font-bold text-slate-900">{sess.title}</h3>
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
-                          <Target className="w-3 h-3" />
+                          <Trophy className="w-3 h-3" />
                           Banestevne
                         </span>
                       </div>

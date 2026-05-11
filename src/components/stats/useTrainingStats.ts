@@ -86,13 +86,14 @@ function computeStats(
 export function useTrainingStats() {
   const { user } = useAuth();
   const [stats, setStats] = useState<TrainingStats | null>(null);
+  const [hasRangeMatches, setHasRangeMatches] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
 
     async function load() {
-      const [sessionsRes, seriesRes, entriesRes] = await Promise.all([
+      const [sessionsRes, seriesRes, entriesRes, rangeRes] = await Promise.all([
         supabase
           .from('training_sessions')
           .select('id, total_score, total_shots, total_inner_hits, session_date, wind_notes, session_type')
@@ -110,7 +111,14 @@ export function useTrainingStats() {
         .from('training_entries')
         .select('id, entry_date, score, shots_total, inner_hits, hits, wind_notes')
         .eq('user_id', user!.id),
+        supabase
+          .from('training_sessions')
+          .select('id')
+          .eq('user_id', user!.id)
+          .eq('session_type', 'range_match')
+          .limit(1),
       ]);
+      setHasRangeMatches((rangeRes.data?.length ?? 0) > 0);
 
       const sessions = (sessionsRes.data || []).map(s => ({
         id: s.id,
@@ -156,5 +164,5 @@ export function useTrainingStats() {
     load();
   }, [user]);
 
-  return { stats, loading };
+  return { stats, loading, hasRangeMatches };
 }

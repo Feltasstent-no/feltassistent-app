@@ -6,7 +6,7 @@ import { useActiveSetup } from '../contexts/ActiveSetupContext';
 import { useOnboarding } from '../contexts/OnboardingContext';
 import { ActiveSetupSelector } from '../components/ActiveSetupSelector';
 import { getActiveMatchSessions, getMatchHistory, cancelMatchSession, updateMatchMetadata } from '../lib/match-service';
-import { History, Play, BookOpen, XCircle, Clock, Crosshair, Minus, CheckCircle, CheckCircle2, ArrowRight, Target, Pencil } from 'lucide-react';
+import { History, Play, BookOpen, XCircle, Clock, Crosshair, Minus, CheckCircle, CheckCircle2, ArrowRight, Target, Trophy, Pencil } from 'lucide-react';
 import { EditMetadataModal } from '../components/EditMetadataModal';
 import apertureIcon from '../assets/aperture_icon_light.svg';
 import { AmmoStatusCard } from '../components/AmmoStatusCard';
@@ -308,7 +308,7 @@ export function MatchHome() {
           >
             <div className="flex items-center space-x-4">
               <div className="w-14 h-14 bg-amber-100 group-hover:bg-amber-600 rounded-xl flex items-center justify-center transition">
-                <Target className="w-7 h-7 text-amber-600 group-hover:text-white transition" strokeWidth={2.25} />
+                <Trophy className="w-7 h-7 text-amber-600 group-hover:text-white transition" strokeWidth={2.25} />
               </div>
               <div className="flex-1">
                 <h3 className="text-xl font-bold text-slate-900 mb-1">Start banestevne</h3>

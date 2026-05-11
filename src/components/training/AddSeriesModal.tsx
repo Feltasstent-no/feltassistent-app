@@ -7,13 +7,19 @@ interface AddSeriesModalProps {
   defaultShotCount?: number;
   defaultShootingTime?: number;
   defaultDistance?: number;
+  isRangeMatch?: boolean;
   onAdd: (params: { shotCount: number; shootingTimeSeconds: number | null; distanceM: number | null }) => Promise<void>;
   onClose: () => void;
 }
 
-export function AddSeriesModal({ defaultShotCount = 5, defaultShootingTime, defaultDistance, onAdd, onClose }: AddSeriesModalProps) {
+export function AddSeriesModal({ defaultShotCount = 5, defaultShootingTime, defaultDistance, isRangeMatch = false, onAdd, onClose }: AddSeriesModalProps) {
   const [shotCount, setShotCount] = useState(defaultShotCount);
-  const [shootingTime, setShootingTime] = useState(defaultShootingTime ? String(defaultShootingTime) : '');
+  const initialShootingTime = defaultShootingTime
+    ? String(defaultShootingTime)
+    : isRangeMatch
+      ? '60'
+      : '';
+  const [shootingTime, setShootingTime] = useState(initialShootingTime);
   const [distance, setDistance] = useState(defaultDistance ? String(defaultDistance) : '');
   const [saving, setSaving] = useState(false);
 

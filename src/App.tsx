@@ -42,6 +42,8 @@ import { MatchActive } from './pages/MatchActive';
 import { MatchSummary } from './pages/MatchSummary';
 import { MatchPreview } from './pages/MatchPreview';
 import { MatchHistory } from './pages/MatchHistory';
+import { RangeMatchSetup } from './pages/RangeMatchSetup';
+import { RangeMatchRun } from './pages/RangeMatchRun';
 import { WindTest } from './pages/WindTest';
 
 function App() {
@@ -366,6 +368,24 @@ function App() {
               element={
                 <ProtectedRoute>
                   <MatchSummary />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/match/range/:id/setup"
+              element={
+                <ProtectedRoute>
+                  <RangeMatchSetup />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/match/range/:id/run"
+              element={
+                <ProtectedRoute>
+                  <RangeMatchRun />
                 </ProtectedRoute>
               }
             />

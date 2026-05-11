@@ -17,7 +17,7 @@ import { EditMetadataModal } from '../components/EditMetadataModal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useWakeLock } from '../lib/use-wake-lock';
 import {
-  ArrowLeft, Plus, CheckCircle, XCircle, Pencil, Target,
+  ArrowLeft, Plus, CheckCircle, XCircle, Pencil, Target, Trophy,
   MapPin, Calendar, Cloud,
 } from 'lucide-react';
 import type { TrainingSession, TrainingSeries, TrainingSeriesImage } from '../types/database';
@@ -87,7 +87,7 @@ export function TrainingSessionActive() {
   const handleCancel = async () => {
     if (!id) return;
     await cancelTrainingSession(id);
-    navigate('/training', { replace: true });
+    navigate(isRangeMatch ? '/match' : '/training', { replace: true });
   };
 
   const lastSeries = seriesList[seriesList.length - 1];
@@ -114,7 +114,7 @@ export function TrainingSessionActive() {
     return (
       <Layout>
         <div className="text-center py-12">
-          <p className="text-slate-600">Treningsøkt ikke funnet</p>
+          <p className="text-slate-600">{isRangeMatch ? 'Stevne ikke funnet' : 'Treningsøkt ikke funnet'}</p>
         </div>
       </Layout>
     );
@@ -126,7 +126,7 @@ export function TrainingSessionActive() {
     <Layout>
       <div className="max-w-lg mx-auto pb-32 md:pb-8">
         <button
-          onClick={() => navigate('/training')}
+          onClick={() => navigate(isRangeMatch ? '/match' : '/training')}
           className="flex items-center gap-2 text-slate-600 hover:text-slate-900 mb-4 transition"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -138,7 +138,7 @@ export function TrainingSessionActive() {
             <h1 className="text-2xl font-bold text-slate-900">{session.title}</h1>
             {session.session_type === 'range_match' && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
-                <Target className="w-3 h-3" />
+                <Trophy className="w-3 h-3" />
                 Banestevne
               </span>
             )}
@@ -223,16 +223,16 @@ export function TrainingSessionActive() {
         </div>
 
         {isActive && (
-          <div className="space-y-3">
+          <div>
             <button
               onClick={() => setShowAddModal(true)}
-              className="w-full py-3.5 bg-white border-2 border-dashed border-slate-300 hover:border-emerald-400 text-slate-600 hover:text-emerald-700 font-semibold rounded-xl transition flex items-center justify-center gap-2"
+              className="w-full py-4 bg-white border-2 border-blue-400 hover:border-blue-600 hover:bg-blue-50 text-blue-700 font-bold rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
             >
               <Plus className="w-5 h-5" />
               Legg til serie
             </button>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="mt-10 pt-6 border-t border-slate-200 grid grid-cols-2 gap-3">
               <button
                 onClick={() => setShowCancelConfirm(true)}
                 className="py-3 border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 font-semibold rounded-xl transition flex items-center justify-center gap-2"
@@ -258,6 +258,7 @@ export function TrainingSessionActive() {
             defaultShotCount={defaultShotCount}
             defaultShootingTime={defaultShootingTime}
             defaultDistance={defaultDistance}
+            isRangeMatch={isRangeMatch}
             onAdd={handleAddSeries}
             onClose={() => setShowAddModal(false)}
           />
@@ -268,11 +269,11 @@ export function TrainingSessionActive() {
           title={isRangeMatch ? 'Avslutt banestevnet?' : 'Avslutt treningsøkten?'}
           message={
             isRangeMatch
-              ? 'Er du sikker på at du vil avslutte banestevnet? Du kan fortsatt se resultatet i treningsloggen etterpå.'
+              ? 'Er du sikker på at du vil avslutte banestevnet? Du kan fortsatt se resultatet i historikken etterpå.'
               : 'Er du sikker på at du vil avslutte treningsøkten? Du kan fortsatt se resultatet i treningsloggen etterpå.'
           }
           confirmLabel={finishing ? 'Lagrer...' : isRangeMatch ? 'Avslutt stevne' : 'Avslutt økt'}
-          cancelLabel="Fortsett økt"
+          cancelLabel={isRangeMatch ? 'Fortsett stevne' : 'Fortsett økt'}
           variant="warning"
           isLoading={finishing}
           onConfirm={handleFinish}
@@ -282,9 +283,13 @@ export function TrainingSessionActive() {
         <ConfirmDialog
           open={showCancelConfirm}
           title={isRangeMatch ? 'Avbryt banestevnet?' : 'Avbryt treningsøkten?'}
-          message="Dette vil forkaste økten. Registrerte serier beholdes i historikken, men økten markeres som avbrutt."
-          confirmLabel="Avbryt økt"
-          cancelLabel="Fortsett økt"
+          message={
+            isRangeMatch
+              ? 'Dette vil forkaste stevnet. Registrerte serier beholdes i historikken, men stevnet markeres som avbrutt.'
+              : 'Dette vil forkaste økten. Registrerte serier beholdes i historikken, men økten markeres som avbrutt.'
+          }
+          confirmLabel={isRangeMatch ? 'Avbryt stevne' : 'Avbryt økt'}
+          cancelLabel={isRangeMatch ? 'Fortsett stevne' : 'Fortsett økt'}
           variant="danger"
           onConfirm={handleCancel}
           onCancel={() => setShowCancelConfirm(false)}
@@ -292,7 +297,7 @@ export function TrainingSessionActive() {
 
         {showEditMeta && session && (
           <EditMetadataModal
-            title="Rediger treningsøkt"
+            title={isRangeMatch ? 'Rediger banestevne' : 'Rediger treningsøkt'}
             currentName={session.title}
             currentNotes={session.notes || ''}
             nameLabel="Tittel"
