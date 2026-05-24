@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -17,6 +17,7 @@ import type { TrainingSession, TrainingSeries } from '../types/database';
 
 export function RangeMatchSetup() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const [session, setSession] = useState<TrainingSession | null>(null);
@@ -130,7 +131,8 @@ export function RangeMatchSetup() {
   const lastSeries = seriesList[seriesList.length - 1];
   const defaultShotCount = lastSeries?.shot_count || 5;
   const defaultShootingTime = lastSeries?.shooting_time_seconds || 60;
-  const defaultDistance = lastSeries?.distance_m || undefined;
+  const urlDistance = searchParams.get('defaultDistance');
+  const defaultDistance = lastSeries?.distance_m || (urlDistance ? parseInt(urlDistance) : undefined);
 
   return (
     <Layout>

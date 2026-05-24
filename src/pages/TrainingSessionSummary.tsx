@@ -164,7 +164,7 @@ export function TrainingSessionSummary() {
 
         <div className="bg-white border border-slate-200 rounded-xl p-5 mb-6">
           <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Sammendrag</h2>
-          <div className="grid grid-cols-4 gap-4 text-center">
+          <div className={`grid ${session.session_type === 'range_match' ? 'grid-cols-3' : 'grid-cols-4'} gap-4 text-center`}>
             <div>
               <p className="text-2xl font-bold text-emerald-600">{totalScore || '—'}</p>
               <p className="text-xs text-slate-500 mt-0.5">Poeng</p>
@@ -173,10 +173,12 @@ export function TrainingSessionSummary() {
               <p className="text-2xl font-bold text-slate-900">{totalInner || '—'}</p>
               <p className="text-xs text-slate-500 mt-0.5">Inner</p>
             </div>
-            <div>
-              <p className="text-2xl font-bold text-slate-900">{totalHits || '—'}</p>
-              <p className="text-xs text-slate-500 mt-0.5">Treff</p>
-            </div>
+            {session.session_type !== 'range_match' && (
+              <div>
+                <p className="text-2xl font-bold text-slate-900">{totalHits || '—'}</p>
+                <p className="text-xs text-slate-500 mt-0.5">Treff</p>
+              </div>
+            )}
             <div>
               <p className="text-2xl font-bold text-slate-900">{totalShots}</p>
               <p className="text-xs text-slate-500 mt-0.5">Skudd</p>
@@ -216,6 +218,7 @@ export function TrainingSessionSummary() {
                 userId={user!.id}
                 readOnly={session.session_type !== 'range_match'}
                 hideTimer
+                isRangeMatch={session.session_type === 'range_match'}
                 onUpdated={fetchData}
                 onDeleted={fetchData}
               />

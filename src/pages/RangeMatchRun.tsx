@@ -241,6 +241,7 @@ export function RangeMatchRun() {
               userId={user!.id}
               readOnly={false}
               hideTimer={false}
+              isRangeMatch
               onUpdated={handleSeriesUpdated}
               onDeleted={fetchData}
               onCompleted={handleSeriesCompleted}
@@ -269,7 +270,7 @@ export function RangeMatchRun() {
 
         <button
           onClick={() => setShowAddModal(true)}
-          className="w-full py-3 bg-white border-2 border-dashed border-slate-300 hover:border-blue-400 hover:text-blue-700 text-slate-600 font-medium rounded-xl transition flex items-center justify-center gap-2 mb-6 text-sm"
+          className="w-full py-3 bg-emerald-50 border-2 border-dashed border-emerald-400 hover:bg-emerald-100 hover:border-emerald-500 text-emerald-700 font-medium rounded-xl transition flex items-center justify-center gap-2 mb-6 text-sm"
         >
           <Plus className="w-4 h-4" />
           Legg til ekstra serie
@@ -288,7 +289,7 @@ export function RangeMatchRun() {
             className="py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition flex items-center justify-center gap-2"
           >
             <CheckCircle className="w-4 h-4" />
-            {allCompleted ? 'Avslutt stevne' : 'Avslutt likevel'}
+            {allCompleted ? 'Avslutt stevne' : 'Avslutt og fullfør senere'}
           </button>
         </div>
 
@@ -305,13 +306,13 @@ export function RangeMatchRun() {
 
         <ConfirmDialog
           open={showFinishConfirm}
-          title="Avslutt banestevnet?"
+          title={allCompleted ? 'Avslutt banestevnet?' : 'Noen serier er ikke fullført'}
           message={
             allCompleted
               ? 'Du kan fortsatt se og redigere resultatet i historikken etterpå.'
-              : `${seriesList.length - completedCount} av ${seriesList.length} serier er ikke fullført. Du kan fortsatt legge inn resultat i historikken etterpå.`
+              : 'Du har serier uten registrert resultat. Du kan fortsatt avslutte stevnet og registrere resultater senere.'
           }
-          confirmLabel={finishing ? 'Lagrer...' : 'Avslutt stevne'}
+          confirmLabel={finishing ? 'Lagrer...' : allCompleted ? 'Avslutt stevne' : 'Avslutt og fullfør senere'}
           cancelLabel="Fortsett stevne"
           variant="warning"
           isLoading={finishing}

@@ -24,6 +24,7 @@ export function TrainingSessionCreate() {
   const [title, setTitle] = useState('');
   const [sessionDate, setSessionDate] = useState(new Date().toISOString().split('T')[0]);
   const [disciplineId, setDisciplineId] = useState('');
+  const [selectedDistance, setSelectedDistance] = useState('');
   const [classCode, setClassCode] = useState('');
   const [location, setLocation] = useState('');
   const [weather, setWeather] = useState('');
@@ -66,7 +67,7 @@ export function TrainingSessionCreate() {
       userId: user.id,
       title: sessionTitle,
       sessionDate,
-      disciplineId: disciplineId || null,
+      disciplineId: isRangeMatch ? null : (disciplineId || null),
       location: location || null,
       weaponId: activeSetup?.weapon_id || null,
       barrelId: activeSetup?.barrel_id || null,
@@ -156,19 +157,37 @@ export function TrainingSessionCreate() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Disiplin</label>
-                <select
-                  value={disciplineId}
-                  onChange={(e) => setDisciplineId(e.target.value)}
-                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition text-slate-900"
-                >
-                  <option value="">Velg</option>
-                  {disciplines.map((d) => (
-                    <option key={d.id} value={d.id}>{d.name}</option>
-                  ))}
-                </select>
-              </div>
+              {isRangeMatch ? (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Avstand</label>
+                  <select
+                    value={selectedDistance}
+                    onChange={(e) => setSelectedDistance(e.target.value)}
+                    className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition text-slate-900"
+                  >
+                    <option value="">Velg</option>
+                    <option value="15">15m</option>
+                    <option value="50">50m</option>
+                    <option value="100">100m</option>
+                    <option value="200">200m</option>
+                    <option value="300">300m</option>
+                  </select>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Disiplin</label>
+                  <select
+                    value={disciplineId}
+                    onChange={(e) => setDisciplineId(e.target.value)}
+                    className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition text-slate-900"
+                  >
+                    <option value="">Velg</option>
+                    {disciplines.map((d) => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">Klasse</label>
                 <select
@@ -237,7 +256,10 @@ export function TrainingSessionCreate() {
               </div>
             </div>
             <button
-              onClick={() => navigate(`/match/range/${pendingSessionId}/setup`, { replace: true })}
+              onClick={() => {
+                const distParam = selectedDistance ? `?defaultDistance=${parseInt(selectedDistance)}` : '';
+                navigate(`/match/range/${pendingSessionId}/setup${distParam}`, { replace: true });
+              }}
               className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition"
             >
               OK

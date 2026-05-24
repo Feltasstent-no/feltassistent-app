@@ -27,6 +27,15 @@ interface WeaponWithBarrel {
   };
 }
 
+interface RecentItem {
+  id: string;
+  name: string;
+  date: string;
+  status: string;
+  type: 'field' | 'range';
+  route: string;
+}
+
 function hasValidActiveSetup(setup: any) {
   return (
     setup &&
@@ -43,6 +52,7 @@ export function MatchHome() {
   const navigate = useNavigate();
   const [activeSessions, setActiveSessions] = useState<MatchSession[]>([]);
   const [recentMatches, setRecentMatches] = useState<MatchSession[]>([]);
+  const [recentItems, setRecentItems] = useState<RecentItem[]>([]);
   const [weapons, setWeapons] = useState<WeaponWithBarrel[]>([]);
   const [showShotInput, setShowShotInput] = useState<string | null>(null);
   const [shotInputValue, setShotInputValue] = useState('');
@@ -60,7 +70,7 @@ export function MatchHome() {
   const fetchData = async () => {
     if (!user) return;
 
-    const [activeSess, recent, weaponsRes] = await Promise.all([
+    const [activeSess, recent, weaponsRes, rangeRes] = await Promise.all([
       getActiveMatchSessions(user.id),
       getMatchHistory(user.id, 10),
       supabase
@@ -69,11 +79,47 @@ export function MatchHome() {
         .eq('user_id', user.id)
         .eq('is_active', true)
         .order('created_at', { ascending: false }),
+      supabase
+        .from('training_sessions')
+        .select('id, title, session_date, status, created_at')
+        .eq('user_id', user.id)
+        .eq('session_type', 'range_match')
+        .in('status', ['completed', 'active'])
+        .order('session_date', { ascending: false })
+        .limit(10),
     ]);
 
     const activeIds = new Set(activeSess.map(s => s.id));
     setActiveSessions(activeSess);
-    setRecentMatches(recent.filter((m) => !activeIds.has(m.id)));
+    const filteredRecent = recent.filter((m) => !activeIds.has(m.id));
+    setRecentMatches(filteredRecent);
+
+    const fieldItems: RecentItem[] = filteredRecent.map(m => ({
+      id: m.id,
+      name: m.match_name,
+      date: m.match_date,
+      status: m.status,
+      type: 'field',
+      route: m.status === 'completed' ? `/match/${m.id}/summary`
+        : m.status === 'setup' ? `/match/${m.id}/configure`
+        : `/match/${m.id}`,
+    }));
+
+    const rangeItems: RecentItem[] = (rangeRes.data || []).map(s => ({
+      id: s.id,
+      name: s.title,
+      date: s.session_date,
+      status: s.status,
+      type: 'range',
+      route: s.status === 'completed'
+        ? `/training/session/${s.id}/summary`
+        : `/match/range/${s.id}/run`,
+    }));
+
+    const combined = [...fieldItems, ...rangeItems]
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 8);
+    setRecentItems(combined);
 
     if (weaponsRes.data) {
       const weaponsWithBarrels = await Promise.all(
@@ -532,67 +578,54 @@ export function MatchHome() {
 
         {fullSetupComplete && <AmmoStatusCard />}
 
-        {recentMatches.length > 0 && (
+        {recentItems.length > 0 && (
           <div>
             <h2 className="text-lg font-bold text-slate-900 mb-4">Siste stevner</h2>
             <div className="space-y-3">
-              {recentMatches.slice(0, 5).map((match) => {
-                const getRouteForMatch = (match: MatchSession) => {
-                  if (match.status === 'completed') {
-                    return `/match/${match.id}/summary`;
-                  } else if (match.status === 'setup') {
-                    return `/match/${match.id}/configure`;
-                  } else {
-                    return `/match/${match.id}`;
-                  }
-                };
-
-                const getStatusLabel = (status: string) => {
-                  switch (status) {
-                    case 'completed': return 'Fullført';
-                    case 'setup': return 'Ufullstendig';
-                    case 'in_progress': return 'Pågår';
-                    case 'paused': return 'Pause';
-                    default: return status;
-                  }
-                };
-
-                return (
-                  <button
-                    key={match.id}
-                    onClick={() => navigate(getRouteForMatch(match))}
-                    className="w-full bg-white border border-slate-200 rounded-lg p-4 hover:border-slate-300 transition text-left"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-semibold text-slate-900">{match.match_name}</p>
-                        <p className="text-sm text-slate-600">
-                          {new Date(match.match_date).toLocaleDateString('nb-NO')}
-                        </p>
+              {recentItems.map((item) => (
+                <button
+                  key={`${item.type}-${item.id}`}
+                  onClick={() => navigate(item.route)}
+                  className="w-full bg-white border border-slate-200 rounded-lg p-4 hover:border-slate-300 transition text-left"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-semibold text-slate-900 truncate">{item.name}</p>
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${
+                          item.type === 'field'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-amber-100 text-amber-700'
+                        }`}>
+                          {item.type === 'field' ? 'FELT' : 'BANE'}
+                        </span>
                       </div>
-                      {match.status === 'completed' ? (
-                        <div className="flex items-center space-x-1 bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-semibold">
-                          <CheckCircle className="w-3 h-3" />
-                          <span>Fullført</span>
-                        </div>
-                      ) : match.status === 'paused' ? (
-                        <div className="flex items-center space-x-1 bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-semibold">
-                          <Clock className="w-3 h-3" />
-                          <span>Pause</span>
-                        </div>
-                      ) : match.status === 'setup' ? (
-                        <div className="flex items-center space-x-1 bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-xs font-semibold">
-                          <span>Ufullstendig</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center space-x-1 bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold">
-                          <span>Pågår</span>
-                        </div>
-                      )}
+                      <p className="text-sm text-slate-600">
+                        {new Date(item.date).toLocaleDateString('nb-NO')}
+                      </p>
                     </div>
-                  </button>
-                );
-              })}
+                    {item.status === 'completed' ? (
+                      <div className="flex items-center space-x-1 bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-semibold flex-shrink-0">
+                        <CheckCircle className="w-3 h-3" />
+                        <span>Fullført</span>
+                      </div>
+                    ) : item.status === 'active' || item.status === 'in_progress' ? (
+                      <div className="flex items-center space-x-1 bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold flex-shrink-0">
+                        <span>Pågår</span>
+                      </div>
+                    ) : item.status === 'paused' ? (
+                      <div className="flex items-center space-x-1 bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-semibold flex-shrink-0">
+                        <Clock className="w-3 h-3" />
+                        <span>Pause</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-1 bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-xs font-semibold flex-shrink-0">
+                        <span>Ufullstendig</span>
+                      </div>
+                    )}
+                  </div>
+                </button>
+              ))}
             </div>
           </div>
         )}

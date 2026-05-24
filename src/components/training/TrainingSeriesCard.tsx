@@ -11,12 +11,13 @@ interface TrainingSeriesCardProps {
   userId: string;
   readOnly?: boolean;
   hideTimer?: boolean;
+  isRangeMatch?: boolean;
   onUpdated: () => void;
   onDeleted: () => void;
   onCompleted?: (wasAlreadyCompleted: boolean) => void;
 }
 
-export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer, onUpdated, onDeleted, onCompleted }: TrainingSeriesCardProps) {
+export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer, isRangeMatch, onUpdated, onDeleted, onCompleted }: TrainingSeriesCardProps) {
   const [expanded, setExpanded] = useState(!series.completed);
   const [score, setScore] = useState(series.score != null ? String(series.score) : '');
   const [innerHits, setInnerHits] = useState(series.inner_hits != null ? String(series.inner_hits) : '');
@@ -155,7 +156,7 @@ export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer
           )}
 
           {!readOnly && (
-            <div className="grid grid-cols-3 gap-3">
+            <div className={`grid ${isRangeMatch ? 'grid-cols-2' : 'grid-cols-3'} gap-3`}>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Poeng</label>
                 <input
@@ -176,16 +177,18 @@ export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer
                   placeholder="—"
                 />
               </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Treff</label>
-                <input
-                  type="number"
-                  value={hits}
-                  onChange={(e) => setHits(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-center text-sm font-semibold focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                  placeholder="—"
-                />
-              </div>
+              {!isRangeMatch && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Treff</label>
+                  <input
+                    type="number"
+                    value={hits}
+                    onChange={(e) => setHits(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-center text-sm font-semibold focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    placeholder="—"
+                  />
+                </div>
+              )}
             </div>
           )}
 
@@ -203,7 +206,7 @@ export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer
                   <p className="text-lg font-bold text-slate-900">{series.inner_hits}</p>
                 </div>
               )}
-              {series.hits != null && (
+              {!isRangeMatch && series.hits != null && (
                 <div className="text-center">
                   <p className="text-xs text-slate-500">Treff</p>
                   <p className="text-lg font-bold text-slate-900">{series.hits}</p>
