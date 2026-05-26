@@ -274,10 +274,8 @@ export function AdminFieldFigures() {
       }
 
       try {
-        console.log(`Syncing ${figure.code}...`);
         const response = await fetch(figure.image_url);
         if (!response.ok) {
-          console.error(`Failed to fetch ${figure.code}`);
           failed++;
           continue;
         }
@@ -292,13 +290,11 @@ export function AdminFieldFigures() {
           .eq('id', figure.id);
 
         if (error) {
-          console.error(`Failed to update ${figure.code}:`, error);
           failed++;
         } else {
           updated++;
         }
       } catch (err) {
-        console.error(`Error syncing ${figure.code}:`, err);
         failed++;
       }
     }

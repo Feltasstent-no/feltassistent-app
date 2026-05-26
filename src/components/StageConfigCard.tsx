@@ -72,13 +72,6 @@ export function StageConfigCard({
   }, [competitionType]);
 
   const handleFigureChange = (figureId: string) => {
-    const figure = availableFigures.find(f => f.id === figureId);
-    console.log(`[StageConfigCard] ========== FIGURE CHANGED FOR HOLD ${stageNumber} ==========`);
-    console.log(`[StageConfigCard] Hold ${stageNumber} selected:`, {
-      field_figure_id: figureId,
-      figure_code: figure?.code || 'UNKNOWN',
-      figure_name: figure?.name || 'UNKNOWN'
-    });
     onUpdate({ field_figure_id: figureId });
   };
 

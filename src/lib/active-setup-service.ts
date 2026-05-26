@@ -107,21 +107,12 @@ export async function setActiveBallisticProfile(userId: string, ballisticProfile
 }
 
 export async function getUserWeapons(userId: string): Promise<Weapon[]> {
-  console.log('🔍 getUserWeapons called with userId:', userId);
-
   const { data, error } = await supabase
     .from('weapons')
     .select('*')
     .eq('user_id', userId)
     .eq('is_active', true)
     .order('weapon_name');
-
-  console.log('🔍 getUserWeapons result:', {
-    userId,
-    dataLength: data?.length || 0,
-    data: data,
-    error: error
-  });
 
   if (error) throw error;
   return data || [];
@@ -140,8 +131,6 @@ export async function getWeaponBarrels(weaponId: string): Promise<WeaponBarrel[]
 }
 
 export async function getUserClickTables(userId: string): Promise<ClickTable[]> {
-  console.log('🔍 getUserClickTables called with userId:', userId);
-
   const { data, error } = await supabase
     .from('click_tables')
     .select('*')
@@ -149,32 +138,16 @@ export async function getUserClickTables(userId: string): Promise<ClickTable[]> 
     .eq('is_active', true)
     .order('name');
 
-  console.log('🔍 getUserClickTables result:', {
-    userId,
-    dataLength: data?.length || 0,
-    data: data,
-    error: error
-  });
-
   if (error) throw error;
   return data || [];
 }
 
 export async function getUserBallisticProfiles(userId: string): Promise<BallisticProfile[]> {
-  console.log('🔍 getUserBallisticProfiles called with userId:', userId);
-
   const { data, error } = await supabase
     .from('ballistic_profiles')
     .select('*')
     .eq('user_id', userId)
     .order('name');
-
-  console.log('🔍 getUserBallisticProfiles result:', {
-    userId,
-    dataLength: data?.length || 0,
-    data: data,
-    error: error
-  });
 
   if (error) throw error;
   return data || [];

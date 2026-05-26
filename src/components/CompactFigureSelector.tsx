@@ -16,28 +16,9 @@ export function CompactFigureSelector({
 }: CompactFigureSelectorProps) {
   const [isOpen, setIsOpen] = useState(!selectedFigureId);
 
-  console.log('[CompactFigureSelector] ========== RENDER ==========');
-  console.log('[CompactFigureSelector] selectedFigureId:', selectedFigureId);
-  console.log('[CompactFigureSelector] figures count:', figures.length);
-
   const selectedFigure = figures.find((f) => f.id === selectedFigureId);
 
-  console.log('[CompactFigureSelector] selectedFigure:', selectedFigure ? {
-    id: selectedFigure.id,
-    code: selectedFigure.code,
-    name: selectedFigure.name
-  } : 'null');
-
   const handleSelect = (figureId: string) => {
-    const clickedFigure = figures.find((f) => f.id === figureId);
-    console.log('[CompactFigureSelector] ========== FIGURE CLICKED ==========');
-    console.log('[CompactFigureSelector] 🎯 Clicked figure ID:', figureId);
-    console.log('[CompactFigureSelector] 🏷️  Clicked figure code:', clickedFigure?.code);
-    console.log('[CompactFigureSelector] 📝 Clicked figure name:', clickedFigure?.name);
-    console.log('[CompactFigureSelector] 🔄 Previous selectedFigureId:', selectedFigureId);
-    console.log('[CompactFigureSelector] 🔄 Previous figure code:', selectedFigure?.code);
-    console.log('[CompactFigureSelector] ▶️  Calling onSelect with:', figureId);
-
     onSelect(figureId);
     setIsOpen(false);
   };
@@ -86,23 +67,11 @@ export function CompactFigureSelector({
           {figures.map((figure, index) => {
             const isSelected = selectedFigureId === figure.id;
 
-            console.log(`[CompactFigureSelector] Row ${index}:`, {
-              id: figure.id,
-              code: figure.code,
-              name: figure.name,
-              isSelected
-            });
-
             return (
               <button
                 key={figure.id}
                 type="button"
                 onClick={() => {
-                  console.log(`[CompactFigureSelector] 🖱️  ROW ${index} CLICKED:`, {
-                    id: figure.id,
-                    code: figure.code,
-                    name: figure.name
-                  });
                   handleSelect(figure.id);
                 }}
                 className={`w-full flex items-center gap-3 p-3 border-b border-slate-100 last:border-b-0 transition-colors ${

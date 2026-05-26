@@ -178,8 +178,19 @@ export function ActiveHoldScreen({
       setClockStarted(initialElapsedTime > 0 && !compositeNow);
       setClockFinished(false);
       setActiveSubHoldIndex(0);
+    } else if (initialElapsedTime > 0 && !clockStarted && !isComposite) {
+      setClockStarted(true);
     }
-  }, [hold.id, initialElapsedTime, hold.is_composite, hold.sub_holds]);
+  }, [hold.id, initialElapsedTime, hold.is_composite, hold.sub_holds, clockStarted, isComposite]);
+
+  useEffect(() => {
+    if (initialElapsedTime > 0 && clockStarted && !clockFinished) {
+      const totalTime = (hold.field_figure?.prep_time_seconds || 15) + (hold.shooting_time_seconds || 60);
+      if (initialElapsedTime >= totalTime) {
+        setClockFinished(true);
+      }
+    }
+  }, [initialElapsedTime, clockStarted, clockFinished, hold.field_figure?.prep_time_seconds, hold.shooting_time_seconds]);
 
   const handleStartClock = () => {
     setClockStarted(true);

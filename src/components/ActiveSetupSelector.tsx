@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Target, Crosshair, CreditCard as Edit2, AlertCircle, Plus } from 'lucide-react';
+import { Target, Crosshair, CreditCard as Edit2, AlertCircle, Plus, Package } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useActiveSetup } from '../contexts/ActiveSetupContext';
@@ -9,6 +9,7 @@ import {
   getUserClickTables,
   getUserBallisticProfiles,
 } from '../lib/active-setup-service';
+import { supabase } from '../lib/supabase';
 import { Weapon, WeaponBarrel, ClickTable, BallisticProfile } from '../types/database';
 
 function hasValidActiveSetup(setup: any) {
@@ -25,11 +26,6 @@ export function ActiveSetupSelector() {
   const navigate = useNavigate();
   const { activeSetup, updateActiveSetup, loading: setupLoading } = useActiveSetup();
 
-  console.log('🔍 ActiveSetupSelector render:', {
-    user: user ? { id: user.id, email: user.email } : null,
-    hasActiveSetup: !!activeSetup,
-    setupLoading
-  });
 
   const [weapons, setWeapons] = useState<Weapon[]>([]);
   const [barrels, setBarrels] = useState<WeaponBarrel[]>([]);
@@ -41,6 +37,7 @@ export function ActiveSetupSelector() {
   const [profileType, setProfileType] = useState<'click_table' | 'ballistic_profile'>('click_table');
   const [selectedProfileId, setSelectedProfileId] = useState<string>('');
 
+  const [activeAmmoName, setActiveAmmoName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -61,20 +58,12 @@ export function ActiveSetupSelector() {
   }, [activeSetup]);
 
   useEffect(() => {
-    console.log('🔍 useEffect [user] triggered:', {
-      hasUser: !!user,
-      userId: user?.id,
-      email: user?.email
-    });
-
     if (!user) {
-      console.log('🔍 No user, skipping data load');
       return;
     }
 
     const loadData = async () => {
       try {
-        console.log('🔍 Starting loadData for userId:', user.id);
         setLoading(true);
         const results = await Promise.allSettled([
           getUserWeapons(user.id),
@@ -85,13 +74,6 @@ export function ActiveSetupSelector() {
         const weaponsData = results[0].status === 'fulfilled' ? results[0].value : [];
         const clickTablesData = results[1].status === 'fulfilled' ? results[1].value : [];
         const ballisticProfilesData = results[2].status === 'fulfilled' ? results[2].value : [];
-
-        console.log('🔍 loadData completed:', {
-          weaponsCount: weaponsData.length,
-          clickTablesCount: clickTablesData.length,
-          ballisticProfilesCount: ballisticProfilesData.length,
-          errors: results.map((r, i) => r.status === 'rejected' ? { index: i, reason: r.reason } : null).filter(Boolean)
-        });
 
         setWeapons(weaponsData);
         setClickTables(clickTablesData);
@@ -123,6 +105,69 @@ export function ActiveSetupSelector() {
 
     loadBarrels();
   }, [selectedWeaponId]);
+
+  useEffect(() => {
+    if (!activeSetup?.weapon_id || !user) {
+      setActiveAmmoName(null);
+      return;
+    }
+    const fetchAmmo = async () => {
+      const weaponId = activeSetup.weapon_id!;
+      const barrelId = activeSetup.barrel_id;
+
+      // 1. Check is_current_active
+      let query = supabase
+        .from('ammo_inventory')
+        .select('name')
+        .eq('user_id', user.id)
+        .eq('weapon_id', weaponId)
+        .eq('is_current_active', true)
+        .eq('is_active', true);
+      if (barrelId) query = query.eq('barrel_id', barrelId);
+      const { data: active } = await query.maybeSingle();
+      if (active) { setActiveAmmoName(active.name); return; }
+
+      // 2. Fallback: is_default_felt
+      let q2 = supabase
+        .from('ammo_inventory')
+        .select('name')
+        .eq('user_id', user.id)
+        .eq('weapon_id', weaponId)
+        .eq('is_active', true)
+        .eq('is_default_felt', true);
+      if (barrelId) q2 = q2.eq('barrel_id', barrelId);
+      const { data: felt } = await q2.maybeSingle();
+      if (felt) { setActiveAmmoName(felt.name); return; }
+
+      // 3. Fallback: first active ammo for this weapon (with barrel match)
+      if (barrelId) {
+        const { data: withBarrel } = await supabase
+          .from('ammo_inventory')
+          .select('name')
+          .eq('user_id', user.id)
+          .eq('weapon_id', weaponId)
+          .eq('barrel_id', barrelId)
+          .eq('is_active', true)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        if (withBarrel) { setActiveAmmoName(withBarrel.name); return; }
+      }
+
+      // 4. Fallback: first active ammo for weapon (any barrel)
+      const { data: anyAmmo } = await supabase
+        .from('ammo_inventory')
+        .select('name')
+        .eq('user_id', user.id)
+        .eq('weapon_id', weaponId)
+        .eq('is_active', true)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      setActiveAmmoName(anyAmmo?.name || null);
+    };
+    fetchAmmo();
+  }, [activeSetup?.weapon_id, activeSetup?.barrel_id, user]);
 
   const handleSave = async () => {
     if (!user) return;
@@ -163,49 +208,63 @@ export function ActiveSetupSelector() {
 
   if (setupComplete && !editMode) {
     return (
-      <div className="bg-emerald-50 border-2 border-emerald-200 rounded-lg p-4">
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex items-center space-x-2">
-            <Target className="h-5 w-5 text-emerald-600" />
-            <h3 className="font-semibold text-emerald-900">Aktivt oppsett</h3>
+      <div className="bg-emerald-50 border-2 border-emerald-200 rounded-xl px-4 py-3.5">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-emerald-600 flex items-center justify-center">
+              <Target className="h-3.5 w-3.5 text-white" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-emerald-900 text-sm leading-tight">Aktivt oppsett</h3>
+              <p className="text-[10px] text-emerald-600 leading-tight">Klar til stevne</p>
+            </div>
           </div>
           <button
             onClick={() => setEditMode(true)}
-            className="text-emerald-700 hover:text-emerald-900 text-sm font-medium flex items-center space-x-1"
+            className="px-3 py-1.5 bg-white border border-emerald-300 hover:border-emerald-400 rounded-lg text-xs font-semibold text-emerald-700 hover:text-emerald-800 transition flex items-center gap-1.5 shadow-sm whitespace-nowrap"
           >
-            <Edit2 className="h-4 w-4" />
-            <span>Endre</span>
+            <Edit2 className="h-3 w-3" />
+            Bytt
           </button>
         </div>
-        <div className="space-y-2 text-sm">
+        <div className="space-y-1.5 text-sm">
           {activeSetup.weapon && (
-            <div className="flex justify-between">
-              <span className="text-emerald-700">Våpen:</span>
-              <span className="font-medium text-emerald-900">
+            <div className="flex items-center justify-between">
+              <span className="text-emerald-700 text-xs">Våpen</span>
+              <span className="font-medium text-emerald-900 text-xs">
                 {activeSetup.weapon.weapon_name} ({activeSetup.weapon.caliber})
               </span>
             </div>
           )}
           {activeSetup.barrel && (
-            <div className="flex justify-between">
-              <span className="text-emerald-700">Løp:</span>
-              <span className="font-medium text-emerald-900">
+            <div className="flex items-center justify-between">
+              <span className="text-emerald-700 text-xs">Løp</span>
+              <span className="font-medium text-emerald-900 text-xs">
                 {activeSetup.barrel.barrel_name}
               </span>
             </div>
           )}
+          {activeAmmoName && (
+            <div className="flex items-center justify-between">
+              <span className="text-emerald-700 text-xs flex items-center gap-1">
+                <Package className="w-3 h-3" />
+                Ammo
+              </span>
+              <span className="font-medium text-emerald-900 text-xs">{activeAmmoName}</span>
+            </div>
+          )}
           {activeSetup.click_table && (
-            <div className="flex justify-between">
-              <span className="text-emerald-700">Tabell:</span>
-              <span className="font-medium text-emerald-900">
+            <div className="flex items-center justify-between">
+              <span className="text-emerald-700 text-xs">Tabell</span>
+              <span className="font-medium text-emerald-900 text-xs">
                 {activeSetup.click_table.name}
               </span>
             </div>
           )}
           {activeSetup.ballistic_profile && (
-            <div className="flex justify-between">
-              <span className="text-emerald-700">Profil:</span>
-              <span className="font-medium text-emerald-900">
+            <div className="flex items-center justify-between">
+              <span className="text-emerald-700 text-xs">Profil</span>
+              <span className="font-medium text-emerald-900 text-xs">
                 {activeSetup.ballistic_profile.name}
               </span>
             </div>

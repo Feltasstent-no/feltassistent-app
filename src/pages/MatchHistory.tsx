@@ -118,46 +118,54 @@ export function MatchHistory() {
                     : match.status === 'setup'
                     ? `/match/${match.id}/configure`
                     : `/match/${match.id}`;
+                const hasResult = match.total_hits != null && match.total_hits > 0;
 
                 return (
                   <div
                     key={`m-${match.id}`}
-                    className="w-full bg-white border border-slate-200 rounded-xl p-5 transition"
+                    className="w-full bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 hover:shadow-sm transition"
                   >
-                    <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-start justify-between gap-3">
                       <button
                         onClick={() => navigate(route)}
-                        className="flex-1 text-left hover:opacity-80 transition"
+                        className="flex-1 text-left hover:opacity-80 transition min-w-0"
                       >
-                        <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <h3 className="text-lg font-bold text-slate-900">{match.match_name}</h3>
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
-                            Feltstevne
+                        <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                          <h3 className="text-base font-bold text-slate-900 truncate">{match.match_name}</h3>
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700">
+                            <Target className="w-2.5 h-2.5" />
+                            FELT
                           </span>
                         </div>
-                        <p className="text-sm text-slate-600">
+                        {hasResult && (
+                          <p className="text-xl font-bold text-slate-900 mb-1">
+                            {match.total_hits} treff
+                            {match.inner_hits ? <span className="text-sm font-medium text-slate-500 ml-1.5">({match.inner_hits}*)</span> : null}
+                          </p>
+                        )}
+                        <p className="text-xs text-slate-500">
                           {new Date(match.match_date).toLocaleDateString('nb-NO', {
-                            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+                            day: 'numeric', month: 'short', year: 'numeric',
                           })}
                         </p>
                       </button>
-                      <div className="ml-4 flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
                         {match.status === 'completed' ? (
-                          <div className="flex items-center space-x-1 bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-semibold">
+                          <div className="flex items-center gap-1 bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full text-[11px] font-semibold">
                             <CheckCircle className="w-3 h-3" />
                             <span>Fullført</span>
                           </div>
                         ) : match.status === 'paused' ? (
-                          <div className="flex items-center space-x-1 bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-semibold">
+                          <div className="flex items-center gap-1 bg-amber-100 text-amber-700 px-2 py-1 rounded-full text-[11px] font-semibold">
                             <Pause className="w-3 h-3" />
                             <span>Pause</span>
                           </div>
                         ) : match.status === 'setup' ? (
-                          <div className="flex items-center space-x-1 bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-xs font-semibold">
+                          <div className="flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-1 rounded-full text-[11px] font-semibold">
                             <span>Ufullstendig</span>
                           </div>
                         ) : (
-                          <div className="flex items-center space-x-1 bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold">
+                          <div className="flex items-center gap-1 bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-[11px] font-semibold">
                             <span>Pågår</span>
                           </div>
                         )}
@@ -166,15 +174,13 @@ export function MatchHistory() {
                             e.stopPropagation();
                             setDeleteConfirm({ isOpen: true, item });
                           }}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+                          className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
                           title="Slett stevne"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
-
-                    {match.notes && <p className="text-sm text-slate-500 mt-2">{match.notes}</p>}
                   </div>
                 );
               }
@@ -184,42 +190,49 @@ export function MatchHistory() {
                 sess.status === 'active'
                   ? `/training/session/${sess.id}`
                   : `/training/session/${sess.id}/summary`;
+              const hasResult = sess.total_score != null && sess.total_score > 0;
 
               return (
                 <div
                   key={`r-${sess.id}`}
-                  className="w-full bg-white border border-slate-200 rounded-xl p-5 transition"
+                  className="w-full bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 hover:shadow-sm transition"
                 >
-                  <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-start justify-between gap-3">
                     <button
                       onClick={() => navigate(route)}
-                      className="flex-1 text-left hover:opacity-80 transition"
+                      className="flex-1 text-left hover:opacity-80 transition min-w-0"
                     >
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <h3 className="text-lg font-bold text-slate-900">{sess.title}</h3>
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
-                          <Trophy className="w-3 h-3" />
-                          Banestevne
+                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                        <h3 className="text-base font-bold text-slate-900 truncate">{sess.title}</h3>
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700">
+                          <Trophy className="w-2.5 h-2.5" />
+                          BANE
                         </span>
                       </div>
-                      <p className="text-sm text-slate-600">
+                      {hasResult && (
+                        <p className="text-xl font-bold text-slate-900 mb-1">
+                          {sess.total_score}p
+                          {sess.total_inner_hits ? <span className="text-sm font-medium text-slate-500 ml-1.5">({sess.total_inner_hits}*)</span> : null}
+                        </p>
+                      )}
+                      <p className="text-xs text-slate-500">
                         {new Date(sess.session_date).toLocaleDateString('nb-NO', {
-                          weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+                          day: 'numeric', month: 'short', year: 'numeric',
                         })}
                       </p>
                     </button>
-                    <div className="ml-4 flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
                       {sess.status === 'completed' ? (
-                        <div className="flex items-center space-x-1 bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-semibold">
+                        <div className="flex items-center gap-1 bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full text-[11px] font-semibold">
                           <CheckCircle className="w-3 h-3" />
                           <span>Fullført</span>
                         </div>
                       ) : sess.status === 'active' ? (
-                        <div className="flex items-center space-x-1 bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold">
+                        <div className="flex items-center gap-1 bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-[11px] font-semibold">
                           <span>Pågår</span>
                         </div>
                       ) : (
-                        <div className="flex items-center space-x-1 bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-xs font-semibold">
+                        <div className="flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-1 rounded-full text-[11px] font-semibold">
                           <span>Avbrutt</span>
                         </div>
                       )}
@@ -228,15 +241,13 @@ export function MatchHistory() {
                           e.stopPropagation();
                           setDeleteConfirm({ isOpen: true, item });
                         }}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+                        className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
                         title="Slett økt"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
-
-                  {sess.notes && <p className="text-sm text-slate-500 mt-2">{sess.notes}</p>}
                 </div>
               );
             })}

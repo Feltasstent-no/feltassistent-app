@@ -111,13 +111,6 @@ export function MatchSummary() {
     setHoldImages(imagesData);
     setSubHoldImages(subImagesData);
 
-    console.log('[MatchSummary] holdImages loaded:', imagesData.map(img => ({
-      holdId: img.holdId,
-      orderIndex: img.orderIndex,
-      imageUrl: img.imageUrl,
-      figureName: img.figureName,
-    })));
-
     if (sessionData) {
       setTotalHits(sessionData.total_hits != null ? String(sessionData.total_hits) : '');
       setInnerHits(sessionData.inner_hits != null ? String(sessionData.inner_hits) : '');
@@ -271,6 +264,43 @@ export function MatchSummary() {
     if (error) {
       alert('Kunne ikke lagre resultat');
     } else {
+      if (user) {
+        const trimmedText = resultNotes.trim();
+        const { data: existing } = await supabase
+          .from('focus_points')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('source_id', session.id)
+          .eq('source_type', 'felt')
+          .maybeSingle();
+
+        if (trimmedText) {
+          if (existing) {
+            await supabase
+              .from('focus_points')
+              .update({ text: trimmedText, source_name: session.match_name || '' })
+              .eq('id', existing.id);
+          } else {
+            const { error: fpError } = await supabase
+              .from('focus_points')
+              .insert({
+                user_id: user.id,
+                text: trimmedText,
+                source_type: 'felt',
+                source_name: session.match_name || '',
+                source_id: session.id,
+              });
+            if (fpError) {
+              console.error('[FocusPoint] Insert failed:', fpError.message, fpError.details, fpError.code);
+            }
+          }
+        } else if (existing) {
+          await supabase
+            .from('focus_points')
+            .delete()
+            .eq('id', existing.id);
+        }
+      }
       setSession({
         ...session,
         total_hits: totalHits ? parseInt(totalHits, 10) : null,
@@ -477,13 +507,13 @@ export function MatchSummary() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Notater (valgfritt)</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Fokusområder</label>
                 <textarea
                   value={resultNotes}
                   onChange={(e) => setResultNotes(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
                   rows={2}
-                  placeholder="Kommentarer til resultatet..."
+                  placeholder="Hva bør du fokusere på til neste stevne?"
                 />
               </div>
               <div className="flex gap-2">
@@ -543,23 +573,24 @@ export function MatchSummary() {
 
         {/* 3. Nøkkeltall */}
         <div className="grid grid-cols-3 gap-3 mb-3">
-          <div className="bg-white border border-slate-200 rounded-xl p-4 text-center">
-            <Target className="w-6 h-6 mx-auto mb-1 text-slate-500" strokeWidth={2} />
-            <p className="text-2xl font-bold text-slate-900">{stats.totalHolds}</p>
-            <p className="text-xs text-slate-500">Hold</p>
+          <div className="bg-white border border-slate-200 rounded-xl p-4 text-center flex flex-col items-center justify-center">
+            <Target className="w-5 h-5 mx-auto mb-1.5 text-slate-400" strokeWidth={2} />
+            <p className="text-2xl font-bold text-slate-900 leading-tight">{stats.totalHolds}</p>
+            <p className="text-xs font-medium text-slate-500 mt-1">Hold</p>
           </div>
 
           {stats.duration != null && (
-            <div className="bg-white border border-slate-200 rounded-xl p-4 text-center">
-              <Clock className="w-6 h-6 text-blue-600 mx-auto mb-1" />
-              <p className="text-2xl font-bold text-slate-900">{formatDuration(stats.duration)}</p>
-              <p className="text-xs text-slate-500">Tid</p>
+            <div className="bg-white border border-slate-200 rounded-xl p-4 text-center flex flex-col items-center justify-center">
+              <Clock className="w-5 h-5 mx-auto mb-1.5 text-slate-400" />
+              <p className="text-2xl font-bold text-slate-900 leading-tight">{formatDuration(stats.duration)}</p>
+              <p className="text-xs font-medium text-slate-500 mt-1">Tid</p>
             </div>
           )}
 
-          <div className="bg-white border border-slate-200 rounded-xl p-4 text-center">
-            <BulletIcon className="w-7 h-7 text-amber-600 mx-auto mb-1" />
-            <p className="text-2xl font-bold text-slate-900">{effectiveShots} <span className="text-base font-semibold text-slate-500">skudd</span></p>
+          <div className="bg-white border border-slate-200 rounded-xl p-4 text-center flex flex-col items-center justify-center">
+            <BulletIcon className="w-5 h-5 text-slate-400 mx-auto mb-1.5" />
+            <p className="text-2xl font-bold text-slate-900 leading-tight">{effectiveShots}</p>
+            <p className="text-xs font-medium text-slate-500 mt-1">Skudd</p>
           </div>
         </div>
 
@@ -864,13 +895,7 @@ export function MatchSummary() {
                         src={img.imageUrl}
                         alt={`Hold ${img.orderIndex + 1}`}
                         className="w-full h-full object-cover"
-                        onLoad={() => console.log('[MatchSummary] image loaded OK:', img.holdId)}
-                        onError={(e) => {
-                          console.error('[MatchSummary] image FAILED:', {
-                            holdId: img.holdId,
-                            src: e.currentTarget.src,
-                            currentSrc: e.currentTarget.currentSrc,
-                          });
+                        onError={() => {
                           setFailedImages(prev => new Set(prev).add(img.holdId));
                         }}
                       />
@@ -1097,11 +1122,6 @@ export function MatchSummary() {
             alt="Forstørret bilde"
             className="max-w-full max-h-[85vh] object-contain rounded-lg"
             onClick={(e) => e.stopPropagation()}
-            onError={(e) => {
-              console.error('[MatchSummary] lightbox image FAILED:', {
-                src: e.currentTarget.src,
-              });
-            }}
           />
         </div>
       )}

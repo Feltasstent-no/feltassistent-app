@@ -1,6 +1,7 @@
 import { ArrowUp, Info } from 'lucide-react';
 import { CompetitionStage, FieldFigure } from '../../types/database';
 import { FieldFigureSvg } from '../FieldFigureSvg';
+import { PrepCountdown } from '../PrepCountdown';
 
 interface HoldPreStateProps {
   stage: CompetitionStage;
@@ -12,22 +13,6 @@ interface HoldPreStateProps {
 export function HoldPreState({ stage, figure, competitionType, onStartHold }: HoldPreStateProps) {
   const isGrovfelt = competitionType === 'grovfelt';
 
-  console.log('[HoldPreState] ========== RENDERING PRE-HOLD ==========');
-  console.log('[HoldPreState] Stage:', {
-    stage_number: stage.stage_number,
-    distance_m: stage.distance_m,
-    clicks: stage.clicks,
-    field_figure_id: stage.field_figure_id
-  });
-  console.log('[HoldPreState] Figure:', figure ? {
-    id: figure.id,
-    code: figure.code,
-    name: figure.name,
-    has_svg: !!figure.svg_data,
-    has_image: !!figure.image_url
-  } : 'NO FIGURE');
-  console.log('[HoldPreState] Competition type:', competitionType);
-
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-4">
       <div className="max-w-2xl w-full space-y-4">
@@ -36,6 +21,9 @@ export function HoldPreState({ stage, figure, competitionType, onStartHold }: Ho
             <span className="text-2xl font-bold">{stage.stage_number}</span>
           </div>
           <h1 className="text-2xl font-bold mb-1">Hold {stage.stage_number}</h1>
+          <div className="mt-2">
+            <PrepCountdown resetKey={stage.id} variant="dark" />
+          </div>
         </div>
 
         {figure && (

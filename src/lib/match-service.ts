@@ -24,6 +24,7 @@ export interface MatchSession {
   actual_shot_count?: number | null;
   ammo_inventory_id?: string | null;
   ammo_deducted_count?: number | null;
+  started_at?: string;
   created_at: string;
   completed_at?: string;
 }
@@ -212,9 +213,6 @@ export async function getMatchHolds(sessionId: string): Promise<MatchHoldWithFig
 }
 
 export async function getCurrentHold(sessionId: string, holdIndex: number): Promise<MatchHoldWithFigure | null> {
-  console.log('[match-service] ========== GET CURRENT HOLD ==========');
-  console.log('[match-service] Fetching hold:', { sessionId, holdIndex });
-
   const { data } = await supabase
     .from('match_holds')
     .select(`
@@ -224,21 +222,6 @@ export async function getCurrentHold(sessionId: string, holdIndex: number): Prom
     .eq('match_session_id', sessionId)
     .eq('order_index', holdIndex)
     .maybeSingle();
-
-  console.log('[match-service] ========== CURRENT HOLD FROM DB ==========');
-  if (data) {
-    console.log('[match-service] Hold found:', {
-      hold_id: data.id,
-      order_index: holdIndex,
-      field_figure_id: data.field_figure_id,
-      figure_code: data.field_figure?.code || 'NULL',
-      figure_name: data.field_figure?.name || 'NULL',
-      distance_m: data.distance_m,
-      shot_count: data.shot_count
-    });
-  } else {
-    console.error('[match-service] ❌ No hold found for order_index:', holdIndex);
-  }
 
   if (!data) return null;
 
@@ -251,15 +234,31 @@ export async function getCurrentHold(sessionId: string, holdIndex: number): Prom
 export async function startHold(holdId: string): Promise<void> {
   const { data } = await supabase
     .from('match_holds')
-    .select('started_at')
+    .select('started_at, match_session_id')
     .eq('id', holdId)
     .maybeSingle();
 
   if (!data?.started_at) {
+    const now = new Date().toISOString();
     await supabase
       .from('match_holds')
-      .update({ started_at: new Date().toISOString() })
+      .update({ started_at: now })
       .eq('id', holdId);
+
+    if (data?.match_session_id) {
+      const { data: sess } = await supabase
+        .from('match_sessions')
+        .select('started_at')
+        .eq('id', data.match_session_id)
+        .maybeSingle();
+
+      if (!sess?.started_at) {
+        await supabase
+          .from('match_sessions')
+          .update({ started_at: now })
+          .eq('id', data.match_session_id);
+      }
+    }
   }
 }
 
@@ -329,14 +328,6 @@ export async function uploadMonitorPhoto(
 ): Promise<{ url: string | null; error: any }> {
   const storagePath = `${userId}/${holdId}_${Date.now()}.jpg`;
 
-  console.log('[match-service] uploadMonitorPhoto:', {
-    holdId,
-    userId,
-    storagePath,
-    blobSize: imageBlob.size,
-    blobType: imageBlob.type,
-  });
-
   const uploadBlob = imageBlob.type === 'image/jpeg'
     ? imageBlob
     : new Blob([imageBlob], { type: 'image/jpeg' });
@@ -353,8 +344,6 @@ export async function uploadMonitorPhoto(
     return { url: null, error: uploadError };
   }
 
-  console.log('[match-service] uploadMonitorPhoto storage OK, path:', storagePath);
-
   const { error: dbError } = await supabase
     .from('match_holds')
     .update({ monitor_image_url: storagePath })
@@ -365,7 +354,6 @@ export async function uploadMonitorPhoto(
     return { url: null, error: dbError };
   }
 
-  console.log('[match-service] uploadMonitorPhoto DB saved path:', storagePath);
   return { url: storagePath, error: null };
 }
 
@@ -394,7 +382,7 @@ export async function getMatchStats(sessionId: string): Promise<{
 
   const { data: session } = await supabase
     .from('match_sessions')
-    .select('created_at, completed_at')
+    .select('created_at, started_at, completed_at')
     .eq('id', sessionId)
     .maybeSingle();
 
@@ -402,8 +390,9 @@ export async function getMatchStats(sessionId: string): Promise<{
     .reduce((sum: number, h: any) => sum + (h.shot_count || 0), 0);
 
   let duration = null;
-  if (session?.created_at && session?.completed_at) {
-    const start = new Date(session.created_at).getTime();
+  if (session?.completed_at) {
+    const startRef = session.started_at || session.created_at;
+    const start = new Date(startRef).getTime();
     const end = new Date(session.completed_at).getTime();
     duration = Math.floor((end - start) / 1000);
   }
@@ -425,10 +414,6 @@ export async function updateMatchHold(params: {
   recommendedClicks?: number;
   notes?: string;
 }): Promise<{ error: any }> {
-  console.log('[match-service] ========== UPDATE MATCH HOLD ==========');
-  console.log('[match-service] holdId:', params.holdId);
-  console.log('[match-service] fieldFigureId to save:', params.fieldFigureId);
-
   const updateData: any = {};
 
   if (params.fieldFigureId !== undefined) updateData.field_figure_id = params.fieldFigureId;
@@ -438,42 +423,13 @@ export async function updateMatchHold(params: {
   if (params.recommendedClicks !== undefined) updateData.recommended_clicks = params.recommendedClicks;
   if (params.notes !== undefined) updateData.notes = params.notes;
 
-  console.log('[match-service] updateData object:', updateData);
-
   const { error } = await supabase
     .from('match_holds')
     .update(updateData)
     .eq('id', params.holdId);
 
   if (error) {
-    console.error('[match-service] ❌ Update failed:', error);
-  } else {
-    console.log('[match-service] ✅ Update successful, verifying from DB...');
-
-    const { data: verifyData } = await supabase
-      .from('match_holds')
-      .select(`
-        id,
-        order_index,
-        field_figure_id,
-        distance_m,
-        field_figures (
-          id,
-          code,
-          name
-        )
-      `)
-      .eq('id', params.holdId)
-      .maybeSingle();
-
-    console.log('[match-service] ========== DB VERIFICATION ==========');
-    console.log('[match-service] Hold after update:', {
-      hold_id: verifyData?.id,
-      order_index: verifyData?.order_index,
-      field_figure_id: verifyData?.field_figure_id,
-      figure_code: (verifyData as any)?.field_figures?.code || 'NULL',
-      figure_name: (verifyData as any)?.field_figures?.name || 'NULL'
-    });
+    console.error('[match-service] Update failed:', error);
   }
 
   return { error };

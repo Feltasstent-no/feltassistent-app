@@ -11,11 +11,14 @@ import {
 } from '../lib/training-session-service';
 import { TrainingSeriesCard } from '../components/training/TrainingSeriesCard';
 import { EditMetadataModal } from '../components/EditMetadataModal';
+import { FieldFigureSvg } from '../components/FieldFigureSvg';
 import { supabase } from '../lib/supabase';
 import {
   ArrowLeft, TrendingUp, Trophy, Pencil, Trash2, MapPin, Calendar, Cloud,
 } from 'lucide-react';
 import type { TrainingSession, TrainingSeries, TrainingSeriesImage, Discipline } from '../types/database';
+
+const LESJA_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300"><rect x="0" y="0" width="300" height="300" fill="white"/><circle cx="150" cy="150" r="140" fill="black"/><circle cx="150" cy="150" r="100" fill="none" stroke="white" stroke-width="2"/><circle cx="150" cy="150" r="60" fill="none" stroke="white" stroke-width="2"/><circle cx="150" cy="150" r="20" fill="white"/></svg>`;
 
 export function TrainingSessionSummary() {
   const { id } = useParams<{ id: string }>();
@@ -69,12 +72,55 @@ export function TrainingSessionSummary() {
   };
 
   const handleSaveNotes = async () => {
-    if (!session || savingNotes) return;
+    if (!session || !user || savingNotes) return;
     setSavingNotes(true);
     await updateTrainingSessionMetadata({
       sessionId: session.id,
       notes: sessionNotes || null,
     });
+
+    const trimmed = sessionNotes.trim();
+    const sourceType = session.session_type === 'range_match' ? 'bane' : 'trening';
+
+    if (trimmed) {
+      const { data: existing } = await supabase
+        .from('focus_points')
+        .select('id, text')
+        .eq('user_id', user.id)
+        .eq('source_id', session.id)
+        .eq('source_type', sourceType)
+        .maybeSingle();
+
+      if (existing) {
+        if (existing.text !== trimmed) {
+          await supabase
+            .from('focus_points')
+            .update({ text: trimmed })
+            .eq('id', existing.id);
+        }
+      } else {
+        const { error: fpError } = await supabase
+          .from('focus_points')
+          .insert({
+            user_id: user.id,
+            text: trimmed,
+            source_type: sourceType,
+            source_name: session.title || '',
+            source_id: session.id,
+          });
+        if (fpError) {
+          console.error('[FocusPoint] Insert failed:', fpError.message, fpError.details, fpError.code);
+        }
+      }
+    } else {
+      await supabase
+        .from('focus_points')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('source_id', session.id)
+        .eq('source_type', sourceType);
+    }
+
     setSession({ ...session, notes: sessionNotes || null });
     setSavingNotes(false);
     setShowNotesEdit(false);
@@ -117,15 +163,15 @@ export function TrainingSessionSummary() {
         </button>
 
         <div className="text-center mb-6">
-          <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3 ${
-            session.session_type === 'range_match' ? 'bg-amber-100' : 'bg-emerald-100'
-          }`}>
-            {session.session_type === 'range_match' ? (
-              <Trophy className="w-7 h-7 text-amber-600" />
-            ) : (
+          {session.session_type === 'range_match' ? (
+            <div className="w-14 h-14 rounded-full overflow-hidden border border-slate-200 mx-auto mb-3">
+              <FieldFigureSvg svgContent={LESJA_SVG} size="sm" className="w-14 h-14" />
+            </div>
+          ) : (
+            <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3 bg-emerald-100">
               <TrendingUp className="w-7 h-7 text-emerald-600" />
-            )}
-          </div>
+            </div>
+          )}
           <div className="flex items-center justify-center gap-2 flex-wrap">
             <h1 className="text-2xl font-bold text-slate-900">{session.title}</h1>
             {session.session_type === 'range_match' && (
@@ -219,6 +265,9 @@ export function TrainingSessionSummary() {
                 readOnly={session.session_type !== 'range_match'}
                 hideTimer
                 isRangeMatch={session.session_type === 'range_match'}
+                sourceType={session.session_type === 'range_match' ? 'bane' : 'trening'}
+                sourceName={session.title}
+                sourceId={session.id}
                 onUpdated={fetchData}
                 onDeleted={fetchData}
               />
@@ -229,7 +278,7 @@ export function TrainingSessionSummary() {
         <div className="bg-white border border-slate-200 rounded-xl p-5 mb-6">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
-              {session.session_type === 'range_match' ? 'Forbedringspunkter' : 'Læringspunkter'}
+              Fokusområder
             </h2>
             {!showNotesEdit && (
               <button

@@ -61,21 +61,9 @@ export default function CompetitionConfigure() {
       .eq('competition_id', id)
       .order('stage_number');
 
-    console.log('[CompetitionConfigure] ========== LOADING EXISTING STAGES ==========');
     if (existingStages && existingStages.length > 0) {
-      console.log('[CompetitionConfigure] Found existing stages:', existingStages.length);
-      existingStages.forEach((s, idx) => {
-        console.log(`[CompetitionConfigure] Loaded Stage ${idx + 1}:`, {
-          id: s.id,
-          stage_number: s.stage_number,
-          field_figure_id: s.field_figure_id,
-          distance_m: s.distance_m,
-          clicks: s.clicks
-        });
-      });
       setStages(existingStages);
     } else {
-      console.log('[CompetitionConfigure] No existing stages, creating empty:', comp.total_stages);
       const initialStages: Partial<CompetitionStage>[] = Array.from(
         { length: comp.total_stages },
         (_, i) => ({
@@ -99,9 +87,6 @@ export default function CompetitionConfigure() {
   const loadFieldFigures = async () => {
     if (!competition) return;
 
-    console.log('[CompetitionConfigure] ========== LOADING AVAILABLE FIGURES ==========');
-    console.log('[CompetitionConfigure] Competition type:', competition.competition_type);
-
     let query = supabase
       .from('field_figures')
       .select('*')
@@ -109,24 +94,12 @@ export default function CompetitionConfigure() {
       .order('code');
 
     if (competition.competition_type === 'finfelt') {
-      console.log('[CompetitionConfigure] Filtering for finfelt figures');
       query = query.eq('category', 'finfelt');
     } else if (competition.competition_type === 'grovfelt') {
       query = query.eq('category', 'grovfelt');
     }
 
     const { data } = await query;
-    console.log('[CompetitionConfigure] Loaded figures:', data?.length || 0);
-    if (data && data.length > 0) {
-      data.slice(0, 10).forEach(f => {
-        console.log('[CompetitionConfigure] Available figure:', {
-          id: f.id,
-          code: f.code,
-          name: f.name,
-          category: f.category
-        });
-      });
-    }
     setAvailableFigures(data || []);
   };
 
@@ -161,21 +134,10 @@ export default function CompetitionConfigure() {
   };
 
   const updateStage = (index: number, updates: Partial<CompetitionStage>) => {
-    console.log(`[CompetitionConfigure] ========== UPDATE STAGE ${index + 1} ==========`);
-    console.log(`[CompetitionConfigure] Updates for stage ${index + 1}:`, updates);
-
     setStages(prev => {
       const newStages = [...prev];
       const oldStage = newStages[index];
       newStages[index] = { ...oldStage, ...updates };
-
-      console.log(`[CompetitionConfigure] Stage ${index + 1} after update:`, {
-        stage_number: newStages[index].stage_number,
-        field_figure_id: newStages[index].field_figure_id,
-        distance_m: newStages[index].distance_m,
-        clicks: newStages[index].clicks
-      });
-
       return newStages;
     });
   };
@@ -304,18 +266,6 @@ export default function CompetitionConfigure() {
       };
     });
 
-    console.log('[CompetitionConfigure] ========== SAVING STAGES ==========');
-    stagesToInsert.forEach((s, idx) => {
-      const figure = availableFigures.find(f => f.id === s.field_figure_id);
-      console.log(`[CompetitionConfigure] Stage ${idx + 1} (stage_number=${s.stage_number}):`, {
-        field_figure_id: s.field_figure_id,
-        figure_code: figure?.code || 'NOT FOUND',
-        figure_name: figure?.name || 'NOT FOUND',
-        distance_m: s.distance_m,
-        clicks: s.clicks
-      });
-    });
-
     const { data: insertedStages, error: insertError } = await supabase
       .from('competition_stages')
       .insert(stagesToInsert)
@@ -325,41 +275,6 @@ export default function CompetitionConfigure() {
       console.error('Error inserting stages:', insertError);
       setSaving(false);
       return;
-    }
-
-    console.log('[CompetitionConfigure] ========== DB SAVE VERIFICATION ==========');
-    console.log('[CompetitionConfigure] Inserted stages count:', insertedStages?.length || 0);
-
-    const { data: verifyStages } = await supabase
-      .from('competition_stages')
-      .select(`
-        id,
-        stage_number,
-        field_figure_id,
-        distance_m,
-        clicks,
-        field_figures (
-          id,
-          code,
-          name
-        )
-      `)
-      .eq('competition_id', id)
-      .order('stage_number');
-
-    console.log('[CompetitionConfigure] ========== VERIFIED FROM DB ==========');
-    if (verifyStages) {
-      verifyStages.forEach((stage: any) => {
-        console.log(`[CompetitionConfigure] DB Stage ${stage.stage_number}:`, {
-          stage_id: stage.id,
-          stage_number: stage.stage_number,
-          field_figure_id: stage.field_figure_id,
-          figure_code: stage.field_figures?.code || 'NULL',
-          figure_name: stage.field_figures?.name || 'NULL',
-          distance_m: stage.distance_m,
-          clicks: stage.clicks
-        });
-      });
     }
 
     const { error: updateError } = await supabase

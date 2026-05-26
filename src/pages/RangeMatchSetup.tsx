@@ -12,8 +12,11 @@ import {
 } from '../lib/training-session-service';
 import { AddSeriesModal } from '../components/training/AddSeriesModal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { FieldFigureSvg } from '../components/FieldFigureSvg';
 import { ArrowLeft, Play, Plus, Copy, Pencil, Trash2, Trophy, Target, Clock, Ruler } from 'lucide-react';
 import type { TrainingSession, TrainingSeries } from '../types/database';
+
+const LESJA_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300"><rect x="0" y="0" width="300" height="300" fill="white"/><circle cx="150" cy="150" r="140" fill="black"/><circle cx="150" cy="150" r="100" fill="none" stroke="white" stroke-width="2"/><circle cx="150" cy="150" r="60" fill="none" stroke="white" stroke-width="2"/><circle cx="150" cy="150" r="20" fill="white"/></svg>`;
 
 export function RangeMatchSetup() {
   const { id } = useParams<{ id: string }>();
@@ -167,7 +170,9 @@ export function RangeMatchSetup() {
         <div className="space-y-3 mb-6">
           {seriesList.length === 0 ? (
             <div className="text-center py-12 bg-white border border-dashed border-slate-300 rounded-xl">
-              <Target className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+              <div className="mx-auto mb-3 w-16 h-16 rounded-full overflow-hidden border-2 border-slate-200 flex items-center justify-center">
+                <FieldFigureSvg svgContent={LESJA_SVG} size="lg" />
+              </div>
               <p className="text-slate-600 font-medium mb-1">Ingen serier planlagt</p>
               <p className="text-sm text-slate-400">Legg til din første serie</p>
             </div>
@@ -177,8 +182,8 @@ export function RangeMatchSetup() {
                 key={s.id}
                 className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-3"
               >
-                <div className="w-9 h-9 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0 font-bold">
-                  {idx + 1}
+                <div className="flex-shrink-0 rounded-full overflow-hidden border border-slate-200">
+                  <FieldFigureSvg svgContent={LESJA_SVG} size="xs" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-slate-900 text-sm mb-0.5">
@@ -273,6 +278,7 @@ export function RangeMatchSetup() {
             defaultShootingTime={editingSeries?.shooting_time_seconds ?? defaultShootingTime}
             defaultDistance={editingSeries?.distance_m ?? defaultDistance}
             isRangeMatch
+            isEditing={Boolean(editingSeries)}
             onAdd={handleAdd}
             onClose={() => { setShowAddModal(false); setEditingSeries(null); }}
           />

@@ -35,13 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        console.log('🔍 AuthContext: Initializing auth...');
         const { data: { session } } = await supabase.auth.getSession();
-        console.log('🔍 AuthContext: Session retrieved:', {
-          hasSession: !!session,
-          userId: session?.user?.id,
-          email: session?.user?.email
-        });
         setSession(session);
         setUser(session?.user ?? null);
 
@@ -51,7 +45,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         console.error('❌ Auth initialization error:', error);
       } finally {
-        console.log('🔍 AuthContext: Initialization complete');
         setLoading(false);
       }
     };
@@ -61,12 +54,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       (async () => {
         try {
-          console.log('🔍 AuthContext: Auth state changed:', {
-            event,
-            hasSession: !!session,
-            userId: session?.user?.id,
-            email: session?.user?.email
-          });
           setSession(session);
           setUser(session?.user ?? null);
 

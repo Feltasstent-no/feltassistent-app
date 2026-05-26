@@ -1,8 +1,9 @@
 import { useState, useRef } from 'react';
-import { Camera, CheckCircle, Trash2, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Camera, CheckCircle, Trash2, X, ChevronDown, ChevronUp, Lightbulb } from 'lucide-react';
 import { updateTrainingSeries, deleteTrainingSeries, uploadSeriesImage, deleteSeriesImage, getImageUrl } from '../../lib/training-session-service';
 import { FieldClockTimer } from '../FieldClockTimer';
 import { ImageLightbox } from '../ImageLightbox';
+import { supabase } from '../../lib/supabase';
 import type { TrainingSeries, TrainingSeriesImage } from '../../types/database';
 
 interface TrainingSeriesCardProps {
@@ -12,17 +13,21 @@ interface TrainingSeriesCardProps {
   readOnly?: boolean;
   hideTimer?: boolean;
   isRangeMatch?: boolean;
+  sourceType?: 'felt' | 'bane' | 'trening';
+  sourceName?: string;
+  sourceId?: string;
   onUpdated: () => void;
   onDeleted: () => void;
   onCompleted?: (wasAlreadyCompleted: boolean) => void;
 }
 
-export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer, isRangeMatch, onUpdated, onDeleted, onCompleted }: TrainingSeriesCardProps) {
+export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer, isRangeMatch, sourceType, sourceName, sourceId, onUpdated, onDeleted, onCompleted }: TrainingSeriesCardProps) {
   const [expanded, setExpanded] = useState(!series.completed);
   const [score, setScore] = useState(series.score != null ? String(series.score) : '');
   const [innerHits, setInnerHits] = useState(series.inner_hits != null ? String(series.inner_hits) : '');
   const [hits, setHits] = useState(series.hits != null ? String(series.hits) : '');
   const [notes, setNotes] = useState(series.notes || '');
+  const [saveFocusPoint, setSaveFocusPoint] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -43,6 +48,38 @@ export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer
       notes: notes || null,
       completed: true,
     });
+
+    if (saveFocusPoint && notes.trim()) {
+      const trimmedText = notes.trim();
+      const fpSourceType = sourceType || 'trening';
+      const fpSourceId = sourceId && sourceId.length > 0 ? sourceId : null;
+
+      const { data: existing } = await supabase
+        .from('focus_points')
+        .select('id, text')
+        .eq('user_id', userId)
+        .eq('source_type', fpSourceType)
+        .eq('text', trimmedText)
+        .maybeSingle();
+
+      if (!existing) {
+        const { data: fpData, error: fpError } = await supabase
+          .from('focus_points')
+          .insert({
+            user_id: userId,
+            text: trimmedText,
+            source_type: fpSourceType,
+            source_name: sourceName || '',
+            source_id: fpSourceId,
+          })
+          .select()
+          .single();
+        if (fpError) {
+          console.error('[FocusPoint] Insert failed:', fpError.message, fpError.details, fpError.code);
+        }
+      }
+      setSaveFocusPoint(false);
+    }
 
     setSaving(false);
     onUpdated();
@@ -225,6 +262,18 @@ export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none"
                 placeholder="Observasjoner..."
               />
+              {notes.trim() && (
+                <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={saveFocusPoint}
+                    onChange={(e) => setSaveFocusPoint(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                  />
+                  <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
+                  <span className="text-xs text-slate-600">Lagre som fokusområde</span>
+                </label>
+              )}
             </div>
           )}
 

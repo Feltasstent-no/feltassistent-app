@@ -19,6 +19,7 @@ import {
   Package, AlertTriangle, Layers, Shuffle,
 } from 'lucide-react';
 import { AmmoIcon } from '../components/AmmoIcon';
+import { PrepCountdown } from '../components/PrepCountdown';
 
 interface SessionMeta {
   weaponName: string | null;
@@ -456,9 +457,12 @@ function SummaryHeader({
   return (
     <div className="bg-slate-900 rounded-2xl overflow-hidden">
       <div className="px-5 pt-5 pb-4">
-        <p className="text-xs font-semibold uppercase tracking-widest text-emerald-400 mb-1">
-          Briefing
-        </p>
+        <div className="flex items-start justify-between gap-3 mb-2">
+          <p className="text-xs font-semibold uppercase tracking-widest text-emerald-400">
+            Briefing
+          </p>
+          <PrepCountdown variant="dark" />
+        </div>
         <h1 className="text-xl sm:text-2xl font-bold text-white leading-tight">
           {session.match_name}
         </h1>

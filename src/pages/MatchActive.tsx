@@ -5,7 +5,6 @@ import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { ActiveHoldScreen } from '../components/match/ActiveHoldScreen';
 import { ResetReminder } from '../components/match/ResetReminder';
-import { HoldProgress } from '../components/match/HoldProgress';
 import { EditHoldModal } from '../components/match/EditHoldModal';
 import { AddHoldModal } from '../components/match/AddHoldModal';
 import { FirstHoldModal } from '../components/match/FirstHoldModal';
@@ -95,9 +94,6 @@ export function MatchActive() {
   const fetchData = async () => {
     if (!id || !user) return;
 
-    console.log('[MatchActive] ========== FETCH DATA ==========');
-    console.log('[MatchActive] Loading session:', id);
-
     const [sessionData, holdsData] = await Promise.all([
       getMatchSession(id),
       getMatchHolds(id),
@@ -108,11 +104,6 @@ export function MatchActive() {
         navigate(`/match/${id}/configure`);
         return;
       }
-
-      console.log('[MatchActive] Session loaded:', {
-        session_id: sessionData.id,
-        current_hold_index: sessionData.current_hold_index
-      });
 
       const subHoldsMap = await getSubHoldsForSession(id);
       const holdsWithSubs = holdsData.map(h => ({
@@ -554,7 +545,11 @@ export function MatchActive() {
 
   useEffect(() => {
     if (currentHold?.started_at) {
-      setInitialElapsedTime(getElapsedTime(currentHold.started_at));
+      const elapsed = getElapsedTime(currentHold.started_at);
+      setInitialElapsedTime(elapsed);
+      if (elapsed > 0 && !currentHold.completed) {
+        setClockStarted(true);
+      }
     } else {
       setInitialElapsedTime(0);
     }
@@ -657,48 +652,58 @@ export function MatchActive() {
   return (
     <Layout>
       <div className="h-[calc(100dvh-4rem-2rem)] md:h-[calc(100dvh-4rem-4rem)] flex flex-col overflow-hidden -mx-4 sm:-mx-6 lg:-mx-8 -my-4 sm:-my-8">
-        <div className="bg-white border-b border-slate-200 p-2 flex-shrink-0">
-          <div className="flex items-center justify-between">
-            <HoldProgress
-              currentHold={session.current_hold_index}
-              totalHolds={holds.length}
-            />
-            <button
-              onClick={() => setShowEditMeta(true)}
-              className="text-xs text-slate-500 hover:text-slate-700 truncate max-w-[120px] transition"
-              title="Rediger stevneinfo"
-            >
-              {session.match_name}
-            </button>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <UploadQueueStatus />
+        <div className="bg-white border-b border-slate-200 px-3 py-2.5 flex-shrink-0 space-y-2">
+          <div className="flex items-center gap-3">
+            <div className="flex-shrink-0 w-[72px]">
+              <p className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold leading-none mb-0.5">Hold</p>
+              <p className="text-lg font-bold text-slate-900 leading-tight tabular-nums">
+                {session.current_hold_index + 1}<span className="text-slate-400 font-medium text-sm"> / {holds.length}</span>
+              </p>
+            </div>
+            <div className="min-w-0 flex-1">
+              <button
+                onClick={() => setShowEditMeta(true)}
+                className="block text-sm font-semibold text-slate-800 truncate w-full text-left hover:text-slate-600 transition"
+                title="Rediger stevneinfo"
+              >
+                {session.match_name}
+              </button>
               {ammoName && (
-                <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                  <span className="font-medium text-slate-700">{ammoName}</span>
+                <p className="text-xs text-slate-500 truncate mt-0.5">
+                  <span className="font-medium">{ammoName}</span>
                   {ammoStock != null && (
-                    <span className={`tabular-nums ${ammoStock <= 20 ? 'text-red-500 font-semibold' : ''}`}>
+                    <span className={`ml-1 tabular-nums ${ammoStock <= 20 ? 'text-red-500 font-semibold' : ''}`}>
                       ({ammoStock})
                     </span>
                   )}
-                </div>
+                </p>
               )}
+            </div>
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <UploadQueueStatus />
               <button
                 onClick={() => setShowReshootConfirm(true)}
                 disabled={clockStarted || !!currentHold?.reshoot_of_hold_id}
-                className="w-8 h-8 rounded-lg border border-slate-300 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition"
+                className="w-7 h-7 rounded-md border border-slate-200 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition"
                 title={currentHold?.reshoot_of_hold_id ? 'Dette er allerede en omskyting' : 'Opprett omskyting'}
               >
-                <RotateCw className="w-3.5 h-3.5 text-amber-600" />
+                <RotateCw className="w-3 h-3 text-amber-600" />
               </button>
               <button
                 onClick={() => setShowEditModal(true)}
                 disabled={clockStarted}
-                className="w-8 h-8 rounded-lg border border-slate-300 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition"
+                className="w-7 h-7 rounded-md border border-slate-200 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition"
                 title="Rediger hold"
               >
-                <Pencil className="w-3.5 h-3.5 text-blue-600" />
+                <Pencil className="w-3 h-3 text-blue-600" />
               </button>
             </div>
+          </div>
+          <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-emerald-500 transition-all duration-500"
+              style={{ width: `${holds.length > 0 ? Math.min(((session.current_hold_index + 1) / holds.length) * 100, 100) : 0}%` }}
+            />
           </div>
         </div>
 

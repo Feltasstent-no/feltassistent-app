@@ -141,7 +141,7 @@ export function Layout({ children }: LayoutProps) {
         {children}
       </main>
 
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 md:hidden z-40">
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 md:hidden z-40" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
         <div className="flex justify-around gap-1 px-2 py-2">
           {navItems.map((item) => {
             const Icon = item.icon;

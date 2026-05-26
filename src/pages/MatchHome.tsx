@@ -5,8 +5,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { useActiveSetup } from '../contexts/ActiveSetupContext';
 import { useOnboarding } from '../contexts/OnboardingContext';
 import { ActiveSetupSelector } from '../components/ActiveSetupSelector';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { getActiveMatchSessions, getMatchHistory, cancelMatchSession, updateMatchMetadata } from '../lib/match-service';
-import { History, Play, BookOpen, XCircle, Clock, Crosshair, Minus, CheckCircle, CheckCircle2, ArrowRight, Target, Trophy, Pencil } from 'lucide-react';
+import { cancelTrainingSession } from '../lib/training-session-service';
+import { History, Play, BookOpen, XCircle, Clock, Crosshair, Minus, CheckCircle, CheckCircle2, ArrowRight, Target, Trophy, Pencil, Lightbulb } from 'lucide-react';
 import { EditMetadataModal } from '../components/EditMetadataModal';
 import apertureIcon from '../assets/aperture_icon_light.svg';
 import { AmmoStatusCard } from '../components/AmmoStatusCard';
@@ -34,6 +36,17 @@ interface RecentItem {
   status: string;
   type: 'field' | 'range';
   route: string;
+  totalHits?: number | null;
+  innerHits?: number | null;
+  totalScore?: number | null;
+}
+
+interface FocusPoint {
+  id: string;
+  text: string;
+  source_type: 'felt' | 'bane' | 'trening';
+  source_name: string;
+  created_at: string;
 }
 
 function hasValidActiveSetup(setup: any) {
@@ -51,14 +64,18 @@ export function MatchHome() {
   const { userMode } = useOnboarding();
   const navigate = useNavigate();
   const [activeSessions, setActiveSessions] = useState<MatchSession[]>([]);
+  const [activeRangeMatches, setActiveRangeMatches] = useState<{ id: string; title: string; date: string; completedSeries: number; totalSeries: number }[]>([]);
   const [recentMatches, setRecentMatches] = useState<MatchSession[]>([]);
   const [recentItems, setRecentItems] = useState<RecentItem[]>([]);
   const [weapons, setWeapons] = useState<WeaponWithBarrel[]>([]);
   const [showShotInput, setShowShotInput] = useState<string | null>(null);
   const [shotInputValue, setShotInputValue] = useState('');
   const [shotAdjustMode, setShotAdjustMode] = useState<'add' | 'remove'>('add');
+  const [focusPoints, setFocusPoints] = useState<FocusPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [editSession, setEditSession] = useState<MatchSession | null>(null);
+  const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
+  const [cancelConfirmType, setCancelConfirmType] = useState<'field' | 'range'>('field');
 
   const fullSetupComplete = hasValidActiveSetup(activeSetup);
   const setupComplete = userMode === 'finfelt_only' ? true : fullSetupComplete;
@@ -70,7 +87,7 @@ export function MatchHome() {
   const fetchData = async () => {
     if (!user) return;
 
-    const [activeSess, recent, weaponsRes, rangeRes] = await Promise.all([
+    const [activeSess, recent, weaponsRes, rangeRes, focusRes] = await Promise.all([
       getActiveMatchSessions(user.id),
       getMatchHistory(user.id, 10),
       supabase
@@ -81,12 +98,19 @@ export function MatchHome() {
         .order('created_at', { ascending: false }),
       supabase
         .from('training_sessions')
-        .select('id, title, session_date, status, created_at')
+        .select('id, title, session_date, status, created_at, total_score, total_inner_hits')
         .eq('user_id', user.id)
         .eq('session_type', 'range_match')
         .in('status', ['completed', 'active'])
         .order('session_date', { ascending: false })
         .limit(10),
+      supabase
+        .from('focus_points')
+        .select('id, text, source_type, source_name, created_at')
+        .eq('user_id', user.id)
+        .eq('is_resolved', false)
+        .order('created_at', { ascending: false })
+        .limit(1),
     ]);
 
     const activeIds = new Set(activeSess.map(s => s.id));
@@ -103,23 +127,48 @@ export function MatchHome() {
       route: m.status === 'completed' ? `/match/${m.id}/summary`
         : m.status === 'setup' ? `/match/${m.id}/configure`
         : `/match/${m.id}`,
+      totalHits: m.total_hits,
+      innerHits: m.inner_hits,
     }));
 
-    const rangeItems: RecentItem[] = (rangeRes.data || []).map(s => ({
-      id: s.id,
-      name: s.title,
-      date: s.session_date,
-      status: s.status,
-      type: 'range',
-      route: s.status === 'completed'
-        ? `/training/session/${s.id}/summary`
-        : `/match/range/${s.id}/run`,
-    }));
+    const activeRange = (rangeRes.data || []).filter((s: any) => s.status === 'active');
+    const rangeItems: RecentItem[] = (rangeRes.data || [])
+      .filter((s: any) => !activeRange.some((a: any) => a.id === s.id))
+      .map((s: any) => ({
+        id: s.id,
+        name: s.title,
+        date: s.session_date,
+        status: s.status,
+        type: 'range' as const,
+        route: s.status === 'completed'
+          ? `/training/session/${s.id}/summary`
+          : `/match/range/${s.id}/run`,
+        totalScore: s.total_score,
+        innerHits: s.total_inner_hits,
+      }));
+
+    const activeRangeWithSeries = await Promise.all(
+      activeRange.map(async (s: any) => {
+        const { data: series } = await supabase
+          .from('training_series')
+          .select('id, completed')
+          .eq('session_id', s.id);
+        return {
+          id: s.id,
+          title: s.title,
+          date: s.session_date,
+          completedSeries: (series || []).filter((sr: any) => sr.completed).length,
+          totalSeries: (series || []).length,
+        };
+      })
+    );
+    setActiveRangeMatches(activeRangeWithSeries);
 
     const combined = [...fieldItems, ...rangeItems]
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, 8);
     setRecentItems(combined);
+    setFocusPoints((focusRes.data || []) as FocusPoint[]);
 
     if (weaponsRes.data) {
       const weaponsWithBarrels = await Promise.all(
@@ -143,15 +192,16 @@ export function MatchHome() {
     setLoading(false);
   };
 
-  const handleCancelMatch = async (sessionId: string) => {
-    const confirmed = window.confirm(
-      'Er du sikker på at du vil stoppe dette stevnet? Dette kan ikke angres.'
-    );
-
-    if (!confirmed) return;
-
-    await cancelMatchSession(sessionId);
-    setActiveSessions(prev => prev.filter(s => s.id !== sessionId));
+  const handleCancelConfirm = async () => {
+    if (!cancelConfirmId) return;
+    if (cancelConfirmType === 'field') {
+      await cancelMatchSession(cancelConfirmId);
+      setActiveSessions(prev => prev.filter(s => s.id !== cancelConfirmId));
+    } else {
+      await cancelTrainingSession(cancelConfirmId);
+      setActiveRangeMatches(prev => prev.filter(r => r.id !== cancelConfirmId));
+    }
+    setCancelConfirmId(null);
     await fetchData();
   };
 
@@ -252,6 +302,48 @@ export function MatchHome() {
           </div>
         )}
 
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Lightbulb className="w-4 h-4 text-amber-500" />
+              <h2 className="text-sm font-bold text-slate-800">Fokusområder</h2>
+            </div>
+            {focusPoints.length > 0 && (
+              <button
+                onClick={() => navigate('/focus-points')}
+                className="text-xs font-medium text-emerald-600 hover:text-emerald-700 transition"
+              >
+                Se alle
+              </button>
+            )}
+          </div>
+          {focusPoints.length > 0 ? (
+            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden px-4 py-3 flex items-start gap-3">
+              <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-slate-800 leading-snug">{focusPoints[0].text}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
+                    focusPoints[0].source_type === 'felt' ? 'bg-emerald-100 text-emerald-700' :
+                    focusPoints[0].source_type === 'bane' ? 'bg-amber-100 text-amber-700' :
+                    'bg-blue-100 text-blue-700'
+                  }`}>
+                    {focusPoints[0].source_type}
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    {new Date(focusPoints[0].created_at).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short' })}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white border border-dashed border-slate-200 rounded-xl px-4 py-6 text-center">
+              <p className="text-sm text-slate-500">Ingen fokusområder lagret ennå</p>
+              <p className="text-xs text-slate-400 mt-0.5">Lagre erfaringer fra stevner og trening</p>
+            </div>
+          )}
+        </div>
+
         {activeSessions.length > 0 && (
           <div className="space-y-4 mb-6">
             {activeSessions.map((sess) => {
@@ -309,16 +401,53 @@ export function MatchHome() {
                       <span>{isSetup ? 'Fortsett oppsett' : 'Fortsett stevne'}</span>
                     </button>
                     <button
-                      onClick={() => handleCancelMatch(sess.id)}
+                      onClick={() => { setCancelConfirmType('field'); setCancelConfirmId(sess.id); }}
                       className="w-full py-3 bg-red-50 hover:bg-red-100 text-red-700 font-semibold rounded-lg transition flex items-center justify-center space-x-2 border border-red-200"
                     >
                       <XCircle className="w-5 h-5" />
-                      <span>Stopp stevne</span>
+                      <span>Avbryt stevne</span>
                     </button>
                   </div>
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {activeRangeMatches.length > 0 && (
+          <div className="space-y-4 mb-6">
+            {activeRangeMatches.map((rm) => (
+              <div key={rm.id} className="bg-amber-50 border-2 border-amber-500 rounded-xl p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <p className="text-sm text-amber-700 font-medium mb-1">Pågående banestevne</p>
+                    <h2 className="text-xl font-bold text-slate-900">{rm.title}</h2>
+                    <p className="text-sm text-slate-600 mt-1">
+                      Serie {rm.completedSeries} / {rm.totalSeries} fullført
+                    </p>
+                  </div>
+                  <div className="bg-amber-600 text-white text-xs font-bold px-3 py-1 rounded-full">
+                    PÅGÅR
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <button
+                    onClick={() => navigate(`/match/range/${rm.id}/run`)}
+                    className="w-full py-4 bg-amber-600 hover:bg-amber-700 text-white text-lg font-bold rounded-lg transition shadow-lg flex items-center justify-center space-x-2"
+                  >
+                    <Play className="w-6 h-6" />
+                    <span>Fortsett stevne</span>
+                  </button>
+                  <button
+                    onClick={() => { setCancelConfirmType('range'); setCancelConfirmId(rm.id); }}
+                    className="w-full py-3 bg-red-50 hover:bg-red-100 text-red-700 font-semibold rounded-lg transition flex items-center justify-center space-x-2 border border-red-200"
+                  >
+                    <XCircle className="w-5 h-5" />
+                    <span>Avbryt stevne</span>
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
@@ -582,50 +711,71 @@ export function MatchHome() {
           <div>
             <h2 className="text-lg font-bold text-slate-900 mb-4">Siste stevner</h2>
             <div className="space-y-3">
-              {recentItems.map((item) => (
-                <button
-                  key={`${item.type}-${item.id}`}
-                  onClick={() => navigate(item.route)}
-                  className="w-full bg-white border border-slate-200 rounded-lg p-4 hover:border-slate-300 transition text-left"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-semibold text-slate-900 truncate">{item.name}</p>
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${
-                          item.type === 'field'
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : 'bg-amber-100 text-amber-700'
-                        }`}>
-                          {item.type === 'field' ? 'FELT' : 'BANE'}
-                        </span>
+              {recentItems.map((item) => {
+                const hasResult = item.type === 'field'
+                  ? (item.totalHits != null && item.totalHits > 0)
+                  : (item.totalScore != null && item.totalScore > 0);
+
+                return (
+                  <button
+                    key={`${item.type}-${item.id}`}
+                    onClick={() => navigate(item.route)}
+                    className="w-full bg-white border border-slate-200 rounded-xl p-4 hover:border-slate-300 hover:shadow-sm transition text-left"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <p className="font-semibold text-slate-900 truncate">{item.name}</p>
+                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${
+                            item.type === 'field'
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-amber-100 text-amber-700'
+                          }`}>
+                            {item.type === 'field' ? (
+                              <><Target className="w-2.5 h-2.5" />FELT</>
+                            ) : (
+                              <><Trophy className="w-2.5 h-2.5" />BANE</>
+                            )}
+                          </span>
+                        </div>
+                        {hasResult && (
+                          <p className="text-lg font-bold text-slate-900 mb-0.5">
+                            {item.type === 'field' ? (
+                              <>{item.totalHits} treff{item.innerHits ? <span className="text-sm font-medium text-slate-500 ml-1">({item.innerHits}*)</span> : null}</>
+                            ) : (
+                              <>{item.totalScore}p{item.innerHits ? <span className="text-sm font-medium text-slate-500 ml-1">({item.innerHits}*)</span> : null}</>
+                            )}
+                          </p>
+                        )}
+                        <p className="text-xs text-slate-500">
+                          {new Date(item.date).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </p>
                       </div>
-                      <p className="text-sm text-slate-600">
-                        {new Date(item.date).toLocaleDateString('nb-NO')}
-                      </p>
+                      <div className="flex-shrink-0">
+                        {item.status === 'completed' ? (
+                          <div className="flex items-center gap-1 bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full text-[11px] font-semibold">
+                            <CheckCircle className="w-3 h-3" />
+                            <span>Fullført</span>
+                          </div>
+                        ) : item.status === 'active' || item.status === 'in_progress' ? (
+                          <div className="flex items-center gap-1 bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full text-[11px] font-semibold">
+                            <span>Pågår</span>
+                          </div>
+                        ) : item.status === 'paused' ? (
+                          <div className="flex items-center gap-1 bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full text-[11px] font-semibold">
+                            <Clock className="w-3 h-3" />
+                            <span>Pause</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1 bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full text-[11px] font-semibold">
+                            <span>Ufullstendig</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    {item.status === 'completed' ? (
-                      <div className="flex items-center space-x-1 bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-semibold flex-shrink-0">
-                        <CheckCircle className="w-3 h-3" />
-                        <span>Fullført</span>
-                      </div>
-                    ) : item.status === 'active' || item.status === 'in_progress' ? (
-                      <div className="flex items-center space-x-1 bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold flex-shrink-0">
-                        <span>Pågår</span>
-                      </div>
-                    ) : item.status === 'paused' ? (
-                      <div className="flex items-center space-x-1 bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-semibold flex-shrink-0">
-                        <Clock className="w-3 h-3" />
-                        <span>Pause</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center space-x-1 bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-xs font-semibold flex-shrink-0">
-                        <span>Ufullstendig</span>
-                      </div>
-                    )}
-                  </div>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
@@ -653,6 +803,17 @@ export function MatchHome() {
           onClose={() => setEditSession(null)}
         />
       )}
+
+      <ConfirmDialog
+        open={!!cancelConfirmId}
+        title="Avbryt stevne"
+        message="Er du sikker på at du vil avbryte dette stevnet? Dette kan ikke angres."
+        confirmText="Avbryt stevne"
+        cancelText="Nei, behold"
+        variant="danger"
+        onConfirm={handleCancelConfirm}
+        onCancel={() => setCancelConfirmId(null)}
+      />
     </Layout>
   );
 }

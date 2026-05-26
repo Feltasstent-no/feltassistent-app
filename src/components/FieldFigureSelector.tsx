@@ -23,11 +23,6 @@ export function FieldFigureSelector({
     competitionType || 'all'
   );
 
-  console.log('[FieldFigureSelector] ========== RENDER ==========');
-  console.log('[FieldFigureSelector] competitionType:', competitionType);
-  console.log('[FieldFigureSelector] figures.length:', figures.length);
-  console.log('[FieldFigureSelector] selectedFigureId:', selectedFigureId);
-
   const filteredFigures = figures.filter(figure => {
     if (competitionType) {
       return figure.category === competitionType;
@@ -36,22 +31,12 @@ export function FieldFigureSelector({
     return figure.category === categoryFilter;
   });
 
-  console.log('[FieldFigureSelector] filteredFigures.length:', filteredFigures.length);
-  console.log('[FieldFigureSelector] filteredFigures:', filteredFigures.map(f => ({
-    id: f.id,
-    code: f.code,
-    name: f.name,
-    category: f.category
-  })));
-
   if (competitionType === 'finfelt' || competitionType === 'grovfelt') {
-    console.log('[FieldFigureSelector] ▶️  Using CompactFigureSelector');
     return (
       <CompactFigureSelector
         figures={filteredFigures}
         selectedFigureId={selectedFigureId}
         onSelect={(figureId) => {
-          console.log('[FieldFigureSelector] 🎯 CompactFigureSelector onSelect:', figureId);
           onSelect(figureId);
         }}
       />

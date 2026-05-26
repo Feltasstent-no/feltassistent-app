@@ -198,7 +198,6 @@ export function CompetitionSummary() {
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            console.log('[CompetitionSummary] Back arrow clicked, navigating to /competitions');
             navigate('/competitions');
           }}
           className="flex items-center gap-2 text-slate-600 hover:text-slate-900 mb-6 transition-colors py-2 -ml-2 pl-2 pr-4"
@@ -328,8 +327,6 @@ export function CompetitionSummary() {
                           src={resolvedImageUrl}
                           alt={`Gravlapp hold ${stage.stage_number}`}
                           className="w-full"
-                          onLoad={() => console.log('[CompetitionSummary] Image LOADED for stage', stage.stage_number, resolvedImageUrl)}
-                          onError={(e) => console.error('[CompetitionSummary] Image FAILED for stage', stage.stage_number, 'src:', (e.target as HTMLImageElement).currentSrc)}
                         />
                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
                           <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 rounded-full p-2 shadow">
@@ -573,8 +570,6 @@ export function CompetitionSummary() {
             alt={lightboxImage.alt}
             className="max-w-full max-h-[90vh] object-contain rounded-lg"
             onClick={(e) => e.stopPropagation()}
-            onLoad={() => console.log('[CompetitionSummary] Lightbox image LOADED:', lightboxImage.url)}
-            onError={(e) => console.error('[CompetitionSummary] Lightbox image FAILED:', (e.target as HTMLImageElement).currentSrc)}
           />
         </div>
       )}

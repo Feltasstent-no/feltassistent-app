@@ -8,11 +8,12 @@ interface AddSeriesModalProps {
   defaultShootingTime?: number;
   defaultDistance?: number;
   isRangeMatch?: boolean;
+  isEditing?: boolean;
   onAdd: (params: { shotCount: number; shootingTimeSeconds: number | null; distanceM: number | null }) => Promise<void>;
   onClose: () => void;
 }
 
-export function AddSeriesModal({ defaultShotCount = 5, defaultShootingTime, defaultDistance, isRangeMatch = false, onAdd, onClose }: AddSeriesModalProps) {
+export function AddSeriesModal({ defaultShotCount = 5, defaultShootingTime, defaultDistance, isRangeMatch = false, isEditing = false, onAdd, onClose }: AddSeriesModalProps) {
   const [shotCount, setShotCount] = useState(defaultShotCount);
   const initialShootingTime = defaultShootingTime
     ? String(defaultShootingTime)
@@ -42,7 +43,7 @@ export function AddSeriesModal({ defaultShotCount = 5, defaultShootingTime, defa
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-4 border-b border-slate-200 flex-shrink-0">
-          <h2 className="text-lg font-bold text-slate-900">Ny serie</h2>
+          <h2 className="text-lg font-bold text-slate-900">{isEditing ? 'Rediger serie' : 'Ny serie'}</h2>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition">
             <X className="w-5 h-5" />
           </button>
@@ -90,8 +91,8 @@ export function AddSeriesModal({ defaultShotCount = 5, defaultShootingTime, defa
             disabled={saving || shotCount < 1}
             className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold rounded-lg transition flex items-center justify-center gap-2"
           >
-            {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
-            {saving ? 'Legger til...' : 'Legg til serie'}
+            {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : !isEditing ? <Plus className="w-5 h-5" /> : null}
+            {saving ? (isEditing ? 'Lagrer...' : 'Legger til...') : (isEditing ? 'Lagre endringer' : 'Legg til serie')}
           </button>
         </div>
       </div>

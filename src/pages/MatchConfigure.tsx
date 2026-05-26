@@ -118,7 +118,6 @@ export function MatchConfigure() {
         .eq('is_active', true)
         .order('order_index');
 
-      console.log('Available figures:', figuresData);
       setAvailableFigures(figuresData || []);
 
       const { data: classesData } = await supabase
@@ -195,24 +194,8 @@ export function MatchConfigure() {
   const handleUpdateHold = async (holdId: string, updates: Partial<MatchHold>) => {
     const hold = holds.find(h => h.id === holdId);
 
-    console.log('[MatchConfigure] ========== HANDLE UPDATE HOLD ==========');
-    console.log('[MatchConfigure] holdId:', holdId);
-    console.log('[MatchConfigure] hold_number:', hold?.hold_number);
-    console.log('[MatchConfigure] order_index:', hold?.order_index);
-    console.log('[MatchConfigure] updates received:', updates);
-
     if (updates.field_figure_id) {
       const figure = availableFigures.find(f => f.id === updates.field_figure_id);
-      console.log('[MatchConfigure] ⚠️  FIELD_FIGURE_ID UPDATE DETECTED ⚠️');
-      console.log('[MatchConfigure] 🔄 BEFORE: hold.field_figure_id =', hold?.field_figure_id);
-      console.log('[MatchConfigure] 🔄 BEFORE: figure code =', availableFigures.find(f => f.id === hold?.field_figure_id)?.code);
-      console.log('[MatchConfigure] ➡️  AFTER: field_figure_id =', updates.field_figure_id);
-      console.log('[MatchConfigure] ➡️  AFTER: figure code =', figure?.code);
-      console.log('[MatchConfigure] Selected figure:', {
-        field_figure_id: updates.field_figure_id,
-        code: figure?.code || 'NOT FOUND',
-        name: figure?.name || 'NOT FOUND'
-      });
 
       if (figure) {
         updates.field_figure_code = figure.code;
@@ -233,16 +216,6 @@ export function MatchConfigure() {
       }
     }
 
-    console.log('[MatchConfigure] 📤 Calling updateMatchHold with:', {
-      holdId,
-      fieldFigureId: updates.field_figure_id || undefined,
-      distanceM: updates.distance_m || undefined,
-      shootingTimeSeconds: updates.shooting_time_seconds || undefined,
-      shotCount: updates.shot_count || undefined,
-      recommendedClicks: updates.recommended_clicks !== undefined ? updates.recommended_clicks : undefined,
-      notes: updates.notes || undefined,
-    });
-
     const { error } = await updateMatchHold({
       holdId,
       fieldFigureId: updates.field_figure_id || undefined,
@@ -254,15 +227,13 @@ export function MatchConfigure() {
     });
 
     if (!error) {
-      console.log('[MatchConfigure] ✅ updateMatchHold success, updating local state...');
       setHolds(
         holds.map((h) =>
           h.id === holdId ? { ...h, ...updates } : h
         )
       );
-      console.log('[MatchConfigure] ✅ Local state updated');
     } else {
-      console.error('[MatchConfigure] ❌ updateMatchHold failed:', error);
+      console.error('[MatchConfigure] updateMatchHold failed:', error);
     }
   };
 
@@ -602,8 +573,6 @@ export function MatchConfigure() {
                     ) : (
                       <button
                         onClick={() => {
-                          console.log('Opening hold editor for:', hold.id);
-                          console.log('Available figures count:', availableFigures.length);
                           setEditingHoldId(hold.id);
                         }}
                         className="w-full px-4 py-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-medium rounded-lg transition-colors"

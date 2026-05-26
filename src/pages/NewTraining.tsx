@@ -29,6 +29,7 @@ export function NewTraining() {
   const [shotUpdateResult, setShotUpdateResult] = useState<{ type: 'success' | 'warning'; text: string } | null>(null);
   const shotUpdateInProgress = useRef(false);
 
+  const [saveAsFocus, setSaveAsFocus] = useState(false);
   const [formData, setFormData] = useState({
     entry_date: new Date().toISOString().split('T')[0],
     discipline_id: '',
@@ -126,6 +127,20 @@ export function NewTraining() {
       if (formData.class_code) setLastShooterClassCode(formData.class_code);
       if (formData.location) setLastTrainingLocation(formData.location);
       setSavedEntryId(data.id);
+
+      if (saveAsFocus) {
+        const focusText = formData.general_notes || formData.mental_notes || formData.technical_notes;
+        if (focusText && focusText.trim()) {
+          await supabase.from('focus_points').insert({
+            user_id: user!.id,
+            text: focusText.trim(),
+            source_type: 'trening',
+            source_name: 'Hurtiglogg',
+            source_id: data.id,
+          });
+        }
+      }
+
       setLoading(false);
 
       const shotsTotal = formData.shots_total ? parseInt(formData.shots_total) : 0;
@@ -500,6 +515,18 @@ export function NewTraining() {
                   placeholder="Andre observasjoner..."
                 />
               </div>
+
+              {(formData.general_notes || formData.mental_notes || formData.technical_notes) && (
+                <label className="flex items-center gap-2.5 cursor-pointer py-1">
+                  <input
+                    type="checkbox"
+                    checked={saveAsFocus}
+                    onChange={(e) => setSaveAsFocus(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  <span className="text-sm text-slate-700">Lagre som fokusområde</span>
+                </label>
+              )}
             </div>
           </div>
 

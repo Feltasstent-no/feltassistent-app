@@ -3,6 +3,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { ActiveSetupProvider } from './contexts/ActiveSetupContext';
 import { OnboardingProvider } from './contexts/OnboardingContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { ScrollToTop } from './components/ScrollToTop';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { ResetPassword } from './pages/ResetPassword';
@@ -45,11 +46,13 @@ import { MatchHistory } from './pages/MatchHistory';
 import { RangeMatchSetup } from './pages/RangeMatchSetup';
 import { RangeMatchRun } from './pages/RangeMatchRun';
 import { WindTest } from './pages/WindTest';
+import { FocusPoints } from './pages/FocusPoints';
 
 function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <ScrollToTop />
         <OnboardingProvider>
           <ActiveSetupProvider>
             <Routes>
@@ -395,6 +398,15 @@ function App() {
               element={
                 <ProtectedRoute>
                   <MatchHistory />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/focus-points"
+              element={
+                <ProtectedRoute>
+                  <FocusPoints />
                 </ProtectedRoute>
               }
             />

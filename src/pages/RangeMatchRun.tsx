@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
@@ -13,11 +13,15 @@ import {
 import { TrainingSeriesCard } from '../components/training/TrainingSeriesCard';
 import { AddSeriesModal } from '../components/training/AddSeriesModal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { FieldFigureSvg } from '../components/FieldFigureSvg';
 import { useWakeLock } from '../lib/use-wake-lock';
 import {
   ArrowLeft, ChevronLeft, ChevronRight, CheckCircle, XCircle, Trophy, Plus,
 } from 'lucide-react';
+import { PrepCountdown } from '../components/PrepCountdown';
 import type { TrainingSession, TrainingSeries, TrainingSeriesImage } from '../types/database';
+
+const LESJA_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300"><rect x="0" y="0" width="300" height="300" fill="white"/><circle cx="150" cy="150" r="140" fill="black"/><circle cx="150" cy="150" r="100" fill="none" stroke="white" stroke-width="2"/><circle cx="150" cy="150" r="60" fill="none" stroke="white" stroke-width="2"/><circle cx="150" cy="150" r="20" fill="white"/></svg>`;
 
 export function RangeMatchRun() {
   const { id } = useParams<{ id: string }>();
@@ -32,6 +36,7 @@ export function RangeMatchRun() {
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [finishing, setFinishing] = useState(false);
+  const hasInitializedIndex = useRef(false);
 
   const isActive = session?.status === 'active';
   useWakeLock(isActive);
@@ -71,6 +76,13 @@ export function RangeMatchRun() {
     const idx = seriesList.findIndex((s) => !s.completed);
     return idx === -1 ? Math.max(0, seriesList.length - 1) : idx;
   }, [seriesList]);
+
+  useEffect(() => {
+    if (!loading && seriesList.length > 0 && !hasInitializedIndex.current) {
+      hasInitializedIndex.current = true;
+      setCurrentIndex(firstUncompletedIndex);
+    }
+  }, [loading, seriesList.length, firstUncompletedIndex]);
 
   useEffect(() => {
     if (!loading && seriesList.length > 0 && currentIndex >= seriesList.length) {
@@ -184,11 +196,20 @@ export function RangeMatchRun() {
         <div className="bg-slate-900 text-white rounded-xl p-4 mb-4">
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs uppercase tracking-wide text-slate-400">Serie</p>
-            <p className="text-xs text-slate-400">{completedCount} / {seriesList.length} fullført</p>
+            <div className="flex items-center gap-2">
+              <PrepCountdown resetKey={currentIndex} variant="dark" />
+              <p className="text-xs text-slate-400">{completedCount} / {seriesList.length} fullført</p>
+            </div>
           </div>
-          <p className="text-2xl font-bold mb-3">
-            {currentIndex + 1} <span className="text-slate-400 text-lg font-medium">av {seriesList.length}</span>
-          </p>
+          <div className="flex items-center gap-3 mb-3">
+            <div className="flex-shrink-0 rounded-full overflow-hidden border border-slate-700">
+              <FieldFigureSvg svgContent={LESJA_SVG} size="xs" />
+            </div>
+            <p className="text-2xl font-bold">
+              Serie {currentIndex + 1} <span className="text-slate-400 text-lg font-medium">av {seriesList.length}</span>
+              {currentSeries?.distance_m ? <span className="text-slate-400 text-base font-medium ml-2">— {currentSeries.distance_m}m</span> : null}
+            </p>
+          </div>
           <div className="flex gap-1">
             {seriesList.map((s, idx) => (
               <button
@@ -242,6 +263,9 @@ export function RangeMatchRun() {
               readOnly={false}
               hideTimer={false}
               isRangeMatch
+              sourceType="bane"
+              sourceName={session?.title || ''}
+              sourceId={session?.id}
               onUpdated={handleSeriesUpdated}
               onDeleted={fetchData}
               onCompleted={handleSeriesCompleted}
@@ -289,7 +313,7 @@ export function RangeMatchRun() {
             className="py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition flex items-center justify-center gap-2"
           >
             <CheckCircle className="w-4 h-4" />
-            {allCompleted ? 'Avslutt stevne' : 'Avslutt og fullfør senere'}
+            {allCompleted ? 'Avslutt stevne' : 'Lagre og avslutt'}
           </button>
         </div>
 
@@ -312,7 +336,7 @@ export function RangeMatchRun() {
               ? 'Du kan fortsatt se og redigere resultatet i historikken etterpå.'
               : 'Du har serier uten registrert resultat. Du kan fortsatt avslutte stevnet og registrere resultater senere.'
           }
-          confirmLabel={finishing ? 'Lagrer...' : allCompleted ? 'Avslutt stevne' : 'Avslutt og fullfør senere'}
+          confirmLabel={finishing ? 'Lagrer...' : allCompleted ? 'Avslutt stevne' : 'Lagre og avslutt'}
           cancelLabel="Fortsett stevne"
           variant="warning"
           isLoading={finishing}

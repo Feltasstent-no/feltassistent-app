@@ -223,27 +223,13 @@ export async function calculateShotRecommendationFromClickTable(
     const wind_angle_deg = parseFloat(wind_direction);
     const effective_crosswind = calculateEffectiveCrosswind(wind_speed_ms, wind_angle_deg);
 
-    console.log('=== WIND CALCULATION DEBUG (Click Table) ===');
-    console.log('Input wind_speed_ms:', wind_speed_ms);
-    console.log('Input wind_angle_deg:', wind_angle_deg);
-    console.log('Calculated effective_crosswind (m/s):', effective_crosswind);
-    console.log('Distance (m):', distance_m);
-    console.log('clickTable.wind_clicks_per_10ms_100m:', clickTable.wind_clicks_per_10ms_100m);
-
     // DFS-calibrated wind correction formula
     // Formula: (crosswind_ms / 10) * wind_clicks_per_10ms_100m * (distance_m / 100)
     // Example: 10 m/s at 250m with 4.4 clicks/10ms/100m
     //   = (10 / 10) * 4.4 * (250 / 100) = 1.0 * 4.4 * 2.5 = 11 clicks
     const windClicksPer10ms = clickTable.wind_clicks_per_10ms_100m * (distance_m / 100);
 
-    console.log('windClicksPer10ms at distance (clicks per 10 m/s):', windClicksPer10ms);
-    console.log('effective_crosswind / 10 (factor):', effective_crosswind / 10);
-    console.log('Calculation: round((' + effective_crosswind + ' / 10) * ' + windClicksPer10ms + ')');
-
     const wind_clicks = dfsWindFloor((effective_crosswind / 10) * windClicksPer10ms);
-
-    console.log('FINAL wind_clicks:', wind_clicks);
-    console.log('=== END WIND CALCULATION DEBUG ===');
 
     recommendation.wind_clicks = wind_clicks;
     recommendation.wind_speed_ms = wind_speed_ms;
