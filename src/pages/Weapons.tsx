@@ -565,13 +565,27 @@ export function Weapons() {
     setDeletingShotLogId(logId);
 
     try {
-      const { error } = await supabase
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session) {
+        alert('Sesjonen din har utløpt. Logg inn på nytt.');
+        return;
+      }
+
+      const { data, error } = await supabase
         .from('weapon_shot_logs')
         .delete()
-        .eq('id', logId);
+        .eq('id', logId)
+        .select('id');
 
       if (error) throw error;
 
+      if (!data || data.length === 0) {
+        console.error('Delete returned 0 rows - likely RLS blocked or row not found:', logId);
+        alert('Kunne ikke slette raden. Prøv å laste siden på nytt.');
+        return;
+      }
+
+      setShotLogs(prev => prev.filter(l => l.id !== logId));
       await recalculateWeaponTotals(selectedWeapon.id);
       await fetchWeapons();
       if (selectedWeapon) selectWeapon(selectedWeapon);

@@ -197,7 +197,9 @@ export function RangeMatchRun() {
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs uppercase tracking-wide text-slate-400">Serie</p>
             <div className="flex items-center gap-2">
-              <PrepCountdown resetKey={currentIndex} variant="dark" />
+              {currentIndex === 0 && !seriesList[0]?.completed && (
+                <PrepCountdown resetKey={currentIndex} variant="dark" />
+              )}
               <p className="text-xs text-slate-400">{completedCount} / {seriesList.length} fullført</p>
             </div>
           </div>
