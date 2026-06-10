@@ -5,7 +5,6 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useOnboarding } from '../contexts/OnboardingContext';
 import { supabase } from '../lib/supabase';
 import { Home, User, BookOpen, Clock, Settings, LogOut, Crosshair, ListOrdered, Activity, Shield, Sun, Moon, Palette, Target } from 'lucide-react';
-import { ApertureIconBadge } from './ApertureIconBadge';
 import { InitialsAvatar } from './InitialsAvatar';
 
 interface LayoutProps {
@@ -66,16 +65,17 @@ export function Layout({ children }: LayoutProps) {
       <header className="bg-white border-b border-slate-200 sticky top-0 z-50 flex-shrink-0">
         <div className="px-4 sm:px-6 lg:px-8 md:ml-64">
           <div className="flex items-center justify-between h-16">
-            <Link to="/match" className="flex items-center space-x-2">
-              <ApertureIconBadge size="md" />
-              <div className="flex items-center space-x-2">
-                <span className="text-xl font-bold text-slate-900">Feltassistent</span>
-                {isAdmin && (
-                  <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-bold rounded">
-                    ADMIN
-                  </span>
-                )}
-              </div>
+            <Link to="/match" className="flex items-center space-x-2.5">
+              <img
+                src="/logo/fa-header.png"
+                alt="Feltassistent"
+                className="h-8 w-auto"
+              />
+              {isAdmin && (
+                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-bold rounded">
+                  ADMIN
+                </span>
+              )}
             </Link>
 
             <div className="flex items-center space-x-2">
