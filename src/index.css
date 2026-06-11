@@ -34,39 +34,39 @@ input[type="time"] {
    ================================================================ */
 
 :root {
-  --bg-page: #f8fafc;
+  --bg-page: #ffffff;
   --bg-card: #ffffff;
-  --bg-card-hover: #f1f5f9;
-  --bg-muted: #f1f5f9;
-  --bg-inset: #e2e8f0;
+  --bg-card-hover: #f8fafc;
+  --bg-muted: #f8fafc;
+  --bg-inset: #f1f5f9;
 
-  --text-heading: #0f172a;
-  --text-body: #334155;
-  --text-secondary: #64748b;
-  --text-muted: #94a3b8;
-  --text-faint: #cbd5e1;
+  --text-heading: #111827;
+  --text-body: #1f2937;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --text-faint: #94a3b8;
 
-  --border-default: #e2e8f0;
+  --border-default: #e5e7eb;
   --border-strong: #cbd5e1;
-  --border-muted: #f1f5f9;
+  --border-muted: #f3f4f6;
 
-  --hover-bg: #f1f5f9;
-  --hover-bg-strong: #e2e8f0;
-  --active-bg: #e2e8f0;
+  --hover-bg: #f9fafb;
+  --hover-bg-strong: #f1f5f9;
+  --active-bg: #f1f5f9;
 
   --input-bg: #ffffff;
-  --input-border: #cbd5e1;
-  --input-placeholder: #94a3b8;
+  --input-border: #d1d5db;
+  --input-placeholder: #9ca3af;
 
-  --badge-default-bg: #f1f5f9;
-  --badge-default-text: #475569;
+  --badge-default-bg: #f3f4f6;
+  --badge-default-text: #374151;
 
-  --shadow-color: rgba(0, 0, 0, 0.08);
+  --shadow-color: rgba(0, 0, 0, 0.05);
 
   --info-bg: #eff6ff;
   --info-border: #bfdbfe;
   --info-text: #1e40af;
-  --info-text-light: #3b82f6;
+  --info-text-light: #2563eb;
 
   --warning-bg: #fffbeb;
   --warning-border: #fde68a;
@@ -98,20 +98,20 @@ input[type="time"] {
 
   --nav-active-bg: #ecfdf5;
   --nav-active-text: #059669;
-  --nav-inactive-text: #64748b;
+  --nav-inactive-text: #6b7280;
 
-  --progress-track: #e2e8f0;
+  --progress-track: #e5e7eb;
 
   --overlay-bg: rgba(0, 0, 0, 0.5);
   --modal-bg: #ffffff;
   --slider-track: #e5e7eb;
 
-  --instruction-bg: #eff6ff;
-  --instruction-border: #93c5fd;
-  --instruction-text: #1e40af;
-  --instruction-text-light: #3b82f6;
-  --instruction-icon-bg: #dbeafe;
-  --instruction-line: #93c5fd;
+  --instruction-bg: #f0f9ff;
+  --instruction-border: #7dd3fc;
+  --instruction-text: #0c4a6e;
+  --instruction-text-light: #0369a1;
+  --instruction-icon-bg: #e0f2fe;
+  --instruction-line: #7dd3fc;
 }
 
 .dark {
@@ -276,9 +276,49 @@ input[type="time"] {
   --instruction-line: #1e4d70;
 }
 
+:root,
+.light {
+  color-scheme: light;
+}
+
 .dark,
 .grey {
   color-scheme: dark;
+}
+
+/* ===================================================================
+   LIGHT THEME OVERRIDES
+   Whiter backgrounds, stronger text contrast for outdoor readability
+   ================================================================ */
+
+.light .bg-slate-50,
+:root .bg-slate-50 {
+  background-color: #fafbfc;
+}
+
+.light .bg-gray-50,
+:root .bg-gray-50 {
+  background-color: #fafbfc;
+}
+
+.light .text-slate-400,
+:root .text-slate-400 {
+  color: #78859b;
+}
+
+.light .text-slate-300,
+:root .text-slate-300 {
+  color: #94a3b8;
+}
+
+.light .text-gray-400,
+:root .text-gray-400 {
+  color: #78859b;
+}
+
+.light .text-gray-300,
+:root .text-gray-300 {
+  color: #94a3b8;
 }
 
 /* ===================================================================
