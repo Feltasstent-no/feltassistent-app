@@ -67,7 +67,7 @@ export function Layout({ children }: LayoutProps) {
           <div className="flex items-center justify-between h-16">
             <Link to="/match" className="flex items-center space-x-2.5">
               <img
-                src="/logo/fa-header.png"
+                src={theme === 'light' ? '/logo/fa-header.png' : '/logo/fa-header-dark.png'}
                 alt="Feltassistent"
                 className="h-8 w-auto"
               />
