@@ -563,26 +563,44 @@ export function MatchActive() {
   };
 
   const handleTakePhoto = () => {
+    if (!navigator.onLine) {
+      alert('Du er offline. Ta bildet med telefonens kamera nå, og last det opp fra kamerarullen når du har nett.');
+      return;
+    }
     fileInputRef.current?.click();
   };
 
   const handlePhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0 || !currentHold || !user) return;
 
-    const originalFile = e.target.files[0];
-    e.target.value = '';
-    const file = await compressImage(originalFile);
-    const storagePath = `${user.id}/${currentHold.id}_${Date.now()}.jpg`;
+    if (!navigator.onLine) {
+      e.target.value = '';
+      alert('Du er offline. Ta bildet med telefonens kamera nå, og last det opp fra kamerarullen når du har nett.');
+      return;
+    }
 
-    enqueueUpload({
-      blob: file,
-      storagePath,
-      holdId: currentHold.id,
-      holdType: 'match_hold',
-    });
+    try {
+      const originalFile = e.target.files[0];
+      e.target.value = '';
+      const file = await compressImage(originalFile);
+      const storagePath = `${user.id}/${currentHold.id}_${Date.now()}.jpg`;
+
+      enqueueUpload({
+        blob: file,
+        storagePath,
+        holdId: currentHold.id,
+        holdType: 'match_hold',
+      });
+    } catch (err) {
+      console.error('[MatchActive] Photo upload failed:', err);
+    }
   };
 
   const handleTakeSubHoldPhoto = (subHoldId: string) => {
+    if (!navigator.onLine) {
+      alert('Du er offline. Ta bildet med telefonens kamera nå, og last det opp fra kamerarullen når du har nett.');
+      return;
+    }
     pendingSubHoldIdRef.current = subHoldId;
     subHoldPhotoInputRef.current?.click();
   };
@@ -592,17 +610,27 @@ export function MatchActive() {
     const subHoldId = pendingSubHoldIdRef.current;
     if (!subHoldId) return;
 
-    const originalFile = e.target.files[0];
-    e.target.value = '';
-    const file = await compressImage(originalFile);
-    const storagePath = `${user.id}/sub_${subHoldId}_${Date.now()}.jpg`;
+    if (!navigator.onLine) {
+      e.target.value = '';
+      alert('Du er offline. Ta bildet med telefonens kamera nå, og last det opp fra kamerarullen når du har nett.');
+      return;
+    }
 
-    enqueueUpload({
-      blob: file,
-      storagePath,
-      holdId: subHoldId,
-      holdType: 'sub_hold',
-    });
+    try {
+      const originalFile = e.target.files[0];
+      e.target.value = '';
+      const file = await compressImage(originalFile);
+      const storagePath = `${user.id}/sub_${subHoldId}_${Date.now()}.jpg`;
+
+      enqueueUpload({
+        blob: file,
+        storagePath,
+        holdId: subHoldId,
+        holdType: 'sub_hold',
+      });
+    } catch (err) {
+      console.error('[MatchActive] Sub-hold photo upload failed:', err);
+    }
     pendingSubHoldIdRef.current = null;
   };
 
@@ -805,7 +833,6 @@ export function MatchActive() {
           ref={fileInputRef}
           type="file"
           accept="image/*"
-          capture="environment"
           onChange={handlePhotoSelected}
           className="hidden"
         />
@@ -813,7 +840,6 @@ export function MatchActive() {
           ref={subHoldPhotoInputRef}
           type="file"
           accept="image/*"
-          capture="environment"
           onChange={handleSubHoldPhotoSelected}
           className="hidden"
         />

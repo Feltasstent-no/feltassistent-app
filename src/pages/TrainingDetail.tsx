@@ -69,6 +69,12 @@ export function TrainingDetail() {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0 || !id || !user) return;
 
+    if (!navigator.onLine) {
+      e.target.value = '';
+      alert('Du er offline. Ta bildet med telefonens kamera nå, og last det opp fra kamerarullen når du har nett.');
+      return;
+    }
+
     setUploading(true);
 
     try {

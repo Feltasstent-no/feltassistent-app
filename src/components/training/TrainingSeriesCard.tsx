@@ -88,10 +88,21 @@ export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer
 
   const handlePhotoCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
+
+    if (!navigator.onLine) {
+      if (fileRef.current) fileRef.current.value = '';
+      alert('Du er offline. Ta bildet med telefonens kamera nå, og last det opp fra kamerarullen når du har nett.');
+      return;
+    }
+
     setUploading(true);
 
-    for (const file of Array.from(e.target.files)) {
-      await uploadSeriesImage({ seriesId: series.id, userId, file });
+    try {
+      for (const file of Array.from(e.target.files)) {
+        await uploadSeriesImage({ seriesId: series.id, userId, file });
+      }
+    } catch (err) {
+      console.error('[TrainingSeriesCard] Photo upload failed:', err);
     }
 
     setUploading(false);
@@ -321,7 +332,6 @@ export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer
                   ref={fileRef}
                   type="file"
                   accept="image/*"
-                  capture="environment"
                   multiple
                   onChange={handlePhotoCapture}
                   disabled={uploading}

@@ -103,42 +103,54 @@ export function HoldImageUpload({
     const originalFile = event.target.files?.[0];
     if (!originalFile || !user) return;
 
+    if (!navigator.onLine) {
+      event.target.value = '';
+      alert('Du er offline. Ta bildet med telefonens kamera nå, og last det opp fra kamerarullen når du har nett.');
+      return;
+    }
+
     setError(null);
     setSuccess(false);
     setQueued(false);
     setOptimizing(true);
 
-    const file = await compressImage(originalFile);
-    setOptimizing(false);
-
-    let uploadBlob: Blob;
     try {
-      uploadBlob = await convertToJpeg(file);
-    } catch {
-      uploadBlob = file;
+      const file = await compressImage(originalFile);
+      setOptimizing(false);
+
+      let uploadBlob: Blob;
+      try {
+        uploadBlob = await convertToJpeg(file);
+      } catch {
+        uploadBlob = file;
+      }
+
+      const preview = URL.createObjectURL(file);
+      setLocalPreview(preview);
+
+      const timestamp = Date.now();
+      const storagePath = `${user.id}/entries/${entryId}/stage-${stageNumber}-${timestamp}.jpg`;
+
+      enqueueUpload({
+        blob: uploadBlob,
+        storagePath,
+        holdId: entryId,
+        holdType: 'competition_stage',
+        dbMeta: {
+          entryId,
+          stageNumber,
+          userId: user.id,
+          existingImageId: existingImage?.id || null,
+        },
+      });
+
+      setQueued(true);
+      setTimeout(() => setQueued(false), 3000);
+    } catch (err) {
+      console.error('[HoldImageUpload] Upload failed:', err);
+      setError('Bildeopplasting feilet. Prøv igjen når du har nett.');
+      setOptimizing(false);
     }
-
-    const preview = URL.createObjectURL(file);
-    setLocalPreview(preview);
-
-    const timestamp = Date.now();
-    const storagePath = `${user.id}/entries/${entryId}/stage-${stageNumber}-${timestamp}.jpg`;
-
-    enqueueUpload({
-      blob: uploadBlob,
-      storagePath,
-      holdId: entryId,
-      holdType: 'competition_stage',
-      dbMeta: {
-        entryId,
-        stageNumber,
-        userId: user.id,
-        existingImageId: existingImage?.id || null,
-      },
-    });
-
-    setQueued(true);
-    setTimeout(() => setQueued(false), 3000);
 
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -295,7 +307,6 @@ export function HoldImageUpload({
         ref={fileInputRef}
         type="file"
         accept="image/*"
-        capture="environment"
         onChange={handleFileSelect}
         className="hidden"
       />

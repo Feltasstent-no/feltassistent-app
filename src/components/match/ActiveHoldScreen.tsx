@@ -403,7 +403,7 @@ export function ActiveHoldScreen({
                   className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition shadow-lg flex items-center justify-center space-x-2"
                 >
                   <Camera className="w-4 h-4" />
-                  <span>Bilde hele holdet</span>
+                  <span>Legg til bilde</span>
                 </button>
               </div>
             ) : (
@@ -412,7 +412,7 @@ export function ActiveHoldScreen({
                 className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white text-base font-semibold rounded-xl transition shadow-lg flex items-center justify-center space-x-2"
               >
                 <Camera className="w-5 h-5" />
-                <span>Ta bilde av monitor</span>
+                <span>Legg til bilde</span>
               </button>
             )}
             <button
