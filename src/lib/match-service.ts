@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import type { FieldFigure } from '../types/database';
 import { getElevationForClickTable, getWindForClickTable } from './click-table-resolver';
+import { resilientUpdate } from './resilient-save';
 
 export interface MatchSession {
   id: string;
@@ -270,21 +271,25 @@ export function getElapsedTime(startedAt: string | null): number {
 }
 
 export async function completeHold(holdId: string, notes?: string): Promise<void> {
-  await supabase
-    .from('match_holds')
-    .update({
+  await resilientUpdate({
+    table: 'match_holds',
+    data: {
       completed: true,
       completed_at: new Date().toISOString(),
       notes: notes || null,
-    })
-    .eq('id', holdId);
+    },
+    column: 'id',
+    value: holdId,
+  });
 }
 
 export async function updateMatchSessionHoldIndex(sessionId: string, newIndex: number): Promise<void> {
-  await supabase
-    .from('match_sessions')
-    .update({ current_hold_index: newIndex })
-    .eq('id', sessionId);
+  await resilientUpdate({
+    table: 'match_sessions',
+    data: { current_hold_index: newIndex },
+    column: 'id',
+    value: sessionId,
+  });
 }
 
 export async function pauseMatchSession(sessionId: string): Promise<void> {
@@ -423,14 +428,12 @@ export async function updateMatchHold(params: {
   if (params.recommendedClicks !== undefined) updateData.recommended_clicks = params.recommendedClicks;
   if (params.notes !== undefined) updateData.notes = params.notes;
 
-  const { error } = await supabase
-    .from('match_holds')
-    .update(updateData)
-    .eq('id', params.holdId);
-
-  if (error) {
-    console.error('[match-service] Update failed:', error);
-  }
+  const { error } = await resilientUpdate({
+    table: 'match_holds',
+    data: updateData,
+    column: 'id',
+    value: params.holdId,
+  });
 
   return { error };
 }
@@ -745,10 +748,12 @@ export async function updateMatchResult(params: {
   if (params.innerHits !== undefined) updateData.inner_hits = params.innerHits;
   if (params.resultNotes !== undefined) updateData.result_notes = params.resultNotes;
 
-  const { error } = await supabase
-    .from('match_sessions')
-    .update(updateData)
-    .eq('id', params.sessionId);
+  const { error } = await resilientUpdate({
+    table: 'match_sessions',
+    data: updateData,
+    column: 'id',
+    value: params.sessionId,
+  });
 
   return { error };
 }
@@ -758,13 +763,15 @@ export async function updateMatchMetadata(params: {
   matchName: string;
   notes: string;
 }): Promise<{ error: any }> {
-  const { error } = await supabase
-    .from('match_sessions')
-    .update({
+  const { error } = await resilientUpdate({
+    table: 'match_sessions',
+    data: {
       match_name: params.matchName,
       notes: params.notes || null,
-    })
-    .eq('id', params.sessionId);
+    },
+    column: 'id',
+    value: params.sessionId,
+  });
 
   return { error };
 }

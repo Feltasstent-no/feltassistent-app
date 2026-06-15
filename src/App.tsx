@@ -47,12 +47,16 @@ import { RangeMatchSetup } from './pages/RangeMatchSetup';
 import { RangeMatchRun } from './pages/RangeMatchRun';
 import { WindTest } from './pages/WindTest';
 import { FocusPoints } from './pages/FocusPoints';
+import { OfflineBanner } from './components/OfflineBanner';
+import { SyncStatusIndicator } from './components/SyncStatusIndicator';
 
 function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
         <ScrollToTop />
+        <OfflineBanner />
+        <SyncStatusIndicator />
         <OnboardingProvider>
           <ActiveSetupProvider>
             <Routes>
