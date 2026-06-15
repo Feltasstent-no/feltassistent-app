@@ -1,11 +1,13 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useOnboarding } from '../contexts/OnboardingContext';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const { needsOnboarding, onboardingLoading } = useOnboarding();
   const location = useLocation();
+  const isOnline = useOnlineStatus();
 
   if (loading || onboardingLoading) {
     return (
@@ -22,7 +24,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" replace />;
   }
 
-  if (needsOnboarding && location.pathname !== '/onboarding') {
+  if (needsOnboarding && isOnline && location.pathname !== '/onboarding') {
     return <Navigate to="/onboarding" replace />;
   }
 

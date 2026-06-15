@@ -74,13 +74,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const checkAdminStatus = async (userId: string) => {
-    const { data } = await supabase
-      .from('app_admins')
-      .select('*')
-      .eq('user_id', userId)
-      .maybeSingle();
+    try {
+      const { data } = await supabase
+        .from('app_admins')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
 
-    setIsAdmin(!!data);
+      setIsAdmin(!!data);
+    } catch {
+      // Keep current admin status on network error
+    }
   };
 
   const signOut = async () => {

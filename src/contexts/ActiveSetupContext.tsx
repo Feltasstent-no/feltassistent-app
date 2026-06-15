@@ -50,6 +50,7 @@ export function ActiveSetupProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.error('Error loading active setup:', err);
       setError(err instanceof Error ? err.message : 'Failed to load active setup');
+      // Keep previous activeSetup on network error -- don't null it out
     } finally {
       setLoading(false);
     }

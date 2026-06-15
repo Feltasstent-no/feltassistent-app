@@ -35,6 +35,42 @@ const OnboardingContext = createContext<OnboardingContextType>({
 
 export const useOnboarding = () => useContext(OnboardingContext);
 
+const CACHE_KEY = 'feltassistent_cached_profile_v1';
+
+interface CachedProfile {
+  user_id: string;
+  onboarding_complete: boolean;
+  user_mode: UserMode;
+  shooting_type: ShootingType | null;
+  caliber_type: CaliberType | null;
+  usage_intent: UsageIntent | null;
+  cached_at: number;
+}
+
+function readCache(userId: string): CachedProfile | null {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const cached: CachedProfile = JSON.parse(raw);
+    if (cached.user_id !== userId) return null;
+    return cached;
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(profile: CachedProfile) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(profile));
+  } catch { /* storage full or unavailable */ }
+}
+
+function clearCache() {
+  try {
+    localStorage.removeItem(CACHE_KEY);
+  } catch { /* ignore */ }
+}
+
 function deriveUserMode(shootingType: ShootingType | null): UserMode {
   if (shootingType === 'finfelt') return 'finfelt_only';
   return 'grovfelt';
@@ -63,11 +99,27 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .select('onboarding_completed, shooting_type, caliber_type, usage_intent, user_mode')
       .eq('id', user.id)
       .maybeSingle();
+
+    if (error) {
+      console.error('[Onboarding] Profile fetch failed:', error.message);
+      const cached = readCache(user.id);
+      if (cached) {
+        setNeedsOnboarding(!cached.onboarding_complete);
+        setUserMode(cached.user_mode);
+        setStateInternal({
+          shootingType: cached.shooting_type,
+          caliberType: cached.caliber_type,
+          usageIntent: cached.usage_intent,
+        });
+      }
+      setOnboardingLoading(false);
+      return;
+    }
 
     if (!data || !data.onboarding_completed) {
       setNeedsOnboarding(true);
@@ -80,13 +132,27 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       }
     } else {
       setNeedsOnboarding(false);
-      setUserMode(normalizeUserMode(data.user_mode));
+      const mode = normalizeUserMode(data.user_mode);
+      setUserMode(mode);
+
+      writeCache({
+        user_id: user.id,
+        onboarding_complete: true,
+        user_mode: mode,
+        shooting_type: data.shooting_type,
+        caliber_type: data.caliber_type,
+        usage_intent: data.usage_intent,
+        cached_at: Date.now(),
+      });
     }
     setOnboardingLoading(false);
   };
 
   useEffect(() => {
     if (authLoading) return;
+    if (!user) {
+      clearCache();
+    }
     checkOnboarding();
   }, [user, authLoading]);
 
@@ -108,7 +174,18 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       })
       .eq('id', user.id);
     setUserMode(mode);
-    if (completed) setNeedsOnboarding(false);
+    if (completed) {
+      setNeedsOnboarding(false);
+      writeCache({
+        user_id: user.id,
+        onboarding_complete: true,
+        user_mode: mode,
+        shooting_type: state.shootingType,
+        caliber_type: state.caliberType,
+        usage_intent: state.usageIntent,
+        cached_at: Date.now(),
+      });
+    }
   };
 
   const completeOnboarding = async () => {
@@ -126,6 +203,15 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       .eq('id', user.id);
     setUserMode('grovfelt');
     setNeedsOnboarding(false);
+    writeCache({
+      user_id: user.id,
+      onboarding_complete: true,
+      user_mode: 'grovfelt',
+      shooting_type: null,
+      caliber_type: null,
+      usage_intent: null,
+      cached_at: Date.now(),
+    });
   };
 
   const refreshOnboarding = async () => {
@@ -148,6 +234,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     setStateInternal({ shootingType: null, caliberType: null, usageIntent: null });
     setUserMode('grovfelt');
     setNeedsOnboarding(true);
+    clearCache();
   };
 
   return (

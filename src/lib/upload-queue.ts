@@ -183,6 +183,7 @@ async function uploadOne(item: QueuedUpload): Promise<boolean> {
 
 async function processQueue(): Promise<void> {
   if (processing) return;
+  if (!navigator.onLine) return;
   processing = true;
 
   try {
@@ -269,6 +270,8 @@ export function enqueueUpload(params: {
 }
 
 async function tryImmediateUpload(item: QueuedUpload): Promise<void> {
+  if (!navigator.onLine) throw new Error('Offline');
+
   const authed = await ensureAuth();
   if (!authed) throw new Error('Not authenticated');
 
