@@ -232,7 +232,7 @@ export function TrainingSessionActive() {
             <div className="text-center py-12 bg-white border border-slate-200 rounded-xl">
               <Target className="w-12 h-12 text-slate-300 mx-auto mb-3" />
               <p className="text-slate-600 font-medium mb-1">Ingen serier enda</p>
-              <p className="text-sm text-slate-400">Legg til din f\u00F8rste serie for \u00E5 starte</p>
+              <p className="text-sm text-slate-400">{'Legg til din f\u00F8rste serie for \u00E5 starte'}</p>
             </div>
           ) : (
             seriesList.map((s, idx) => (
