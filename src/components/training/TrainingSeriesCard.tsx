@@ -327,7 +327,7 @@ export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer
             <div className="flex gap-2">
               <label className="flex items-center gap-1.5 px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-700 hover:bg-slate-50 transition cursor-pointer">
                 <Camera className="w-4 h-4" />
-                {uploading ? 'Laster opp...' : 'Bilde'}
+                {uploading ? 'Laster opp...' : 'Legg til bilde'}
                 <input
                   ref={fileRef}
                   type="file"
@@ -345,7 +345,7 @@ export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer
                 className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white text-sm font-semibold rounded-lg transition"
               >
                 <CheckCircle className="w-4 h-4" />
-                {saving ? 'Lagrer...' : series.completed ? 'Oppdater' : 'Fullfør serie'}
+                {saving ? 'Lagrer...' : series.completed ? 'Oppdater' : 'Fullf\u00F8r serie'}
               </button>
             </div>
           )}

@@ -6,6 +6,7 @@ import {
   getTrainingSession,
   getTrainingSeries,
   addTrainingSeries,
+  updateTrainingSeries,
   completeTrainingSession,
   cancelTrainingSession,
   getSeriesImages,
@@ -18,7 +19,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useWakeLock } from '../lib/use-wake-lock';
 import {
   ArrowLeft, Plus, CheckCircle, XCircle, Pencil, Target, Trophy,
-  MapPin, Calendar, Cloud,
+  MapPin, Calendar, Cloud, Copy,
 } from 'lucide-react';
 import type { TrainingSession, TrainingSeries, TrainingSeriesImage } from '../types/database';
 
@@ -31,6 +32,7 @@ export function TrainingSessionActive() {
   const [seriesImages, setSeriesImages] = useState<Record<string, TrainingSeriesImage[]>>({});
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingSeries, setEditingSeries] = useState<TrainingSeries | null>(null);
   const [showEditMeta, setShowEditMeta] = useState(false);
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
@@ -66,13 +68,38 @@ export function TrainingSessionActive() {
 
   const handleAddSeries = async (params: { shotCount: number; shootingTimeSeconds: number | null; distanceM: number | null }) => {
     if (!id || !user) return;
+    if (editingSeries) {
+      await updateTrainingSeries({
+        seriesId: editingSeries.id,
+        shotCount: params.shotCount,
+        shootingTimeSeconds: params.shootingTimeSeconds,
+        distanceM: params.distanceM,
+      });
+      setEditingSeries(null);
+    } else {
+      await addTrainingSeries({
+        sessionId: id,
+        userId: user.id,
+        orderIndex: seriesList.length,
+        shotCount: params.shotCount,
+        shootingTimeSeconds: params.shootingTimeSeconds,
+        distanceM: params.distanceM,
+      });
+    }
+    await fetchData();
+  };
+
+  const handleCopyLast = async () => {
+    if (!id || !user) return;
+    const last = seriesList[seriesList.length - 1];
+    if (!last) return;
     await addTrainingSeries({
       sessionId: id,
       userId: user.id,
       orderIndex: seriesList.length,
-      shotCount: params.shotCount,
-      shootingTimeSeconds: params.shootingTimeSeconds,
-      distanceM: params.distanceM,
+      shotCount: last.shot_count,
+      shootingTimeSeconds: last.shooting_time_seconds,
+      distanceM: last.distance_m,
     });
     await fetchData();
   };
@@ -91,14 +118,15 @@ export function TrainingSessionActive() {
   };
 
   const lastSeries = seriesList[seriesList.length - 1];
-  const defaultShotCount = lastSeries?.shot_count || 5;
-  const defaultShootingTime = lastSeries?.shooting_time_seconds || undefined;
-  const defaultDistance = lastSeries?.distance_m || undefined;
+  const defaultShotCount = editingSeries?.shot_count || lastSeries?.shot_count || 5;
+  const defaultShootingTime = editingSeries?.shooting_time_seconds || lastSeries?.shooting_time_seconds || undefined;
+  const defaultDistance = editingSeries?.distance_m || lastSeries?.distance_m || undefined;
 
   const totalShots = seriesList.reduce((sum, s) => sum + s.shot_count, 0);
   const totalScore = seriesList.reduce((sum, s) => sum + (s.score || 0), 0);
   const totalInner = seriesList.reduce((sum, s) => sum + (s.inner_hits || 0), 0);
   const completedCount = seriesList.filter(s => s.completed).length;
+  const allCompleted = seriesList.length > 0 && completedCount === seriesList.length;
 
   if (loading) {
     return (
@@ -114,7 +142,7 @@ export function TrainingSessionActive() {
     return (
       <Layout>
         <div className="text-center py-12">
-          <p className="text-slate-600">{isRangeMatch ? 'Stevne ikke funnet' : 'Treningsøkt ikke funnet'}</p>
+          <p className="text-slate-600">{isRangeMatch ? 'Stevne ikke funnet' : 'Trenings\u00F8kt ikke funnet'}</p>
         </div>
       </Layout>
     );
@@ -189,11 +217,11 @@ export function TrainingSessionActive() {
               </div>
               <div>
                 <p className="text-xs text-slate-500">Poeng</p>
-                <p className="text-lg font-bold text-emerald-600">{totalScore || '—'}</p>
+                <p className="text-lg font-bold text-emerald-600">{totalScore || '\u2014'}</p>
               </div>
               <div>
                 <p className="text-xs text-slate-500">Inner</p>
-                <p className="text-lg font-bold text-slate-900">{totalInner || '—'}</p>
+                <p className="text-lg font-bold text-slate-900">{totalInner || '\u2014'}</p>
               </div>
             </div>
           </div>
@@ -204,36 +232,57 @@ export function TrainingSessionActive() {
             <div className="text-center py-12 bg-white border border-slate-200 rounded-xl">
               <Target className="w-12 h-12 text-slate-300 mx-auto mb-3" />
               <p className="text-slate-600 font-medium mb-1">Ingen serier enda</p>
-              <p className="text-sm text-slate-400">Legg til din første serie for å starte</p>
+              <p className="text-sm text-slate-400">Legg til din f\u00F8rste serie for \u00E5 starte</p>
             </div>
           ) : (
             seriesList.map((s, idx) => (
-              <TrainingSeriesCard
-                key={s.id}
-                series={s}
-                images={seriesImages[s.id] || []}
-                userId={user!.id}
-                readOnly={readOnly}
-                hideTimer={idx !== seriesList.length - 1}
-                sourceType="trening"
-                sourceName={session?.title || ''}
-                sourceId={session?.id}
-                onUpdated={fetchData}
-                onDeleted={fetchData}
-              />
+              <div key={s.id} className="relative">
+                <TrainingSeriesCard
+                  series={s}
+                  images={seriesImages[s.id] || []}
+                  userId={user!.id}
+                  readOnly={readOnly}
+                  hideTimer={idx !== seriesList.length - 1}
+                  sourceType="trening"
+                  sourceName={session?.title || ''}
+                  sourceId={session?.id}
+                  onUpdated={fetchData}
+                  onDeleted={fetchData}
+                />
+                {isActive && !s.completed && (
+                  <button
+                    onClick={() => setEditingSeries(s)}
+                    className="absolute top-2 right-12 p-1.5 text-slate-300 hover:text-blue-600 hover:bg-blue-50 rounded-md transition z-10"
+                    aria-label="Rediger serie"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             ))
           )}
         </div>
 
         {isActive && (
           <div>
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="w-full py-4 bg-white border-2 border-blue-400 hover:border-blue-600 hover:bg-blue-50 text-blue-700 font-bold rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
-            >
-              <Plus className="w-5 h-5" />
-              Legg til serie
-            </button>
+            <div className="space-y-2">
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="w-full py-4 bg-white border-2 border-blue-400 hover:border-blue-600 hover:bg-blue-50 text-blue-700 font-bold rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
+              >
+                <Plus className="w-5 h-5" />
+                Legg til serie
+              </button>
+              {lastSeries && (
+                <button
+                  onClick={handleCopyLast}
+                  className="w-full py-2.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 font-medium rounded-xl transition flex items-center justify-center gap-2 text-sm"
+                >
+                  <Copy className="w-4 h-4" />
+                  Kopier forrige serie
+                </button>
+              )}
+            </div>
 
             <div className="mt-10 pt-6 border-t border-slate-200 grid grid-cols-2 gap-3">
               <button
@@ -241,7 +290,7 @@ export function TrainingSessionActive() {
                 className="py-3 border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 font-semibold rounded-xl transition flex items-center justify-center gap-2"
               >
                 <XCircle className="w-4 h-4" />
-                {isRangeMatch ? 'Avbryt stevne' : 'Avbryt økt'}
+                {isRangeMatch ? 'Avbryt stevne' : 'Avbryt \u00F8kt'}
               </button>
 
               <button
@@ -250,33 +299,49 @@ export function TrainingSessionActive() {
                 className="py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold rounded-xl transition flex items-center justify-center gap-2"
               >
                 <CheckCircle className="w-4 h-4" />
-                {isRangeMatch ? 'Avslutt stevne' : 'Fullfør økt'}
+                {allCompleted
+                  ? (isRangeMatch ? 'Avslutt stevne' : 'Avslutt \u00F8kt')
+                  : 'Lagre og avslutt'
+                }
               </button>
             </div>
           </div>
         )}
 
-        {showAddModal && (
+        {(showAddModal || editingSeries) && (
           <AddSeriesModal
             defaultShotCount={defaultShotCount}
             defaultShootingTime={defaultShootingTime}
             defaultDistance={defaultDistance}
             isRangeMatch={isRangeMatch}
+            isEditing={Boolean(editingSeries)}
             onAdd={handleAddSeries}
-            onClose={() => setShowAddModal(false)}
+            onClose={() => { setShowAddModal(false); setEditingSeries(null); }}
           />
         )}
 
         <ConfirmDialog
           open={showFinishConfirm}
-          title={isRangeMatch ? 'Avslutt banestevnet?' : 'Avslutt treningsøkten?'}
-          message={
-            isRangeMatch
-              ? 'Er du sikker på at du vil avslutte banestevnet? Du kan fortsatt se resultatet i historikken etterpå.'
-              : 'Er du sikker på at du vil avslutte treningsøkten? Du kan fortsatt se resultatet i treningsloggen etterpå.'
+          title={
+            allCompleted
+              ? (isRangeMatch ? 'Avslutt banestevnet?' : 'Avslutt trenings\u00F8kten?')
+              : 'Noen serier er ikke fullf\u00F8rt'
           }
-          confirmLabel={finishing ? 'Lagrer...' : isRangeMatch ? 'Avslutt stevne' : 'Avslutt økt'}
-          cancelLabel={isRangeMatch ? 'Fortsett stevne' : 'Fortsett økt'}
+          message={
+            allCompleted
+              ? (isRangeMatch
+                  ? 'Du kan fortsatt se og redigere resultatet i historikken etterp\u00E5.'
+                  : 'Du kan fortsatt se resultatet i treningsloggen etterp\u00E5.')
+              : 'Du har serier uten registrert resultat. Du kan fortsatt avslutte og registrere resultater senere.'
+          }
+          confirmLabel={
+            finishing
+              ? 'Lagrer...'
+              : allCompleted
+                ? (isRangeMatch ? 'Avslutt stevne' : 'Avslutt \u00F8kt')
+                : 'Lagre og avslutt'
+          }
+          cancelLabel={isRangeMatch ? 'Fortsett stevne' : 'Fortsett \u00F8kt'}
           variant="warning"
           isLoading={finishing}
           onConfirm={handleFinish}
@@ -285,14 +350,14 @@ export function TrainingSessionActive() {
 
         <ConfirmDialog
           open={showCancelConfirm}
-          title={isRangeMatch ? 'Avbryt banestevnet?' : 'Avbryt treningsøkten?'}
+          title={isRangeMatch ? 'Avbryt banestevnet?' : 'Avbryt trenings\u00F8kten?'}
           message={
             isRangeMatch
               ? 'Dette vil forkaste stevnet. Registrerte serier beholdes i historikken, men stevnet markeres som avbrutt.'
-              : 'Dette vil forkaste økten. Registrerte serier beholdes i historikken, men økten markeres som avbrutt.'
+              : 'Dette vil forkaste \u00F8kten. Registrerte serier beholdes i historikken, men \u00F8kten markeres som avbrutt.'
           }
-          confirmLabel={isRangeMatch ? 'Avbryt stevne' : 'Avbryt økt'}
-          cancelLabel={isRangeMatch ? 'Fortsett stevne' : 'Fortsett økt'}
+          confirmLabel={isRangeMatch ? 'Avbryt stevne' : 'Avbryt \u00F8kt'}
+          cancelLabel={isRangeMatch ? 'Fortsett stevne' : 'Fortsett \u00F8kt'}
           variant="danger"
           onConfirm={handleCancel}
           onCancel={() => setShowCancelConfirm(false)}
@@ -300,7 +365,7 @@ export function TrainingSessionActive() {
 
         {showEditMeta && session && (
           <EditMetadataModal
-            title={isRangeMatch ? 'Rediger banestevne' : 'Rediger treningsøkt'}
+            title={isRangeMatch ? 'Rediger banestevne' : 'Rediger trenings\u00F8kt'}
             currentName={session.title}
             currentNotes={session.notes || ''}
             nameLabel="Tittel"
