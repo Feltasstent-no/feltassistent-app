@@ -3,9 +3,24 @@ import { Layout } from '../components/Layout';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Profile as ProfileType, ShooterClass } from '../types/database';
-import { Save, Crosshair, ArrowRight, Info } from 'lucide-react';
+import { Save, Crosshair, ArrowRight, Info, CreditCard, Clock, CheckCircle, AlertTriangle, XCircle, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { InitialsAvatar } from '../components/InitialsAvatar';
+
+interface License {
+  id: string;
+  status: 'trialing' | 'active' | 'past_due' | 'canceled' | 'expired';
+  current_period_start: string;
+  current_period_end: string;
+  trial_start: string | null;
+  trial_end: string | null;
+  cancel_at_period_end: boolean;
+  plan: {
+    name: string;
+    price_nok: number;
+    billing_interval: string;
+  };
+}
 
 export function Profile() {
   const { user } = useAuth();
@@ -25,9 +40,13 @@ export function Profile() {
     birth_year: '',
   });
 
+  const [license, setLicense] = useState<License | null>(null);
+  const [licenseLoading, setLicenseLoading] = useState(true);
+
   useEffect(() => {
     fetchProfile();
     fetchShooterClasses();
+    fetchLicense();
   }, [user]);
 
   const fetchProfile = async () => {
@@ -67,6 +86,114 @@ export function Profile() {
 
     if (data) {
       setShooterClasses(data);
+    }
+  };
+
+  const fetchLicense = async () => {
+    if (!user) return;
+    setLicenseLoading(true);
+
+    const { data } = await supabase
+      .from('licenses')
+      .select(`
+        id,
+        status,
+        current_period_start,
+        current_period_end,
+        trial_start,
+        trial_end,
+        cancel_at_period_end,
+        plan:plans(name, price_nok, billing_interval)
+      `)
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (data && data.plan) {
+      setLicense({
+        ...data,
+        plan: Array.isArray(data.plan) ? data.plan[0] : data.plan,
+      } as License);
+    } else {
+      setLicense(null);
+    }
+
+    setLicenseLoading(false);
+  };
+
+  const handleStartTrial = async () => {
+    if (!user) return;
+
+    setLicenseLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/start-trial`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Noe gikk galt');
+      }
+
+      const result = await response.json();
+      if (result.license && result.license.plan) {
+        const plan = Array.isArray(result.license.plan) ? result.license.plan[0] : result.license.plan;
+        setLicense({ ...result.license, plan } as License);
+      }
+
+      setMessage({ type: 'success', text: result.created ? 'Prøveperiode startet!' : 'Du har allerede en lisens.' });
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Kunne ikke starte prøveperiode' });
+    } finally {
+      setLicenseLoading(false);
+    }
+  };
+
+  const [upgradeLoading, setUpgradeLoading] = useState(false);
+
+  const handleUpgrade = async () => {
+    if (!user) return;
+
+    setUpgradeLoading(true);
+    setMessage(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-checkout-session`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Noe gikk galt');
+      }
+
+      if (result.checkout_url) {
+        window.location.href = result.checkout_url;
+      } else {
+        throw new Error('Ingen checkout-URL mottatt');
+      }
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Kunne ikke starte checkout' });
+      setUpgradeLoading(false);
     }
   };
 
@@ -274,17 +401,9 @@ export function Profile() {
           </form>
         </div>
 
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 sm:p-5 mt-6">
-          <div className="flex gap-3">
-            <Info className="w-5 h-5 text-slate-400 mt-0.5 flex-shrink-0" />
-            <div>
-              <h4 className="text-sm font-semibold text-slate-700 mb-1">Planlagt lisensmodell</h4>
-              <p className="text-sm text-slate-600 leading-relaxed">
-                Feltassist app'n er f.t i aktiv utvikling, og det vil i en senere versjon tilkomme en årlig lisens i størrelsesorden 299 kr/år per bruker.
-              </p>
-            </div>
-          </div>
-        </div>
+        {user?.email === 'andor@valuetech.no' && (
+          <SubscriptionSection license={license} loading={licenseLoading} onStartTrial={handleStartTrial} onUpgrade={handleUpgrade} upgradeLoading={upgradeLoading} />
+        )}
 
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 sm:p-5 mt-4">
           <div className="flex gap-3">
@@ -302,5 +421,230 @@ export function Profile() {
         </div>
       </div>
     </Layout>
+  );
+}
+
+function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('nb-NO', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
+function StatusBadge({ status }: { status: License['status'] }) {
+  const config = {
+    trialing: { label: 'Prøveperiode', icon: Clock, bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700' },
+    active: { label: 'Aktiv', icon: CheckCircle, bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' },
+    past_due: { label: 'Betaling feilet', icon: AlertTriangle, bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700' },
+    canceled: { label: 'Kansellert', icon: XCircle, bg: 'bg-slate-50', border: 'border-slate-200', text: 'text-slate-600' },
+    expired: { label: 'Utløpt', icon: XCircle, bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700' },
+  };
+  const c = config[status];
+  const Icon = c.icon;
+
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium ${c.bg} ${c.border} border ${c.text}`}>
+      <Icon className="w-3.5 h-3.5" />
+      {c.label}
+    </span>
+  );
+}
+
+function SubscriptionSection({ license, loading, onStartTrial, onUpgrade, upgradeLoading }: { license: License | null; loading: boolean; onStartTrial: () => void; onUpgrade: () => void; upgradeLoading: boolean }) {
+  if (loading) {
+    return (
+      <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6 mt-6">
+        <div className="flex items-center gap-3 mb-4">
+          <CreditCard className="w-5 h-5 text-slate-400" />
+          <h3 className="text-lg font-semibold text-slate-900">Abonnement</h3>
+        </div>
+        <div className="animate-pulse space-y-3">
+          <div className="h-4 bg-slate-200 rounded w-1/3"></div>
+          <div className="h-4 bg-slate-200 rounded w-1/2"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!license) {
+    return (
+      <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6 mt-6">
+        <div className="flex items-center gap-3 mb-4">
+          <CreditCard className="w-5 h-5 text-slate-400" />
+          <h3 className="text-lg font-semibold text-slate-900">Abonnement</h3>
+        </div>
+        <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+          <p className="text-slate-600 text-sm mb-4">
+            Du har ikke startet prøveperioden enda.
+          </p>
+          <div className="flex items-center gap-2 text-xs text-slate-500 mb-4">
+            <Info className="w-3.5 h-3.5" />
+            <span>Full tilgang i 90 dager, deretter 299 kr/år</span>
+          </div>
+          <button
+            onClick={onStartTrial}
+            className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-sm transition"
+          >
+            Start gratis prøveperiode
+          </button>
+        </div>
+        <p className="text-xs text-slate-400 mt-3">Betaling og kvitteringer håndteres trygt via Stripe.</p>
+      </div>
+    );
+  }
+
+  const periodEnd = new Date(license.current_period_end);
+  const isExpiringSoon = periodEnd.getTime() - Date.now() < 7 * 24 * 60 * 60 * 1000;
+  const isCanceledOrExpired = license.status === 'canceled' || license.status === 'expired';
+
+  if (isCanceledOrExpired) {
+    return (
+      <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6 mt-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <CreditCard className="w-5 h-5 text-slate-400" />
+            <h3 className="text-lg font-semibold text-slate-900">Abonnement</h3>
+          </div>
+          <StatusBadge status={license.status} />
+        </div>
+        <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+          <p className="text-slate-600 text-sm mb-4">Lisensen er ikke aktiv.</p>
+          <button
+            onClick={onUpgrade}
+            disabled={upgradeLoading}
+            className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-sm transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {upgradeLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+            {upgradeLoading ? 'Laster...' : 'Oppgrader til full tilgang'}
+          </button>
+        </div>
+        <p className="text-xs text-slate-400 mt-3">Betaling og kvitteringer håndteres trygt via Stripe.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6 mt-6">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <CreditCard className="w-5 h-5 text-slate-400" />
+          <h3 className="text-lg font-semibold text-slate-900">Abonnement</h3>
+        </div>
+        <StatusBadge status={license.status} />
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex justify-between items-center py-2 border-b border-slate-100">
+          <span className="text-sm text-slate-500">Plan</span>
+          <span className="text-sm font-medium text-slate-900">{license.plan.name}</span>
+        </div>
+
+        <div className="flex justify-between items-center py-2 border-b border-slate-100">
+          <span className="text-sm text-slate-500">Pris</span>
+          <span className="text-sm font-medium text-slate-900">
+            {license.plan.price_nok} kr/{license.plan.billing_interval === 'year' ? 'år' : 'mnd'}
+          </span>
+        </div>
+
+        {license.status === 'trialing' && license.trial_end && (
+          <div className="flex justify-between items-center py-2 border-b border-slate-100">
+            <span className="text-sm text-slate-500">Prøveperiode utløper</span>
+            <span className={`text-sm font-medium ${isExpiringSoon ? 'text-amber-600' : 'text-slate-900'}`}>
+              {formatDate(license.trial_end)}
+            </span>
+          </div>
+        )}
+
+        <div className="flex justify-between items-center py-2 border-b border-slate-100">
+          <span className="text-sm text-slate-500">Tilgang aktiv til</span>
+          <span className={`text-sm font-medium ${isExpiringSoon ? 'text-amber-600' : 'text-slate-900'}`}>
+            {formatDate(license.current_period_end)}
+          </span>
+        </div>
+
+        {license.status === 'trialing' && license.trial_end && (
+          <div className="flex justify-between items-center py-2 border-b border-slate-100">
+            <span className="text-sm text-slate-500">Første betaling</span>
+            <span className="text-sm font-medium text-slate-900">
+              {formatDate(license.trial_end)}
+            </span>
+          </div>
+        )}
+
+        {license.status === 'active' && !license.cancel_at_period_end && (
+          <div className="flex justify-between items-center py-2 border-b border-slate-100">
+            <span className="text-sm text-slate-500">Neste betaling</span>
+            <span className="text-sm font-medium text-slate-900">
+              {formatDate(license.current_period_end)}
+            </span>
+          </div>
+        )}
+
+        {license.status === 'active' && license.cancel_at_period_end && (
+          <div className="flex justify-between items-center py-2 border-b border-slate-100">
+            <span className="text-sm text-slate-500">Avsluttes</span>
+            <span className="text-sm font-medium text-amber-600">
+              {formatDate(license.current_period_end)}
+            </span>
+          </div>
+        )}
+
+        {license.cancel_at_period_end && (
+          <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            <p className="text-xs text-amber-700">
+              Abonnementet avsluttes ved periodens slutt. Du beholder tilgang til {formatDate(license.current_period_end)}.
+            </p>
+          </div>
+        )}
+
+        {license.status === 'past_due' && (
+          <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            <p className="text-xs text-amber-700 font-medium">
+              Betaling feilet – oppdater betalingsmåte for å beholde tilgang.
+            </p>
+          </div>
+        )}
+
+        {license.status === 'trialing' && (
+          <div className="mt-4 pt-4 border-t border-slate-100">
+            <button
+              onClick={onUpgrade}
+              disabled={upgradeLoading}
+              className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-sm transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {upgradeLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+              {upgradeLoading ? 'Laster...' : 'Oppgrader til full tilgang'}
+            </button>
+          </div>
+        )}
+
+        {license.status === 'active' && (
+          <div className="mt-4 pt-4 border-t border-slate-100">
+            <button
+              disabled
+              className="w-full sm:w-auto px-5 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-500 font-medium text-sm cursor-not-allowed"
+              title="Administrasjon av abonnement kommer snart"
+            >
+              Administrer abonnement
+            </button>
+          </div>
+        )}
+
+        {license.status === 'past_due' && (
+          <div className="mt-4 pt-4 border-t border-slate-100">
+            <button
+              disabled
+              className="w-full sm:w-auto px-5 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-500 font-medium text-sm cursor-not-allowed"
+              title="Administrasjon av abonnement kommer snart"
+            >
+              Administrer abonnement
+            </button>
+          </div>
+        )}
+      </div>
+
+      <p className="text-xs text-slate-400 mt-4">Betaling og kvitteringer håndteres trygt via Stripe.</p>
+    </div>
   );
 }
