@@ -197,6 +197,45 @@ export function Profile() {
     }
   };
 
+  const [manageLoading, setManageLoading] = useState(false);
+
+  const handleManage = async () => {
+    if (!user) return;
+
+    setManageLoading(true);
+    setMessage(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-customer-portal-session`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Kunne ikke åpne administrasjon');
+      }
+
+      if (result.portal_url) {
+        window.location.href = result.portal_url;
+      } else {
+        throw new Error('Ingen portal-URL mottatt');
+      }
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Kunne ikke åpne abonnementsportalen' });
+      setManageLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -402,7 +441,7 @@ export function Profile() {
         </div>
 
         {user?.email === 'andor@valuetech.no' && (
-          <SubscriptionSection license={license} loading={licenseLoading} onStartTrial={handleStartTrial} onUpgrade={handleUpgrade} upgradeLoading={upgradeLoading} />
+          <SubscriptionSection license={license} loading={licenseLoading} onStartTrial={handleStartTrial} onUpgrade={handleUpgrade} upgradeLoading={upgradeLoading} onManage={handleManage} manageLoading={manageLoading} />
         )}
 
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 sm:p-5 mt-4">
@@ -451,7 +490,7 @@ function StatusBadge({ status }: { status: License['status'] }) {
   );
 }
 
-function SubscriptionSection({ license, loading, onStartTrial, onUpgrade, upgradeLoading }: { license: License | null; loading: boolean; onStartTrial: () => void; onUpgrade: () => void; upgradeLoading: boolean }) {
+function SubscriptionSection({ license, loading, onStartTrial, onUpgrade, upgradeLoading, onManage, manageLoading }: { license: License | null; loading: boolean; onStartTrial: () => void; onUpgrade: () => void; upgradeLoading: boolean; onManage: () => void; manageLoading: boolean }) {
   if (loading) {
     return (
       <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6 mt-6">
@@ -622,11 +661,12 @@ function SubscriptionSection({ license, loading, onStartTrial, onUpgrade, upgrad
         {license.status === 'active' && (
           <div className="mt-4 pt-4 border-t border-slate-100">
             <button
-              disabled
-              className="w-full sm:w-auto px-5 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-500 font-medium text-sm cursor-not-allowed"
-              title="Administrasjon av abonnement kommer snart"
+              onClick={onManage}
+              disabled={manageLoading}
+              className="w-full sm:w-auto px-5 py-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-medium text-sm transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              Administrer abonnement
+              {manageLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+              {manageLoading ? 'Åpner...' : 'Administrer abonnement'}
             </button>
           </div>
         )}
@@ -634,11 +674,12 @@ function SubscriptionSection({ license, loading, onStartTrial, onUpgrade, upgrad
         {license.status === 'past_due' && (
           <div className="mt-4 pt-4 border-t border-slate-100">
             <button
-              disabled
-              className="w-full sm:w-auto px-5 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-500 font-medium text-sm cursor-not-allowed"
-              title="Administrasjon av abonnement kommer snart"
+              onClick={onManage}
+              disabled={manageLoading}
+              className="w-full sm:w-auto px-5 py-2.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 font-medium text-sm transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              Administrer abonnement
+              {manageLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+              {manageLoading ? 'Åpner...' : 'Administrer abonnement'}
             </button>
           </div>
         )}
