@@ -7,6 +7,7 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   isAdmin: boolean;
+  isDisabled: boolean;
   signOut: () => Promise<void>;
 }
 
@@ -15,6 +16,7 @@ const AuthContext = createContext<AuthContextType>({
   session: null,
   loading: true,
   isAdmin: false,
+  isDisabled: false,
   signOut: async () => {},
 });
 
@@ -31,6 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isDisabled, setIsDisabled] = useState(false);
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -40,10 +43,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session?.user ?? null);
 
         if (session?.user) {
-          await checkAdminStatus(session.user.id);
+          await checkUserStatus(session.user.id);
         }
       } catch (error) {
-        console.error('❌ Auth initialization error:', error);
+        console.error('Auth initialization error:', error);
       } finally {
         setLoading(false);
       }
@@ -51,19 +54,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     initializeAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       (async () => {
         try {
           setSession(session);
           setUser(session?.user ?? null);
 
           if (session?.user) {
-            await checkAdminStatus(session.user.id);
+            await checkUserStatus(session.user.id);
           } else {
             setIsAdmin(false);
+            setIsDisabled(false);
           }
         } catch (error) {
-          console.error('❌ Auth state change error:', error);
+          console.error('Auth state change error:', error);
         } finally {
           setLoading(false);
         }
@@ -73,27 +77,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const checkAdminStatus = async (userId: string) => {
+  const checkUserStatus = async (userId: string) => {
     try {
-      const { data } = await supabase
-        .from('app_admins')
-        .select('*')
-        .eq('user_id', userId)
-        .maybeSingle();
+      const [adminRes, profileRes] = await Promise.all([
+        supabase.from('app_admins').select('user_id').eq('user_id', userId).maybeSingle(),
+        supabase.from('profiles').select('is_disabled').eq('id', userId).maybeSingle(),
+      ]);
 
-      setIsAdmin(!!data);
+      setIsAdmin(!!adminRes.data);
+      setIsDisabled(!!profileRes.data?.is_disabled);
     } catch {
-      // Keep current admin status on network error
+      // Keep current status on network error
     }
   };
 
   const signOut = async () => {
     setIsAdmin(false);
+    setIsDisabled(false);
     await supabase.auth.signOut();
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, isAdmin, signOut }}>
+    <AuthContext.Provider value={{ user, session, loading, isAdmin, isDisabled, signOut }}>
       {children}
     </AuthContext.Provider>
   );

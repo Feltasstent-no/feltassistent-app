@@ -20,6 +20,9 @@ export interface Profile {
   usage_intent: UsageIntent | null;
   user_mode: UserMode;
   is_demo: boolean;
+  is_disabled: boolean;
+  disabled_at: string | null;
+  disabled_by: string | null;
   created_at: string;
   updated_at: string;
 }
