@@ -14,10 +14,10 @@ export function OfflineBanner() {
   if (isOnline) return null;
 
   const message = queueLength === 0
-    ? 'Offline-modus aktiv \u2013 stevnedata lagres lokalt og synkroniseres n\u00e5r du f\u00e5r dekning igjen'
+    ? 'Offline-modus aktiv \u2013 stevnedata lagres lokalt og synkroniseres når du får dekning igjen'
     : queueLength === 1
-      ? 'Offline-modus aktiv \u2013 1 endring venter p\u00e5 synkronisering'
-      : `Offline-modus aktiv \u2013 ${queueLength} endringer venter p\u00e5 synkronisering`;
+      ? 'Offline-modus aktiv \u2013 1 endring venter på synkronisering'
+      : `Offline-modus aktiv \u2013 ${queueLength} endringer venter på synkronisering`;
 
   return (
     <div className="fixed top-16 left-0 right-0 z-[55] md:ml-64 pointer-events-none">

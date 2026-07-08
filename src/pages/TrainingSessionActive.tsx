@@ -142,7 +142,7 @@ export function TrainingSessionActive() {
     return (
       <Layout>
         <div className="text-center py-12">
-          <p className="text-slate-600">{isRangeMatch ? 'Stevne ikke funnet' : 'Trenings\u00F8kt ikke funnet'}</p>
+          <p className="text-slate-600">{isRangeMatch ? 'Stevne ikke funnet' : 'Treningsøkt ikke funnet'}</p>
         </div>
       </Layout>
     );
@@ -232,7 +232,7 @@ export function TrainingSessionActive() {
             <div className="text-center py-12 bg-white border border-slate-200 rounded-xl">
               <Target className="w-12 h-12 text-slate-300 mx-auto mb-3" />
               <p className="text-slate-600 font-medium mb-1">Ingen serier enda</p>
-              <p className="text-sm text-slate-400">{'Legg til din f\u00F8rste serie for \u00E5 starte'}</p>
+              <p className="text-sm text-slate-400">'Legg til din første serie for å starte'</p>
             </div>
           ) : (
             seriesList.map((s, idx) => (
@@ -290,7 +290,7 @@ export function TrainingSessionActive() {
                 className="py-3 border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 font-semibold rounded-xl transition flex items-center justify-center gap-2"
               >
                 <XCircle className="w-4 h-4" />
-                {isRangeMatch ? 'Avbryt stevne' : 'Avbryt \u00F8kt'}
+                {isRangeMatch ? 'Avbryt stevne' : 'Avbryt økt'}
               </button>
 
               <button
@@ -300,7 +300,7 @@ export function TrainingSessionActive() {
               >
                 <CheckCircle className="w-4 h-4" />
                 {allCompleted
-                  ? (isRangeMatch ? 'Avslutt stevne' : 'Avslutt \u00F8kt')
+                  ? (isRangeMatch ? 'Avslutt stevne' : 'Avslutt økt')
                   : 'Lagre og avslutt'
                 }
               </button>
@@ -324,24 +324,24 @@ export function TrainingSessionActive() {
           open={showFinishConfirm}
           title={
             allCompleted
-              ? (isRangeMatch ? 'Avslutt banestevnet?' : 'Avslutt trenings\u00F8kten?')
-              : 'Noen serier er ikke fullf\u00F8rt'
+              ? (isRangeMatch ? 'Avslutt banestevnet?' : 'Avslutt treningsøkten?')
+              : 'Noen serier er ikke fullført'
           }
           message={
             allCompleted
               ? (isRangeMatch
-                  ? 'Du kan fortsatt se og redigere resultatet i historikken etterp\u00E5.'
-                  : 'Du kan fortsatt se resultatet i treningsloggen etterp\u00E5.')
+                  ? 'Du kan fortsatt se og redigere resultatet i historikken etterpå.'
+                  : 'Du kan fortsatt se resultatet i treningsloggen etterpå.')
               : 'Du har serier uten registrert resultat. Du kan fortsatt avslutte og registrere resultater senere.'
           }
           confirmLabel={
             finishing
               ? 'Lagrer...'
               : allCompleted
-                ? (isRangeMatch ? 'Avslutt stevne' : 'Avslutt \u00F8kt')
+                ? (isRangeMatch ? 'Avslutt stevne' : 'Avslutt økt')
                 : 'Lagre og avslutt'
           }
-          cancelLabel={isRangeMatch ? 'Fortsett stevne' : 'Fortsett \u00F8kt'}
+          cancelLabel={isRangeMatch ? 'Fortsett stevne' : 'Fortsett økt'}
           variant="warning"
           isLoading={finishing}
           onConfirm={handleFinish}
@@ -350,14 +350,14 @@ export function TrainingSessionActive() {
 
         <ConfirmDialog
           open={showCancelConfirm}
-          title={isRangeMatch ? 'Avbryt banestevnet?' : 'Avbryt trenings\u00F8kten?'}
+          title={isRangeMatch ? 'Avbryt banestevnet?' : 'Avbryt treningsøkten?'}
           message={
             isRangeMatch
               ? 'Dette vil forkaste stevnet. Registrerte serier beholdes i historikken, men stevnet markeres som avbrutt.'
-              : 'Dette vil forkaste \u00F8kten. Registrerte serier beholdes i historikken, men \u00F8kten markeres som avbrutt.'
+              : 'Dette vil forkaste økten. Registrerte serier beholdes i historikken, men økten markeres som avbrutt.'
           }
-          confirmLabel={isRangeMatch ? 'Avbryt stevne' : 'Avbryt \u00F8kt'}
-          cancelLabel={isRangeMatch ? 'Fortsett stevne' : 'Fortsett \u00F8kt'}
+          confirmLabel={isRangeMatch ? 'Avbryt stevne' : 'Avbryt økt'}
+          cancelLabel={isRangeMatch ? 'Fortsett stevne' : 'Fortsett økt'}
           variant="danger"
           onConfirm={handleCancel}
           onCancel={() => setShowCancelConfirm(false)}
@@ -365,7 +365,7 @@ export function TrainingSessionActive() {
 
         {showEditMeta && session && (
           <EditMetadataModal
-            title={isRangeMatch ? 'Rediger banestevne' : 'Rediger trenings\u00F8kt'}
+            title={isRangeMatch ? 'Rediger banestevne' : 'Rediger treningsøkt'}
             currentName={session.title}
             currentNotes={session.notes || ''}
             nameLabel="Tittel"

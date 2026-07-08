@@ -26,14 +26,14 @@ export function SyncStatusIndicator() {
 
   const label = syncing
     ? `Synkroniserer ${queueLength} ${queueLength === 1 ? 'endring' : 'endringer'}\u2026`
-    : `${queueLength} ${queueLength === 1 ? 'endring' : 'endringer'} venter p\u00E5 synkronisering`;
+    : `${queueLength} ${queueLength === 1 ? 'endring' : 'endringer'} venter på synkronisering`;
 
   return (
     <button
       onClick={handleManualSync}
       disabled={syncing}
       className={`fixed bottom-[5.5rem] right-4 md:bottom-6 md:right-6 z-40 flex items-center gap-2 px-3 py-2 rounded-full shadow-lg text-sm font-medium transition-all bg-emerald-600 hover:bg-emerald-700 text-white ${syncing ? 'opacity-75' : ''}`}
-      title="Trykk for \u00E5 synkronisere"
+      title="Trykk for å synkronisere"
     >
       {syncing ? (
         <Loader2 className="w-4 h-4 animate-spin" />

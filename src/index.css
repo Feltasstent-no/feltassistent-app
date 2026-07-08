@@ -434,6 +434,16 @@ input[type="time"] {
   border-color: var(--border-default);
 }
 
+.dark .border-slate-100,
+.grey .border-slate-100 {
+  border-color: var(--border-muted);
+}
+
+.dark .border-slate-50,
+.grey .border-slate-50 {
+  border-color: var(--border-muted);
+}
+
 .dark .border-slate-300,
 .grey .border-slate-300 {
   border-color: var(--border-strong);
@@ -1181,6 +1191,11 @@ input[type="time"] {
 /* ===================================================================
    PURPLE ACCENT OVERRIDES
    ================================================================ */
+
+.dark .bg-purple-50,
+.grey .bg-purple-50 {
+  background-color: var(--violet-soft-bg);
+}
 
 .dark .bg-purple-100,
 .grey .bg-purple-100 {

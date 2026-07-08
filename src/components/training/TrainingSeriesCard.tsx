@@ -345,7 +345,7 @@ export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer
                 className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white text-sm font-semibold rounded-lg transition"
               >
                 <CheckCircle className="w-4 h-4" />
-                {saving ? 'Lagrer...' : series.completed ? 'Oppdater' : 'Fullf\u00F8r serie'}
+                {saving ? 'Lagrer...' : series.completed ? 'Oppdater' : 'Fullfør serie'}
               </button>
             </div>
           )}
