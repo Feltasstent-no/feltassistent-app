@@ -6,10 +6,11 @@ import { AdminDisciplines } from '../components/AdminDisciplines';
 import { AdminPresets } from '../components/AdminPresets';
 import { AdminAmmoProfiles } from '../components/AdminAmmoProfiles';
 import { AdminFieldFigures } from '../components/AdminFieldFigures';
+import { AdminLicenses } from '../components/AdminLicenses';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { ShooterClass, Discipline, FieldClockPreset, Competition, FieldFigure, CompetitionTemplate } from '../types/database';
-import { Shield, AlertCircle, Plus, Trophy, X, FileText } from 'lucide-react';
+import { Shield, AlertCircle, Plus, Trophy, X, FileText, Database, CreditCard } from 'lucide-react';
 
 export function Admin() {
   const { user } = useAuth();
@@ -22,6 +23,7 @@ export function Admin() {
   const [figures, setFigures] = useState<FieldFigure[]>([]);
   const [templates, setTemplates] = useState<CompetitionTemplate[]>([]);
   const [showNewCompetition, setShowNewCompetition] = useState(false);
+  const [activeTab, setActiveTab] = useState<'data' | 'licenses'>('licenses');
 
   const [compForm, setCompForm] = useState({
     name: '',
@@ -204,11 +206,36 @@ export function Admin() {
             </div>
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Admin</h1>
-              <p className="text-slate-600">Administrer oppslagsdata</p>
+              <p className="text-slate-600">Administrer oppslagsdata og lisenser</p>
             </div>
           </div>
         </div>
 
+        {/* Tabs */}
+        <div className="flex gap-1 mb-6 bg-slate-100 rounded-lg p-1 w-fit">
+          <button
+            onClick={() => setActiveTab('licenses')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition ${
+              activeTab === 'licenses' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <CreditCard className="w-4 h-4" />
+            Lisenser
+          </button>
+          <button
+            onClick={() => setActiveTab('data')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition ${
+              activeTab === 'data' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Database className="w-4 h-4" />
+            Oppslagsdata
+          </button>
+        </div>
+
+        {activeTab === 'licenses' && <AdminLicenses />}
+
+        {activeTab === 'data' && (
         <div className="space-y-8">
           <AdminTemplates />
 
@@ -442,6 +469,7 @@ export function Admin() {
 
           <AdminPresets />
         </div>
+        )}
       </div>
     </Layout>
   );

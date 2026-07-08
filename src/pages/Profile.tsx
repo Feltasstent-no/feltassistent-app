@@ -440,7 +440,19 @@ export function Profile() {
           </form>
         </div>
 
-        {user?.email === 'andor@valuetech.no' && (
+        {profile?.is_demo ? (
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 sm:p-5 mt-4">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                <CheckCircle className="w-4 h-4 text-emerald-600" />
+              </div>
+              <h3 className="text-base font-semibold text-emerald-900">Demo-konto</h3>
+            </div>
+            <p className="text-sm text-emerald-700 leading-relaxed ml-11">
+              Denne kontoen brukes til demonstrasjon av Feltassistenten. Ingen betaling kreves.
+            </p>
+          </div>
+        ) : user?.email === 'andor@valuetech.no' && (
           <SubscriptionSection license={license} loading={licenseLoading} onStartTrial={handleStartTrial} onUpgrade={handleUpgrade} upgradeLoading={upgradeLoading} onManage={handleManage} manageLoading={manageLoading} />
         )}
 

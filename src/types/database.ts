@@ -19,6 +19,7 @@ export interface Profile {
   caliber_type: CaliberType | null;
   usage_intent: UsageIntent | null;
   user_mode: UserMode;
+  is_demo: boolean;
   created_at: string;
   updated_at: string;
 }
