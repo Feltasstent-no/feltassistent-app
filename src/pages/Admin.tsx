@@ -7,10 +7,11 @@ import { AdminPresets } from '../components/AdminPresets';
 import { AdminAmmoProfiles } from '../components/AdminAmmoProfiles';
 import { AdminFieldFigures } from '../components/AdminFieldFigures';
 import { AdminLicenses } from '../components/AdminLicenses';
+import { AdminDfsConfig } from '../components/AdminDfsConfig';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { ShooterClass, Discipline, FieldClockPreset, Competition, FieldFigure, CompetitionTemplate } from '../types/database';
-import { Shield, AlertCircle, Plus, Trophy, X, FileText, Database, CreditCard } from 'lucide-react';
+import { Shield, AlertCircle, Plus, Trophy, X, FileText, Database, CreditCard, Settings } from 'lucide-react';
 
 export function Admin() {
   const { user } = useAuth();
@@ -23,7 +24,7 @@ export function Admin() {
   const [figures, setFigures] = useState<FieldFigure[]>([]);
   const [templates, setTemplates] = useState<CompetitionTemplate[]>([]);
   const [showNewCompetition, setShowNewCompetition] = useState(false);
-  const [activeTab, setActiveTab] = useState<'data' | 'licenses'>('licenses');
+  const [activeTab, setActiveTab] = useState<'data' | 'licenses' | 'dfs'>('licenses');
 
   const [compForm, setCompForm] = useState({
     name: '',
@@ -212,28 +213,39 @@ export function Admin() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-6 bg-slate-100 rounded-lg p-1 w-fit">
+        <div className="flex gap-1 mb-6 bg-slate-100 rounded-lg p-1 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-1 sm:w-fit no-scrollbar">
           <button
             onClick={() => setActiveTab('licenses')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition ${
+            className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition whitespace-nowrap ${
               activeTab === 'licenses' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <CreditCard className="w-4 h-4" />
+            <CreditCard className="w-4 h-4 shrink-0" />
             Lisenser
           </button>
           <button
+            onClick={() => setActiveTab('dfs')}
+            className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition whitespace-nowrap ${
+              activeTab === 'dfs' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Settings className="w-4 h-4 shrink-0" />
+            DFS-konfig
+          </button>
+          <button
             onClick={() => setActiveTab('data')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition ${
+            className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition whitespace-nowrap ${
               activeTab === 'data' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <Database className="w-4 h-4" />
+            <Database className="w-4 h-4 shrink-0" />
             Oppslagsdata
           </button>
         </div>
 
         {activeTab === 'licenses' && <AdminLicenses />}
+
+        {activeTab === 'dfs' && <AdminDfsConfig />}
 
         {activeTab === 'data' && (
         <div className="space-y-8">
