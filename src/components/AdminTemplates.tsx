@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { CompetitionTemplate, Discipline } from '../types/database';
+import { getFieldTypeDisplayName } from '../lib/display-names';
 import { Plus, CreditCard as Edit, Trash2, Save, X, GripVertical } from 'lucide-react';
 
 export function AdminTemplates() {
@@ -572,8 +573,8 @@ export function AdminTemplates() {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <span className="text-sm text-slate-600 capitalize">
-                          {template.competition_type}
+                        <span className="text-sm text-slate-600">
+                          {getFieldTypeDisplayName(template.competition_type)}
                         </span>
                       </td>
                       <td className="px-4 py-3">

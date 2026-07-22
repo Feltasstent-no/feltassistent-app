@@ -7,6 +7,7 @@ interface OnboardingState {
   shootingType: ShootingType | null;
   caliberType: CaliberType | null;
   usageIntent: UsageIntent | null;
+  shooterClassCode: string | null;
 }
 
 interface OnboardingContextType {
@@ -25,7 +26,7 @@ const OnboardingContext = createContext<OnboardingContextType>({
   needsOnboarding: false,
   onboardingLoading: true,
   userMode: 'grovfelt',
-  state: { shootingType: null, caliberType: null, usageIntent: null },
+  state: { shootingType: null, caliberType: null, usageIntent: null, shooterClassCode: null },
   setState: () => {},
   completeOnboarding: async () => {},
   skipOnboarding: async () => {},
@@ -44,6 +45,7 @@ interface CachedProfile {
   shooting_type: ShootingType | null;
   caliber_type: CaliberType | null;
   usage_intent: UsageIntent | null;
+  shooter_class: string | null;
   cached_at: number;
 }
 
@@ -90,6 +92,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     shootingType: null,
     caliberType: null,
     usageIntent: null,
+    shooterClassCode: null,
   });
 
   const checkOnboarding = async () => {
@@ -101,7 +104,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
 
     const { data, error } = await supabase
       .from('profiles')
-      .select('onboarding_completed, shooting_type, caliber_type, usage_intent, user_mode')
+      .select('onboarding_completed, shooting_type, caliber_type, usage_intent, user_mode, shooter_class')
       .eq('id', user.id)
       .maybeSingle();
 
@@ -115,6 +118,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
           shootingType: cached.shooting_type,
           caliberType: cached.caliber_type,
           usageIntent: cached.usage_intent,
+          shooterClassCode: cached.shooter_class || null,
         });
       }
       setOnboardingLoading(false);
@@ -128,6 +132,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
           shootingType: data.shooting_type,
           caliberType: data.caliber_type,
           usageIntent: data.usage_intent,
+          shooterClassCode: data.shooter_class || null,
         });
       }
     } else {
@@ -142,6 +147,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
         shooting_type: data.shooting_type,
         caliber_type: data.caliber_type,
         usage_intent: data.usage_intent,
+        shooter_class: data.shooter_class || null,
         cached_at: Date.now(),
       });
     }
@@ -171,6 +177,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
         caliber_type: state.caliberType,
         usage_intent: state.usageIntent,
         user_mode: mode,
+        shooter_class: state.shooterClassCode || null,
       })
       .eq('id', user.id);
     setUserMode(mode);
@@ -183,6 +190,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
         shooting_type: state.shootingType,
         caliber_type: state.caliberType,
         usage_intent: state.usageIntent,
+        shooter_class: state.shooterClassCode || null,
         cached_at: Date.now(),
       });
     }
@@ -210,6 +218,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       shooting_type: null,
       caliber_type: null,
       usage_intent: null,
+      shooter_class: null,
       cached_at: Date.now(),
     });
   };
@@ -231,7 +240,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
         user_mode: 'grovfelt',
       })
       .eq('id', user.id);
-    setStateInternal({ shootingType: null, caliberType: null, usageIntent: null });
+    setStateInternal({ shootingType: null, caliberType: null, usageIntent: null, shooterClassCode: null });
     setUserMode('grovfelt');
     setNeedsOnboarding(true);
     clearCache();

@@ -324,29 +324,37 @@ export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer
           )}
 
           {!readOnly && (
-            <div className="flex gap-2">
-              <label className="flex items-center gap-1.5 px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-700 hover:bg-slate-50 transition cursor-pointer">
-                <Camera className="w-4 h-4" />
-                {uploading ? 'Laster opp...' : 'Legg til bilde'}
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handlePhotoCapture}
-                  disabled={uploading}
-                  className="hidden"
-                />
-              </label>
+            <div className="space-y-3">
+              {images.length > 0 && (
+                <div className="flex items-center gap-1.5 px-2 py-1 bg-emerald-50 border border-emerald-200 rounded-lg w-fit">
+                  <CheckCircle className="w-4 h-4 text-emerald-600" />
+                  <span className="text-xs font-medium text-emerald-700">{images.length} bilde{images.length > 1 ? 'r' : ''} lagret</span>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-2">
+                <label className="flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition cursor-pointer">
+                  <Camera className="w-4 h-4" />
+                  {uploading ? 'Laster opp...' : images.length > 0 ? 'Bytt bilde' : 'Ta bilde'}
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handlePhotoCapture}
+                    disabled={uploading}
+                    className="hidden"
+                  />
+                </label>
 
-              <button
-                onClick={handleSaveResult}
-                disabled={saving}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white text-sm font-semibold rounded-lg transition"
-              >
-                <CheckCircle className="w-4 h-4" />
-                {saving ? 'Lagrer...' : series.completed ? 'Oppdater' : 'Fullfør serie'}
-              </button>
+                <button
+                  onClick={handleSaveResult}
+                  disabled={saving}
+                  className="flex items-center justify-center gap-2 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white text-sm font-semibold rounded-lg transition"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  {saving ? 'Lagrer...' : series.completed ? 'Oppdater' : 'Fullfør serie'}
+                </button>
+              </div>
             </div>
           )}
         </div>

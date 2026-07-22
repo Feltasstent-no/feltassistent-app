@@ -12,6 +12,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { ShooterClass, Discipline, FieldClockPreset, Competition, FieldFigure, CompetitionTemplate } from '../types/database';
 import { Shield, AlertCircle, Plus, Trophy, X, FileText, Database, CreditCard, Settings } from 'lucide-react';
+import { getFieldTypeDisplayName } from '../lib/display-names';
 
 export function Admin() {
   const { user } = useAuth();
@@ -452,7 +453,7 @@ export function Admin() {
                       <p className="font-medium text-slate-900">{comp.name}</p>
                     </div>
                     <p className="text-sm text-slate-600">
-                      {comp.competition_type} • {comp.location || 'Ingen sted'} • {comp.competition_date ? new Date(comp.competition_date).toLocaleDateString('nb-NO') : 'Ingen dato'}
+                      {getFieldTypeDisplayName(comp.competition_type)} • {comp.location || 'Ingen sted'} • {comp.competition_date ? new Date(comp.competition_date).toLocaleDateString('nb-NO') : 'Ingen dato'}
                     </p>
                   </div>
                   <span

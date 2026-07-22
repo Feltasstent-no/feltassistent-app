@@ -28,15 +28,13 @@ export function Weapons() {
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const { activeSetup, setWeapon } = useActiveSetup();
+  const { activeSetup, setWeapon, updateActiveSetup } = useActiveSetup();
   const { state: onboardingState } = useOnboarding();
   const [weapons, setWeapons] = useState<Weapon[]>([]);
   const [selectedWeapon, setSelectedWeapon] = useState<Weapon | null>(null);
   const [barrels, setBarrels] = useState<WeaponBarrel[]>([]);
   const [loading, setLoading] = useState(true);
-  const [onboardingStep, setOnboardingStep] = useState<'weapon' | 'barrel' | null>(
-    (location.state as { fromOnboarding?: boolean })?.fromOnboarding ? 'weapon' : null
-  );
+  const [onboardingStep, setOnboardingStep] = useState<'weapon' | 'barrel' | null>(null);
   const [showNewWeapon, setShowNewWeapon] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [showNewBarrel, setShowNewBarrel] = useState(false);
@@ -303,12 +301,6 @@ export function Weapons() {
       existingBarrel = data;
     }
 
-    await supabase
-      .from('weapon_barrels')
-      .update({ is_active: false })
-      .eq('weapon_id', selectedWeapon.id)
-      .eq('is_active', true);
-
     if (existingBarrel) {
       const { error } = await supabase
         .from('weapon_barrels')
@@ -380,7 +372,20 @@ export function Weapons() {
   };
 
   const handleDeactivateBarrel = async (barrelId: string) => {
-    if (!confirm('Deaktiver dette løpet?')) return;
+    if (activeSetup?.barrel_id === barrelId) {
+      const otherBarrel = barrels.find(b => b.id !== barrelId && b.is_active);
+      if (!otherBarrel) {
+        alert('Du kan ikke pensjonere det eneste tilgjengelige løpet. Legg til et nytt løp først.');
+        return;
+      }
+      const confirmed = confirm(
+        'Dette løpet er valgt som aktivt i oppsettet ditt. Bytte til et annet løp og pensjonere dette?'
+      );
+      if (!confirmed) return;
+      await updateActiveSetup({ barrel_id: otherBarrel.id });
+    } else {
+      if (!confirm('Pensjonere dette løpet?')) return;
+    }
 
     await supabase
       .from('weapon_barrels')
@@ -919,7 +924,7 @@ export function Weapons() {
                         {!editMode && activeSetup?.weapon_id !== selectedWeapon.id && (
                           <button
                             onClick={async () => {
-                              await setWeapon(selectedWeapon.id, barrels.find(b => b.is_active)?.id || null);
+                              await setWeapon(selectedWeapon.id, barrels[0]?.id || null);
                               alert('Våpen satt som aktivt');
                             }}
                             className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition"
@@ -1497,9 +1502,9 @@ export function Weapons() {
                               <div className="flex-1">
                                 <div className="flex items-center space-x-2 mb-1">
                                   <p className="font-semibold text-slate-900">{barrel.barrel_number}</p>
-                                  {barrel.is_active && (
+                                  {activeSetup?.barrel_id === barrel.id && (
                                     <span className="px-2 py-0.5 bg-emerald-600 text-white text-xs rounded-full">
-                                      Aktivt
+                                      Aktivt løp
                                     </span>
                                   )}
                                   <span className="px-2 py-0.5 bg-slate-200 text-slate-700 text-xs rounded">
@@ -1525,7 +1530,7 @@ export function Weapons() {
                                   <button
                                     onClick={() => handleDeactivateBarrel(barrel.id)}
                                     className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
-                                    title="Deaktiver løp"
+                                    title="Pensjoner løp"
                                   >
                                     <X className="w-4 h-4" />
                                   </button>

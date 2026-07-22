@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { enqueueUpload } from '../../lib/upload-queue';
 import { compressImage } from '../../lib/image-compression';
 import { CompetitionStageImage } from '../../types/database';
-import { Camera, Upload, X, Check, FileText, Loader2 } from 'lucide-react';
+import { Camera, X, Check, FileText, Loader2 } from 'lucide-react';
 
 async function resolveMonitorUrl(storagePath: string): Promise<string> {
   if (storagePath.startsWith('http://') || storagePath.startsWith('https://')) {
@@ -261,26 +261,18 @@ export function HoldImageUpload({
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-sm text-slate-600">
-            <span className="flex items-center gap-1">
-              <Check className="w-4 h-4 text-green-600" />
-              Lagret
-            </span>
-            <span>
-              {existingImage?.uploaded_at &&
-                new Date(existingImage.uploaded_at).toLocaleTimeString('nb-NO', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-            </span>
+          <div className="flex items-center gap-1.5 px-2 py-1 bg-emerald-50 border border-emerald-200 rounded-lg w-fit">
+            <Check className="w-4 h-4 text-emerald-600" />
+            <span className="text-xs font-medium text-emerald-700">1 bilde lagret</span>
           </div>
 
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            className="w-full py-2 px-4 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-100 disabled:opacity-50 transition-colors"
+            className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
           >
-            Last opp nytt bilde
+            <Camera className="w-5 h-5" />
+            Bytt bilde
           </button>
         </div>
       ) : (
@@ -291,10 +283,10 @@ export function HoldImageUpload({
 
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
+            className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
           >
-            <Upload className="w-5 h-5" />
-            Velg eller ta bilde
+            <Camera className="w-5 h-5" />
+            Ta bilde
           </button>
 
           <p className="text-xs text-center text-slate-500">

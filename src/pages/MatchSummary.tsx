@@ -26,6 +26,7 @@ import {
 import { BulletIcon } from '../components/BulletIcon';
 import { FieldFigureSvg } from '../components/FieldFigureSvg';
 import { EditMetadataModal } from '../components/EditMetadataModal';
+import { getFieldTypeDisplayName } from '../lib/display-names';
 
 import type { MatchSession, MatchHoldWithFigure } from '../lib/match-service';
 
@@ -444,7 +445,7 @@ export function MatchSummary() {
           </div>
           <div className="flex items-center justify-center gap-3 mt-2 text-sm text-slate-500">
             <span>{new Date(session.match_date).toLocaleDateString('nb-NO')}</span>
-            <span className="capitalize">{session.competition_type}</span>
+            <span>{getFieldTypeDisplayName(session.competition_type)}</span>
           </div>
         </div>
 

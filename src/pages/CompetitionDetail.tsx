@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { EditMetadataModal } from '../components/EditMetadataModal';
 import { Competition, CompetitionStage, Discipline } from '../types/database';
 import { Trophy, Calendar, MapPin, Pencil, Play, List, Target, EyeOff } from 'lucide-react';
+import { getFieldTypeDisplayName } from '../lib/display-names';
 
 export function CompetitionDetail() {
   const { competitionId } = useParams();
@@ -136,8 +137,8 @@ export function CompetitionDetail() {
           )}
 
           <div className="flex flex-wrap items-center gap-3 text-sm">
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-800 capitalize">
-              {competition.competition_type}
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
+              {getFieldTypeDisplayName(competition.competition_type)}
             </span>
 
             {discipline && (

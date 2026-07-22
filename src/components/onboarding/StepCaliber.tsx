@@ -1,8 +1,13 @@
+import { useEffect, useRef } from 'react';
+import { Check } from 'lucide-react';
+import { getFieldTypeDisplayName } from '../../lib/display-names';
 import type { CaliberType, ShootingType } from '../../types/database';
+import type { ShooterClassSetup } from '../../lib/dfs-class-config';
 
 interface Props {
   value: CaliberType | null;
   shootingType: ShootingType | null;
+  classSetup: ShooterClassSetup | null;
   onChange: (v: CaliberType) => void;
 }
 
@@ -34,7 +39,7 @@ const allOptions: CaliberOption[] = [
     label: 'Annet',
     desc: 'Jeg bruker et annet kaliber (f.eks. HK416, 5.56 eller tilsvarende)',
     icon: '?',
-    disciplines: ['grovfelt'],
+    disciplines: ['finfelt', 'grovfelt'],
   },
 ];
 
@@ -43,19 +48,65 @@ function getOptions(shootingType: ShootingType | null): CaliberOption[] {
   return allOptions.filter(o => o.disciplines.includes(shootingType));
 }
 
-export function StepCaliber({ value, shootingType, onChange }: Props) {
+function mapDefaultCaliberToType(defaultCaliber: string | null): CaliberType | null {
+  if (!defaultCaliber) return null;
+  const normalized = defaultCaliber.toLowerCase().trim();
+  if (normalized === '.22 lr' || normalized === '.22lr') return '.22 LR';
+  if (normalized === '6.5x55' || normalized === '6,5x55') return '6.5x55';
+  return 'annet';
+}
+
+export function StepCaliber({ value, shootingType, classSetup, onChange }: Props) {
   const options = getOptions(shootingType);
+  const recommendedCaliber = mapDefaultCaliberToType(classSetup?.default_caliber ?? null);
+  const didAutoSelect = useRef(false);
+
+  useEffect(() => {
+    if (didAutoSelect.current) return;
+    if (!recommendedCaliber) return;
+    didAutoSelect.current = true;
+    onChange(recommendedCaliber);
+  }, [recommendedCaliber]);
+
+  const classLabel = classSetup
+    ? `${classSetup.class_name} \u00b7 ${getFieldTypeDisplayName(classSetup.field_type)}${
+        classSetup.bane_distances.length > 0
+          ? ` \u00b7 Bane ${classSetup.bane_distances.join('/')} m`
+          : ''
+      }`
+    : null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="text-center">
         <h2 className="text-2xl font-bold text-slate-900">Hvilket kaliber bruker du?</h2>
-        <p className="text-slate-600 mt-2">Velg hovedkaliberet ditt</p>
+        <p className="text-slate-600 mt-2">
+          {recommendedCaliber
+            ? 'Vi har forhåndsvalgt basert på klassen din'
+            : 'Velg hovedkaliberet ditt'}
+        </p>
       </div>
+
+      {classLabel && (
+        <div className="bg-slate-50 rounded-lg border border-slate-200 px-4 py-2.5 text-center">
+          <p className="text-sm text-slate-600">{classLabel}</p>
+        </div>
+      )}
+
+      {recommendedCaliber && classSetup && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 rounded-lg border border-emerald-200">
+          <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+          <p className="text-sm text-emerald-800">
+            Anbefalt for {classSetup.class_name}:{' '}
+            <span className="font-semibold">{classSetup.default_caliber}</span>
+          </p>
+        </div>
+      )}
 
       <div className="space-y-3">
         {options.map(opt => {
           const selected = value === opt.value;
+          const isRecommended = opt.value === recommendedCaliber;
           return (
             <button
               key={opt.value}
@@ -72,9 +123,16 @@ export function StepCaliber({ value, shootingType, onChange }: Props) {
                 {opt.icon}
               </div>
               <div className="min-w-0">
-                <p className={`font-semibold text-base ${selected ? 'text-emerald-900' : 'text-slate-900'}`}>
-                  {opt.label}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className={`font-semibold text-base ${selected ? 'text-emerald-900' : 'text-slate-900'}`}>
+                    {opt.label}
+                  </p>
+                  {isRecommended && !selected && (
+                    <span className="text-xs bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium">
+                      Anbefalt
+                    </span>
+                  )}
+                </div>
                 <p className={`text-sm mt-0.5 ${selected ? 'text-emerald-700' : 'text-slate-500'}`}>
                   {opt.desc}
                 </p>

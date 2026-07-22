@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { useActiveSetup } from '../contexts/ActiveSetupContext';
@@ -63,6 +63,7 @@ export function MatchHome() {
   const { activeSetup } = useActiveSetup();
   const { userMode } = useOnboarding();
   const navigate = useNavigate();
+  const location = useLocation();
   const [activeSessions, setActiveSessions] = useState<MatchSession[]>([]);
   const [activeRangeMatches, setActiveRangeMatches] = useState<{ id: string; title: string; date: string; completedSeries: number; totalSeries: number }[]>([]);
   const [recentMatches, setRecentMatches] = useState<MatchSession[]>([]);
@@ -76,6 +77,10 @@ export function MatchHome() {
   const [editSession, setEditSession] = useState<MatchSession | null>(null);
   const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
   const [cancelConfirmType, setCancelConfirmType] = useState<'field' | 'range'>('field');
+
+  const locState = location.state as { fromOnboarding?: boolean; setupResult?: { weapon: boolean; barrel: boolean; ammo: boolean; profile: boolean; clickTable: boolean; caliberType: string | null; sightChoice: string | null } } | null;
+  const [showOnboardingSuccess, setShowOnboardingSuccess] = useState(!!locState?.fromOnboarding);
+  const onboardingResult = locState?.setupResult || null;
 
   const fullSetupComplete = hasValidActiveSetup(activeSetup);
   const setupComplete = userMode === 'finfelt_only' ? true : fullSetupComplete;
@@ -260,6 +265,21 @@ export function MatchHome() {
         </div>
 
         <CompetitionStatsSection />
+
+        {showOnboardingSuccess && onboardingResult && (
+          <OnboardingSuccessCard
+            result={onboardingResult}
+            onDismiss={() => setShowOnboardingSuccess(false)}
+            onAction={() => {
+              setShowOnboardingSuccess(false);
+              if (onboardingResult.clickTable) {
+                navigate('/shot-assistant');
+              } else {
+                navigate('/field-clock');
+              }
+            }}
+          />
+        )}
 
         {!setupComplete && userMode !== 'finfelt_only' && (
           <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 sm:p-6 mb-8">
@@ -815,5 +835,65 @@ export function MatchHome() {
         onCancel={() => setCancelConfirmId(null)}
       />
     </Layout>
+  );
+}
+
+function OnboardingSuccessCard({ result, onDismiss, onAction }: {
+  result: { weapon: boolean; barrel: boolean; ammo: boolean; profile: boolean; clickTable: boolean; caliberType: string | null; sightChoice: string | null };
+  onDismiss: () => void;
+  onAction: () => void;
+}) {
+  const is22 = result.caliberType === '.22 LR';
+  const has65Busk = result.caliberType === '6.5x55' && result.clickTable;
+
+  return (
+    <div className="mb-6 bg-emerald-50 border border-emerald-200 rounded-xl p-4 sm:p-5 relative">
+      <button
+        onClick={onDismiss}
+        className="absolute top-3 right-3 text-emerald-400 hover:text-emerald-600 transition-colors"
+        aria-label="Lukk"
+      >
+        <XCircle className="w-5 h-5" />
+      </button>
+
+      <div className="flex items-center gap-2.5 mb-3">
+        <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+        <h3 className="font-bold text-slate-900">Feltassistenten er klar</h3>
+      </div>
+
+      <div className="space-y-1.5 mb-4">
+        {result.weapon && <SuccessRow label="Vapen" />}
+        {result.barrel && <SuccessRow label="Lop" />}
+        {result.ammo && <SuccessRow label="Ammunisjon" />}
+        {result.profile && <SuccessRow label="Startprofil" />}
+        {result.clickTable && <SuccessRow label="Starttabell" />}
+      </div>
+
+      <button
+        onClick={onAction}
+        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition flex items-center justify-center gap-2"
+      >
+        {has65Busk ? (
+          <>
+            <Crosshair className="w-4 h-4" />
+            <span>Apne kneppassistent</span>
+          </>
+        ) : (
+          <>
+            <Clock className="w-4 h-4" />
+            <span>Apne feltklokke</span>
+          </>
+        )}
+      </button>
+    </div>
+  );
+}
+
+function SuccessRow({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+      <span className="text-sm text-slate-700">{label}</span>
+    </div>
   );
 }

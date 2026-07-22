@@ -53,6 +53,7 @@ export function MatchActive() {
   const [session, setSession] = useState<MatchSession | null>(null);
   const [holds, setHolds] = useState<MatchHoldWithFigure[]>([]);
   const [currentHold, setCurrentHold] = useState<MatchHoldWithFigure | null>(null);
+  const [currentHoldHasPhoto, setCurrentHoldHasPhoto] = useState(false);
   const [showResetReminder, setShowResetReminder] = useState(false);
   const [isLastHoldReset, setIsLastHoldReset] = useState(false);
   const [clockStarted, setClockStarted] = useState(false);
@@ -79,6 +80,14 @@ export function MatchActive() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const subHoldPhotoInputRef = useRef<HTMLInputElement>(null);
   const pendingSubHoldIdRef = useRef<string | null>(null);
+  const prevHoldIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (currentHold?.id !== prevHoldIdRef.current) {
+      prevHoldIdRef.current = currentHold?.id ?? null;
+      setCurrentHoldHasPhoto(false);
+    }
+  }, [currentHold?.id]);
 
   useBlockNavigation(
     clockStarted && !showResetReminder,
@@ -591,6 +600,7 @@ export function MatchActive() {
         holdId: currentHold.id,
         holdType: 'match_hold',
       });
+      setCurrentHoldHasPhoto(true);
     } catch (err) {
       console.error('[MatchActive] Photo upload failed:', err);
     }
@@ -761,6 +771,7 @@ export function MatchActive() {
             initialElapsedTime={initialElapsedTime}
             isFinfelt={session.competition_type === 'finfelt'}
             isLastHold={session.current_hold_index >= holds.length - 1}
+            hasPhoto={currentHoldHasPhoto}
             previousHoldWindClicks={
               session.current_hold_index > 0
                 ? holds[session.current_hold_index - 1]?.wind_correction_clicks ?? null

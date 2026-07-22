@@ -7,6 +7,7 @@ import { Competition, CompetitionEntry, Discipline } from '../types/database';
 import { Trophy, Calendar, MapPin, Users, Trash2, MoreVertical } from 'lucide-react';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { deleteCompetition, deleteCompetitionEntry } from '../lib/deletion-service';
+import { getFieldTypeDisplayName } from '../lib/display-names';
 
 export function Competitions() {
   const { user } = useAuth();
@@ -169,8 +170,8 @@ export function Competitions() {
                           </div>
 
                         <div className="flex flex-wrap items-center gap-3 text-sm text-slate-600">
-                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 capitalize">
-                            {competition.competition_type}
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+                            {getFieldTypeDisplayName(competition.competition_type)}
                           </span>
 
                           {competition.location && (
@@ -280,8 +281,8 @@ export function Competitions() {
                       )}
 
                       <div className="flex flex-wrap items-center gap-3 text-sm text-slate-600">
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-800 capitalize">
-                          {competition.competition_type}
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
+                          {getFieldTypeDisplayName(competition.competition_type)}
                         </span>
 
                         {discipline && (

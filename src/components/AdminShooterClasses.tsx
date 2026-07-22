@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { ShooterClass } from '../types/database';
+import { getCategoryDisplayName } from '../lib/display-names';
 import { Plus, CreditCard as Edit, Trash2, Save, X } from 'lucide-react';
 
 export function AdminShooterClasses() {
@@ -179,9 +180,11 @@ export function AdminShooterClasses() {
                   onChange={(e) => setFormData({ ...formData, category: e.target.value as any })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
                 >
+                  <option value="ungdom">Ungdom</option>
                   <option value="junior">Junior</option>
                   <option value="senior">Senior</option>
                   <option value="veteran">Veteran</option>
+                  <option value="spesial">Spesial</option>
                 </select>
               </div>
               <div>
@@ -257,9 +260,11 @@ export function AdminShooterClasses() {
                     onChange={(e) => setFormData({ ...formData, category: e.target.value as any })}
                     className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
                   >
+                    <option value="ungdom">Ungdom</option>
                     <option value="junior">Junior</option>
                     <option value="senior">Senior</option>
                     <option value="veteran">Veteran</option>
+                    <option value="spesial">Spesial</option>
                   </select>
                   <input
                     type="number"
@@ -304,7 +309,7 @@ export function AdminShooterClasses() {
                 <div>
                   <p className="font-medium text-slate-900">{shooterClass.name}</p>
                   <p className="text-sm text-slate-600">
-                    {shooterClass.code} • {shooterClass.category}
+                    {getCategoryDisplayName(shooterClass.category)}
                   </p>
                 </div>
                 <div className="flex items-center space-x-2">

@@ -2,10 +2,16 @@ import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { DfsClassConfig, invalidateDfsClassCache } from '../lib/dfs-class-config';
+import { ShooterClass } from '../types/database';
+import { getCategoryDisplayName } from '../lib/display-names';
 import { Loader2, Target, Trees, CheckCircle, XCircle, Pencil, X, Save, AlertTriangle } from 'lucide-react';
 
+interface MergedClassRow {
+  shooter_class: ShooterClass;
+  dfs_config: DfsClassConfig | null;
+}
+
 interface EditForm {
-  class_name: string;
   field_type: 'finfelt' | 'grovfelt';
   bane_distances: number[];
   field_distance_min_m: number | null;
@@ -16,33 +22,31 @@ interface EditForm {
 }
 
 interface ValidationErrors {
-  class_name?: string;
   bane_distances?: string;
   field_distance?: string;
 }
 
 function validate(form: EditForm): ValidationErrors {
   const errors: ValidationErrors = {};
-  if (!form.class_name.trim()) errors.class_name = 'Klassenavn kan ikke være tomt';
-  if (form.bane_distances.length === 0) errors.bane_distances = 'Velg minst én baneavstand';
+  if (form.bane_distances.length === 0) errors.bane_distances = 'Velg minst en baneavstand';
   if (form.field_distance_min_m != null && form.field_distance_max_m != null &&
       form.field_distance_max_m < form.field_distance_min_m) {
-    errors.field_distance = 'Maks feltavstand kan ikke være lavere enn min';
+    errors.field_distance = 'Maks feltavstand kan ikke vaere lavere enn min';
   }
   return errors;
 }
 
 export function AdminDfsConfig() {
   const { user } = useAuth();
-  const [configs, setConfigs] = useState<DfsClassConfig[]>([]);
+  const [rows, setRows] = useState<MergedClassRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editingConfig, setEditingConfig] = useState<DfsClassConfig | null>(null);
+  const [editingRow, setEditingRow] = useState<MergedClassRow | null>(null);
   const [editForm, setEditForm] = useState<EditForm | null>(null);
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
-  useEffect(() => { fetchConfigs(); }, []);
+  useEffect(() => { fetchData(); }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -50,39 +54,49 @@ export function AdminDfsConfig() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  const fetchConfigs = async () => {
+  const fetchData = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from('dfs_class_configs')
-      .select('*')
-      .order('sort_order');
-    setConfigs((data as DfsClassConfig[]) || []);
+    const [scRes, dcRes] = await Promise.all([
+      supabase.from('shooter_classes').select('*').eq('is_active', true).order('sort_order'),
+      supabase.from('dfs_class_configs').select('*').order('sort_order'),
+    ]);
+
+    const shooterClasses = (scRes.data as ShooterClass[]) || [];
+    const dfsConfigs = (dcRes.data as DfsClassConfig[]) || [];
+    const dcMap = new Map(dfsConfigs.map(dc => [dc.class_key, dc]));
+
+    const merged: MergedClassRow[] = shooterClasses.map(sc => ({
+      shooter_class: sc,
+      dfs_config: dcMap.get(sc.code) || null,
+    }));
+
+    setRows(merged);
     setLoading(false);
   };
 
-  const openEdit = useCallback((config: DfsClassConfig) => {
-    setEditingConfig(config);
+  const openEdit = useCallback((row: MergedClassRow) => {
+    setEditingRow(row);
+    const dc = row.dfs_config;
     setEditForm({
-      class_name: config.class_name,
-      field_type: config.field_type,
-      bane_distances: [...config.bane_distances],
-      field_distance_min_m: config.field_distance_min_m,
-      field_distance_max_m: config.field_distance_max_m,
-      default_caliber: config.default_caliber || '',
-      description: config.description || '',
-      is_active: config.is_active,
+      field_type: dc?.field_type || 'grovfelt',
+      bane_distances: dc ? [...dc.bane_distances] : [],
+      field_distance_min_m: dc?.field_distance_min_m ?? null,
+      field_distance_max_m: dc?.field_distance_max_m ?? null,
+      default_caliber: dc?.default_caliber || '',
+      description: dc?.description || '',
+      is_active: dc?.is_active ?? true,
     });
     setErrors({});
   }, []);
 
   const closeEdit = () => {
-    setEditingConfig(null);
+    setEditingRow(null);
     setEditForm(null);
     setErrors({});
   };
 
   const handleSave = async () => {
-    if (!editForm || !editingConfig || !user) return;
+    if (!editForm || !editingRow || !user) return;
     const validationErrors = validate(editForm);
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
@@ -90,8 +104,8 @@ export function AdminDfsConfig() {
     }
 
     setSaving(true);
-    const updatePayload = {
-      class_name: editForm.class_name.trim(),
+    const classKey = editingRow.shooter_class.code;
+    const payload = {
       field_type: editForm.field_type,
       bane_distances: editForm.bane_distances,
       field_distance_min_m: editForm.field_distance_min_m,
@@ -102,10 +116,24 @@ export function AdminDfsConfig() {
       updated_at: new Date().toISOString(),
     };
 
-    const { error } = await supabase
-      .from('dfs_class_configs')
-      .update(updatePayload)
-      .eq('id', editingConfig.id);
+    let error;
+    if (editingRow.dfs_config) {
+      const res = await supabase
+        .from('dfs_class_configs')
+        .update(payload)
+        .eq('id', editingRow.dfs_config.id);
+      error = res.error;
+    } else {
+      const res = await supabase
+        .from('dfs_class_configs')
+        .insert({
+          ...payload,
+          class_key: classKey,
+          class_name: editingRow.shooter_class.name,
+          sort_order: editingRow.shooter_class.sort_order,
+        });
+      error = res.error;
+    }
 
     if (error) {
       setSaving(false);
@@ -113,24 +141,24 @@ export function AdminDfsConfig() {
       return;
     }
 
-    // Build changed fields for audit
+    // Audit log
     const changedFields: string[] = [];
-    if (editForm.class_name !== editingConfig.class_name) changedFields.push('class_name');
-    if (editForm.field_type !== editingConfig.field_type) changedFields.push('field_type');
-    if (JSON.stringify(editForm.bane_distances) !== JSON.stringify(editingConfig.bane_distances)) changedFields.push('bane_distances');
-    if (editForm.field_distance_min_m !== editingConfig.field_distance_min_m) changedFields.push('field_distance_min_m');
-    if (editForm.field_distance_max_m !== editingConfig.field_distance_max_m) changedFields.push('field_distance_max_m');
-    if ((editForm.default_caliber || null) !== editingConfig.default_caliber) changedFields.push('default_caliber');
-    if ((editForm.description || null) !== editingConfig.description) changedFields.push('description');
-    if (editForm.is_active !== editingConfig.is_active) changedFields.push('is_active');
+    const dc = editingRow.dfs_config;
+    if (!dc || editForm.field_type !== dc.field_type) changedFields.push('field_type');
+    if (!dc || JSON.stringify(editForm.bane_distances) !== JSON.stringify(dc.bane_distances)) changedFields.push('bane_distances');
+    if (!dc || editForm.field_distance_min_m !== dc.field_distance_min_m) changedFields.push('field_distance_min_m');
+    if (!dc || editForm.field_distance_max_m !== dc.field_distance_max_m) changedFields.push('field_distance_max_m');
+    if (!dc || (editForm.default_caliber.trim() || null) !== dc.default_caliber) changedFields.push('default_caliber');
+    if (!dc || (editForm.description.trim() || null) !== dc.description) changedFields.push('description');
+    if (!dc || editForm.is_active !== dc.is_active) changedFields.push('is_active');
 
     if (changedFields.length > 0) {
       await supabase.from('admin_audit_logs').insert({
         admin_user_id: user.id,
         action: 'dfs_class_config_updated',
         details: {
-          class_key: editingConfig.class_key,
-          class_name: editForm.class_name,
+          class_key: classKey,
+          class_name: editingRow.shooter_class.name,
           changed_fields: changedFields,
         },
       });
@@ -139,8 +167,8 @@ export function AdminDfsConfig() {
     invalidateDfsClassCache();
     setSaving(false);
     closeEdit();
-    setToast({ message: 'DFS-klasse oppdatert', type: 'success' });
-    fetchConfigs();
+    setToast({ message: 'DFS-konfig oppdatert', type: 'success' });
+    fetchData();
   };
 
   const toggleBaneDistance = (dist: number) => {
@@ -155,8 +183,9 @@ export function AdminDfsConfig() {
     }
   };
 
-  const finfeltConfigs = configs.filter(c => c.field_type === 'finfelt');
-  const grovfeltConfigs = configs.filter(c => c.field_type === 'grovfelt');
+  const finfeltRows = rows.filter(r => r.dfs_config?.field_type === 'finfelt');
+  const grovfeltRows = rows.filter(r => r.dfs_config?.field_type === 'grovfelt');
+  const unconfiguredRows = rows.filter(r => !r.dfs_config);
 
   if (loading) {
     return (
@@ -173,7 +202,9 @@ export function AdminDfsConfig() {
       <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6">
         <div className="mb-5">
           <h2 className="text-xl font-bold text-slate-900">DFS-konfigurasjon</h2>
-          <p className="text-sm text-slate-500 mt-1">Klasseoppsett basert på DFS Skytterboka kap. 7</p>
+          <p className="text-sm text-slate-500 mt-1">
+            Konfigurasjonsdata per klasse. Klassenavn styres fra Skytterklasser.
+          </p>
         </div>
 
         {/* Finfelt */}
@@ -181,31 +212,45 @@ export function AdminDfsConfig() {
           <div className="flex items-center gap-2 mb-3">
             <Target className="w-4 h-4 text-blue-600" />
             <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">Finfelt</h3>
-            <span className="text-xs text-slate-400">({finfeltConfigs.length} klasser)</span>
+            <span className="text-xs text-slate-400">({finfeltRows.length})</span>
           </div>
-          <ClassGrid configs={finfeltConfigs} onEdit={openEdit} />
+          <ClassGrid rows={finfeltRows} onEdit={openEdit} />
         </div>
 
         {/* Grovfelt */}
-        <div>
+        <div className="mb-6">
           <div className="flex items-center gap-2 mb-3">
             <Trees className="w-4 h-4 text-emerald-600" />
             <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">Grovfelt</h3>
-            <span className="text-xs text-slate-400">({grovfeltConfigs.length} klasser)</span>
+            <span className="text-xs text-slate-400">({grovfeltRows.length})</span>
           </div>
-          <ClassGrid configs={grovfeltConfigs} onEdit={openEdit} />
+          <ClassGrid rows={grovfeltRows} onEdit={openEdit} />
         </div>
+
+        {/* Unconfigured */}
+        {unconfiguredRows.length > 0 && (
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <AlertTriangle className="w-4 h-4 text-amber-500" />
+              <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">Ikke konfigurert</h3>
+              <span className="text-xs text-slate-400">({unconfiguredRows.length})</span>
+            </div>
+            <ClassGrid rows={unconfiguredRows} onEdit={openEdit} />
+          </div>
+        )}
       </div>
 
       {/* Edit Modal */}
-      {editingConfig && editForm && (
+      {editingRow && editForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50" onClick={closeEdit} />
           <div className="relative bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white border-b border-slate-200 px-5 py-4 flex items-center justify-between rounded-t-xl">
               <div>
-                <h3 className="font-semibold text-slate-900">Rediger klasse</h3>
-                <p className="text-xs text-slate-400 mt-0.5">class_key: {editingConfig.class_key}</p>
+                <h3 className="font-semibold text-slate-900">{editingRow.shooter_class.name}</h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {getCategoryDisplayName(editingRow.shooter_class.category)}
+                </p>
               </div>
               <button onClick={closeEdit} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition">
                 <X className="w-5 h-5" />
@@ -213,21 +258,6 @@ export function AdminDfsConfig() {
             </div>
 
             <div className="p-5 space-y-4">
-              {/* class_name */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Klassenavn</label>
-                <input
-                  type="text"
-                  value={editForm.class_name}
-                  onChange={(e) => {
-                    setEditForm({ ...editForm, class_name: e.target.value });
-                    if (errors.class_name) setErrors({ ...errors, class_name: undefined });
-                  }}
-                  className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 ${errors.class_name ? 'border-red-400' : 'border-slate-300'}`}
-                />
-                {errors.class_name && <p className="text-xs text-red-500 mt-1">{errors.class_name}</p>}
-              </div>
-
               {/* field_type */}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Felttype</label>
@@ -336,7 +366,7 @@ export function AdminDfsConfig() {
 
               {/* is_active */}
               <div className="flex items-center justify-between py-2">
-                <span className="text-sm font-medium text-slate-700">Aktiv</span>
+                <span className="text-sm font-medium text-slate-700">Konfig aktiv</span>
                 <button
                   type="button"
                   onClick={() => setEditForm({ ...editForm, is_active: !editForm.is_active })}
@@ -370,7 +400,7 @@ export function AdminDfsConfig() {
 
       {/* Toast */}
       {toast && (
-        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 text-sm font-medium transition-all animate-fade-in ${
+        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 text-sm font-medium animate-fade-in ${
           toast.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'
         }`}>
           {toast.type === 'success' ? <CheckCircle className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
@@ -381,41 +411,52 @@ export function AdminDfsConfig() {
   );
 }
 
-function ClassGrid({ configs, onEdit }: { configs: DfsClassConfig[]; onEdit: (c: DfsClassConfig) => void }) {
+function ClassGrid({ rows, onEdit }: { rows: MergedClassRow[]; onEdit: (r: MergedClassRow) => void }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-      {configs.map(c => (
-        <div
-          key={c.id}
-          className={`group border border-slate-200 rounded-lg p-3 hover:border-slate-300 transition relative ${!c.is_active ? 'opacity-50' : ''}`}
-        >
-          <div className="flex items-start justify-between">
-            <div className="min-w-0 flex-1">
-              <p className="font-medium text-slate-900 text-sm truncate">{c.class_name}</p>
-              {c.description && <p className="text-xs text-slate-400 mt-0.5 truncate">{c.description}</p>}
+      {rows.map(r => {
+        const dc = r.dfs_config;
+        const inactive = dc && !dc.is_active;
+        return (
+          <div
+            key={r.shooter_class.id}
+            className={`group border border-slate-200 rounded-lg p-3 hover:border-slate-300 transition relative ${inactive ? 'opacity-50' : ''}`}
+          >
+            <div className="flex items-start justify-between">
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-slate-900 text-sm truncate">{r.shooter_class.name}</p>
+                <p className="text-xs text-slate-400 mt-0.5 truncate">
+                  {getCategoryDisplayName(r.shooter_class.category)}
+                  {dc?.description && ` \u2013 ${dc.description}`}
+                </p>
+              </div>
+              <button
+                onClick={() => onEdit(r)}
+                className="p-1.5 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2"
+                title="Rediger konfigurasjon"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
             </div>
-            <button
-              onClick={() => onEdit(c)}
-              className="p-1.5 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2"
-              title="Rediger"
-            >
-              <Pencil className="w-3.5 h-3.5" />
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs text-slate-500">
-            <span className="inline-flex items-center gap-1">
-              <span className={`w-1.5 h-1.5 rounded-full ${c.field_type === 'finfelt' ? 'bg-blue-500' : 'bg-emerald-500'}`} />
-              {c.bane_distances.join('/')}m
-            </span>
-            {c.default_caliber && <span>{c.default_caliber}</span>}
-            {!c.is_active && (
-              <span className="inline-flex items-center gap-0.5 text-amber-600">
-                <XCircle className="w-3 h-3" /> Inaktiv
-              </span>
+            {dc ? (
+              <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs text-slate-500">
+                <span className="inline-flex items-center gap-1">
+                  <span className={`w-1.5 h-1.5 rounded-full ${dc.field_type === 'finfelt' ? 'bg-blue-500' : 'bg-emerald-500'}`} />
+                  {dc.bane_distances.join('/')}m
+                </span>
+                {dc.default_caliber && <span>{dc.default_caliber}</span>}
+                {inactive && (
+                  <span className="inline-flex items-center gap-0.5 text-amber-600">
+                    <XCircle className="w-3 h-3" /> Inaktiv
+                  </span>
+                )}
+              </div>
+            ) : (
+              <p className="mt-2 text-xs text-amber-500 italic">Ingen DFS-konfig</p>
             )}
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

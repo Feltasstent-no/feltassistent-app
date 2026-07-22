@@ -19,6 +19,7 @@ interface ActiveHoldScreenProps {
   isFinfelt?: boolean;
   isLastHold?: boolean;
   previousHoldWindClicks?: number | null;
+  hasPhoto?: boolean;
 }
 
 function SubHoldIndicator({
@@ -156,6 +157,7 @@ export function ActiveHoldScreen({
   isFinfelt = false,
   isLastHold = false,
   previousHoldWindClicks,
+  hasPhoto = false,
 }: ActiveHoldScreenProps) {
   const isComposite = hold.is_composite && hold.sub_holds && hold.sub_holds.length > 0;
   const subHolds = hold.sub_holds || [];
@@ -407,21 +409,31 @@ export function ActiveHoldScreen({
                 </button>
               </div>
             ) : (
-              <button
-                onClick={onTakePhoto}
-                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white text-base font-semibold rounded-xl transition shadow-lg flex items-center justify-center space-x-2"
-              >
-                <Camera className="w-5 h-5" />
-                <span>Legg til bilde</span>
-              </button>
+              <>
+                {hasPhoto && (
+                  <div className="flex items-center gap-1.5 px-2 py-1 bg-emerald-900/40 border border-emerald-700 rounded-lg w-fit">
+                    <CheckCircle className="w-4 h-4 text-emerald-400" />
+                    <span className="text-xs font-medium text-emerald-300">1 bilde lagret</span>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={onTakePhoto}
+                    className="py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition shadow-lg flex items-center justify-center space-x-2"
+                  >
+                    <Camera className="w-5 h-5" />
+                    <span>{hasPhoto ? 'Bytt bilde' : 'Ta bilde'}</span>
+                  </button>
+                  <button
+                    onClick={onComplete}
+                    className="py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition shadow-lg flex items-center justify-center space-x-2"
+                  >
+                    <CheckCircle className="w-5 h-5" />
+                    <span>Fullfør hold</span>
+                  </button>
+                </div>
+              </>
             )}
-            <button
-              onClick={onComplete}
-              className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xl font-bold rounded-xl transition shadow-lg flex items-center justify-center space-x-2"
-            >
-              <CheckCircle className="w-6 h-6" />
-              <span>Fullfør hold</span>
-            </button>
             {isLastHold && onAddHold && (
               <button
                 onClick={onAddHold}

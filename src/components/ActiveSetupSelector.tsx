@@ -16,8 +16,7 @@ function hasValidActiveSetup(setup: any) {
   return (
     setup &&
     setup.weapon_id &&
-    setup.barrel_id &&
-    (setup.click_table_id || setup.ballistic_profile_id)
+    setup.barrel_id
   );
 }
 

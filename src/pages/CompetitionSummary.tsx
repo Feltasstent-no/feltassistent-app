@@ -13,6 +13,7 @@ import { ArrowLeft, Target, TrendingUp, Sparkles, AlertCircle, CheckCircle, Help
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { EditMetadataModal } from '../components/EditMetadataModal';
 import { deleteCompetitionEntry } from '../lib/deletion-service';
+import { getFieldTypeDisplayName } from '../lib/display-names';
 
 export function CompetitionSummary() {
   const { entryId } = useParams<{ entryId: string }>();
@@ -232,7 +233,7 @@ export function CompetitionSummary() {
                   })}
                 </span>
                 <span>•</span>
-                <span className="capitalize">{competition.competition_type.replace('_', ' ')}</span>
+                <span>{getFieldTypeDisplayName(competition.competition_type)}</span>
               </div>
             </div>
             <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
