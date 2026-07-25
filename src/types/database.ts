@@ -571,6 +571,8 @@ export interface TrainingSession {
   total_shots: number;
   total_score: number;
   total_inner_hits: number;
+  max_score_possible: number | null;
+  score_percentage: number | null;
   completed_at: string | null;
   created_at: string;
   updated_at: string;

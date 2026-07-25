@@ -117,6 +117,13 @@ export async function completeTrainingSession(sessionId: string): Promise<{ erro
   const totalScore = series.reduce((sum, s) => sum + (s.score || 0), 0);
   const totalInnerHits = series.reduce((sum, s) => sum + (s.inner_hits || 0), 0);
 
+  const session = await getTrainingSession(sessionId);
+  const isRange = session?.session_type === 'range_match';
+  const maxScorePossible = isRange && totalShots > 0 ? totalShots * 10 : null;
+  const scorePercentage = maxScorePossible && maxScorePossible > 0
+    ? (totalScore / maxScorePossible) * 100
+    : null;
+
   const { error } = await supabase
     .from('training_sessions')
     .update({
@@ -124,6 +131,8 @@ export async function completeTrainingSession(sessionId: string): Promise<{ erro
       total_shots: totalShots,
       total_score: totalScore,
       total_inner_hits: totalInnerHits,
+      max_score_possible: maxScorePossible,
+      score_percentage: scorePercentage,
       completed_at: new Date().toISOString(),
     })
     .eq('id', sessionId);

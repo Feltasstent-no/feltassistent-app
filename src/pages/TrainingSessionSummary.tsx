@@ -210,26 +210,54 @@ export function TrainingSessionSummary() {
 
         <div className="bg-white border border-slate-200 rounded-xl p-5 mb-6">
           <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Sammendrag</h2>
-          <div className={`grid ${session.session_type === 'range_match' ? 'grid-cols-3' : 'grid-cols-4'} gap-4 text-center`}>
-            <div>
-              <p className="text-2xl font-bold text-emerald-600">{totalScore || '—'}</p>
-              <p className="text-xs text-slate-500 mt-0.5">Poeng</p>
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-slate-900">{totalInner || '—'}</p>
-              <p className="text-xs text-slate-500 mt-0.5">Inner</p>
-            </div>
-            {session.session_type !== 'range_match' && (
+          {session.session_type === 'range_match' ? (() => {
+            const maxScore = totalShots * 10;
+            const pct = maxScore > 0 ? (totalScore / maxScore) * 100 : null;
+            return (
+              <div className="space-y-3">
+                {pct !== null && (
+                  <div className="text-center">
+                    <p className="text-3xl font-bold text-emerald-600">
+                      {pct.toFixed(1).replace('.', ',')} %
+                    </p>
+                  </div>
+                )}
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <p className="text-xl font-bold text-slate-900">{totalScore}/{maxScore}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Poeng</p>
+                  </div>
+                  <div>
+                    <p className="text-xl font-bold text-slate-900">{totalInner || '—'}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Inner</p>
+                  </div>
+                  <div>
+                    <p className="text-xl font-bold text-slate-900">{totalShots}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Skudd</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })() : (
+            <div className="grid grid-cols-4 gap-4 text-center">
+              <div>
+                <p className="text-2xl font-bold text-emerald-600">{totalScore || '—'}</p>
+                <p className="text-xs text-slate-500 mt-0.5">Poeng</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-slate-900">{totalInner || '—'}</p>
+                <p className="text-xs text-slate-500 mt-0.5">Inner</p>
+              </div>
               <div>
                 <p className="text-2xl font-bold text-slate-900">{totalHits || '—'}</p>
                 <p className="text-xs text-slate-500 mt-0.5">Treff</p>
               </div>
-            )}
-            <div>
-              <p className="text-2xl font-bold text-slate-900">{totalShots}</p>
-              <p className="text-xs text-slate-500 mt-0.5">Skudd</p>
+              <div>
+                <p className="text-2xl font-bold text-slate-900">{totalShots}</p>
+                <p className="text-xs text-slate-500 mt-0.5">Skudd</p>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {(session.weather || session.wind_notes) && (

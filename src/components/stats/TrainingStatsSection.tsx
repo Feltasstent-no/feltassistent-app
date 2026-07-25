@@ -1,5 +1,50 @@
 import { Target, Lightbulb, Clock, Trophy } from 'lucide-react';
-import { useTrainingStats } from './useTrainingStats';
+import { useTrainingStats, TrainingCoachStats } from './useTrainingStats';
+
+function formatPercentage(pct: number): string {
+  return pct.toFixed(1).replace('.', ',');
+}
+
+function TrainingResultCard({ entry }: { entry: TrainingCoachStats['lastTraining'] }) {
+  if (!entry) {
+    return <p className="text-sm font-medium text-slate-500">Ingen data ennå</p>;
+  }
+
+  if (entry.type === 'felt') {
+    return (
+      <>
+        <p className="text-lg font-bold text-slate-900 text-center">
+          {entry.hits != null ? `${entry.hits} treff` : '--'}
+        </p>
+        {entry.innerHits != null && entry.innerHits > 0 && (
+          <p className="text-xs text-slate-500 mt-0.5 text-center">{entry.innerHits} inner</p>
+        )}
+        <p className="text-[11px] text-slate-400 mt-0.5 text-center">
+          {entry.shots > 0 ? `${entry.shots} skudd felt` : 'Felt'}
+        </p>
+      </>
+    );
+  }
+
+  // Bane type
+  return (
+    <>
+      <p className="text-lg font-bold text-slate-900 text-center">
+        {entry.score != null && entry.maxScore != null
+          ? `${entry.score} / ${entry.maxScore}`
+          : entry.score != null
+            ? `${entry.score}p`
+            : '--'}
+      </p>
+      {entry.innerHits != null && entry.innerHits > 0 && (
+        <p className="text-xs text-slate-500 mt-0.5 text-center">{entry.innerHits} inner</p>
+      )}
+      <p className="text-[11px] text-slate-400 mt-0.5 text-center">
+        {entry.percentage != null ? `${formatPercentage(entry.percentage)} %` : `${entry.shots} skudd`}
+      </p>
+    </>
+  );
+}
 
 export function TrainingStatsSection() {
   const { stats, loading } = useTrainingStats();
@@ -11,21 +56,6 @@ export function TrainingStatsSection() {
   const formatDate = (iso: string) => {
     const d = new Date(iso);
     return d.toLocaleDateString('nb-NO', { day: 'numeric', month: 'short' });
-  };
-
-  const formatResult = (
-    score: number | null,
-    innerHits: number | null,
-    hits: number | null,
-    type: 'bane' | 'felt'
-  ) => {
-    if (type === 'felt' && hits != null) {
-      return innerHits != null ? `${hits} treff / ${innerHits}*` : `${hits} treff`;
-    }
-    if (score != null) {
-      return innerHits != null ? `${score}p / ${innerHits}*` : `${score}p`;
-    }
-    return '--';
   };
 
   return (
@@ -42,7 +72,7 @@ export function TrainingStatsSection() {
           </p>
           <p className="text-[11px] text-slate-400 mt-0.5">
             {s && s.volumeLast7 > 0
-              ? `Siste 30 dager • +${s.volumeLast7} siste 7`
+              ? `Siste 30 dager \u2022 +${s.volumeLast7} siste 7`
               : 'Siste 30 dager'}
           </p>
         </div>
@@ -59,12 +89,12 @@ export function TrainingStatsSection() {
                 {s.focusPoint.text}
               </p>
               <p className="text-[11px] text-slate-400 mt-0.5 uppercase">
-                {s.focusPoint.sourceType} • {formatDate(s.focusPoint.createdAt)}
+                {s.focusPoint.sourceType} {'\u2022'} {formatDate(s.focusPoint.createdAt)}
               </p>
             </>
           ) : (
             <>
-              <p className="text-sm font-medium text-slate-500 leading-tight">Ingen fokusområde</p>
+              <p className="text-sm font-medium text-slate-500 leading-tight">Ingen fokusområder</p>
               <p className="text-[11px] text-slate-400 mt-0.5">Lagre erfaringer fra trening</p>
             </>
           )}
@@ -77,14 +107,7 @@ export function TrainingStatsSection() {
             <span className="text-xs text-slate-500 font-medium">Siste trening</span>
           </div>
           {s?.lastTraining ? (
-            <>
-              <p className="text-lg font-bold text-slate-900">
-                {formatResult(s.lastTraining.score, s.lastTraining.innerHits, s.lastTraining.hits, s.lastTraining.type)}
-              </p>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                {s.lastTraining.shots} skudd {s.lastTraining.type}
-              </p>
-            </>
+            <TrainingResultCard entry={s.lastTraining} />
           ) : (
             <p className="text-sm font-medium text-slate-500">Ingen trening ennå</p>
           )}
@@ -97,12 +120,7 @@ export function TrainingStatsSection() {
             <span className="text-xs text-slate-500 font-medium">Beste trening</span>
           </div>
           {s?.bestTraining ? (
-            <>
-              <p className="text-lg font-bold text-slate-900">
-                {formatResult(s.bestTraining.score, s.bestTraining.innerHits, s.bestTraining.hits, s.bestTraining.type)}
-              </p>
-              <p className="text-[11px] text-slate-400 mt-0.5 capitalize">{s.bestTraining.type}</p>
-            </>
+            <TrainingResultCard entry={s.bestTraining} />
           ) : (
             <p className="text-sm font-medium text-slate-500">Ingen data ennå</p>
           )}

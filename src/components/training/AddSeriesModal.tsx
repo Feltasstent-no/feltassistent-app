@@ -1,7 +1,5 @@
-import { useState } from 'react';
-import { X, Plus, Loader2 } from 'lucide-react';
-import { ShotCountInput } from '../inputs/ShotCountInput';
-import { ShootingTimeInput } from '../inputs/ShootingTimeInput';
+import { X } from 'lucide-react';
+import { SeriesEditor, SeriesValues } from '../inputs/SeriesEditor';
 
 interface AddSeriesModalProps {
   defaultShotCount?: number;
@@ -14,25 +12,18 @@ interface AddSeriesModalProps {
 }
 
 export function AddSeriesModal({ defaultShotCount = 5, defaultShootingTime, defaultDistance, isRangeMatch = false, isEditing = false, onAdd, onClose }: AddSeriesModalProps) {
-  const [shotCount, setShotCount] = useState(defaultShotCount);
   const initialShootingTime = defaultShootingTime
-    ? String(defaultShootingTime)
+    ? defaultShootingTime
     : isRangeMatch
-      ? '60'
-      : '';
-  const [shootingTime, setShootingTime] = useState(initialShootingTime);
-  const [distance, setDistance] = useState(defaultDistance ? String(defaultDistance) : '');
-  const [saving, setSaving] = useState(false);
+      ? 60
+      : undefined;
 
-  const handleSubmit = async () => {
-    if (saving) return;
-    setSaving(true);
+  const handleSave = async (values: SeriesValues) => {
     await onAdd({
-      shotCount: shotCount || 5,
-      shootingTimeSeconds: shootingTime ? parseInt(shootingTime) : null,
-      distanceM: distance ? parseInt(distance) : null,
+      shotCount: values.shotCount,
+      shootingTimeSeconds: values.shootingTimeSeconds,
+      distanceM: values.distanceM,
     });
-    setSaving(false);
     onClose();
   };
 
@@ -49,51 +40,22 @@ export function AddSeriesModal({ defaultShotCount = 5, defaultShootingTime, defa
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Avstand (m)</label>
-            <input
-              type="number"
-              value={distance}
-              onChange={(e) => setDistance(e.target.value)}
-              className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-center font-semibold focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-              placeholder="m"
-              min="1"
-              autoFocus
-            />
-          </div>
-
-          <ShotCountInput value={shotCount} onChange={setShotCount} label="Skudd" />
-
-          {shootingTime !== '' ? (
-            <ShootingTimeInput
-              value={shootingTime}
-              onChange={setShootingTime}
-              label="Skytetid (sek)"
-            />
-          ) : (
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Skytetid (sek)</label>
-              <button
-                type="button"
-                onClick={() => setShootingTime('60')}
-                className="w-full py-2.5 border-2 border-dashed border-slate-300 hover:border-emerald-400 text-slate-500 hover:text-emerald-600 text-sm font-medium rounded-xl transition"
-              >
-                Legg til skytetid
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div className="p-4 border-t border-slate-200 flex-shrink-0">
-          <button
-            onClick={handleSubmit}
-            disabled={saving || shotCount < 1}
-            className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold rounded-lg transition flex items-center justify-center gap-2"
-          >
-            {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : !isEditing ? <Plus className="w-5 h-5" /> : null}
-            {saving ? (isEditing ? 'Lagrer...' : 'Legger til...') : (isEditing ? 'Lagre endringer' : 'Legg til serie')}
-          </button>
+        <div className="flex-1 overflow-y-auto p-4">
+          <SeriesEditor
+            mode={isEditing ? 'edit' : 'create'}
+            initialValues={{
+              shotCount: defaultShotCount,
+              shootingTimeSeconds: initialShootingTime ?? null,
+              distanceM: defaultDistance ?? null,
+            }}
+            features={{
+              shootingTime: 'optional',
+              distance: 'optional',
+            }}
+            submitLabel={isEditing ? 'Lagre endringer' : 'Legg til serie'}
+            onSave={handleSave}
+            onCancel={onClose}
+          />
         </div>
       </div>
     </div>

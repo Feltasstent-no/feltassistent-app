@@ -14,6 +14,9 @@ interface FieldEntry {
 interface RangeEntry {
   kind: 'range';
   score: number;
+  maxScore: number;
+  totalShots: number;
+  percentage: number | null;
   innerHits: number;
   date: string;
 }
@@ -46,11 +49,28 @@ function computeBestField(entries: FieldEntry[]): FieldEntry | null {
 
 function computeBestRange(entries: RangeEntry[]): RangeEntry | null {
   if (entries.length === 0) return null;
-  return entries.reduce((best, e) => {
-    if (e.score > best.score) return e;
-    if (e.score === best.score && e.innerHits > best.innerHits) return e;
+
+  const withPct = entries.filter(e => e.percentage !== null && e.maxScore > 0);
+  if (withPct.length === 0) return null;
+
+  return withPct.reduce((best, e) => {
+    const ePct = e.percentage!;
+    const bPct = best.percentage!;
+    if (ePct > bPct) return e;
+    if (ePct === bPct) {
+      const eInnerRatio = e.totalShots > 0 ? e.innerHits / e.totalShots : 0;
+      const bInnerRatio = best.totalShots > 0 ? best.innerHits / best.totalShots : 0;
+      if (eInnerRatio > bInnerRatio) return e;
+      if (eInnerRatio === bInnerRatio) {
+        if (new Date(e.date).getTime() > new Date(best.date).getTime()) return e;
+      }
+    }
     return best;
   });
+}
+
+function formatPercentage(pct: number): string {
+  return pct.toFixed(1).replace('.', ',');
 }
 
 export function CompetitionStatsSection() {
@@ -79,7 +99,7 @@ export function CompetitionStatsSection() {
           .limit(50),
         supabase
           .from('training_sessions')
-          .select('id, total_score, total_inner_hits, session_date, completed_at')
+          .select('id, total_score, total_shots, total_inner_hits, max_score_possible, score_percentage, session_date, completed_at')
           .eq('user_id', user!.id)
           .eq('session_type', 'range_match')
           .eq('status', 'completed')
@@ -124,12 +144,23 @@ export function CompetitionStatsSection() {
         })),
       ];
 
-      const rangeEntries: RangeEntry[] = rangeSessions.map<RangeEntry>(s => ({
-        kind: 'range',
-        score: s.total_score ?? 0,
-        innerHits: s.total_inner_hits ?? 0,
-        date: s.completed_at || s.session_date || '',
-      }));
+      const rangeEntries: RangeEntry[] = rangeSessions.map<RangeEntry>(s => {
+        const maxScore = s.max_score_possible ?? (s.total_shots > 0 ? s.total_shots * 10 : 0);
+        const pct = s.score_percentage != null
+          ? Number(s.score_percentage)
+          : maxScore > 0
+            ? ((s.total_score ?? 0) / maxScore) * 100
+            : null;
+        return {
+          kind: 'range',
+          score: s.total_score ?? 0,
+          maxScore,
+          totalShots: s.total_shots ?? 0,
+          percentage: pct,
+          innerHits: s.total_inner_hits ?? 0,
+          date: s.completed_at || s.session_date || '',
+        };
+      });
 
       const totalCompleted = fieldEntries.length + rangeEntries.length;
 
@@ -191,7 +222,7 @@ function FieldBestCard({ entry }: { entry: FieldEntry | null }) {
         </>
       ) : (
         <>
-          <p className="text-lg font-bold text-slate-400 text-center">—</p>
+          <p className="text-lg font-bold text-slate-400 text-center">&mdash;</p>
           <p className="text-[11px] text-slate-400 mt-0.5 text-center">Ingen feltstevner</p>
         </>
       )}
@@ -206,16 +237,21 @@ function RangeBestCard({ entry }: { entry: RangeEntry | null }) {
         <Medal className="w-4 h-4 text-amber-600" />
         <span className="text-xs text-slate-500 font-medium">Beste banestevne</span>
       </div>
-      {entry ? (
+      {entry && entry.percentage !== null ? (
         <>
-          <p className="text-lg font-bold text-slate-900 text-center">{entry.score}p</p>
+          <p className="text-lg font-bold text-slate-900 text-center">
+            {entry.score} / {entry.maxScore}
+          </p>
           {entry.innerHits > 0 && (
-            <p className="text-[11px] text-slate-400 mt-0.5 text-center">{entry.innerHits} inner</p>
+            <p className="text-xs text-slate-500 mt-0.5 text-center">{entry.innerHits} inner</p>
           )}
+          <p className="text-[11px] text-slate-400 mt-0.5 text-center">
+            {formatPercentage(entry.percentage)} %
+          </p>
         </>
       ) : (
         <>
-          <p className="text-lg font-bold text-slate-400 text-center">—</p>
+          <p className="text-lg font-bold text-slate-400 text-center">&mdash;</p>
           <p className="text-[11px] text-slate-400 mt-0.5 text-center">Ingen banestevner</p>
         </>
       )}
@@ -234,23 +270,29 @@ function LastResultCard({ entry }: { entry: AnyEntry | null }) {
         entry.kind === 'field' ? (
           <>
             <p className="text-lg font-bold text-slate-900 text-center">
-              Feltstevne: {entry.maxShots > 0 ? `${entry.hits}/${entry.maxShots} treff` : `${entry.hits} treff`}
+              {entry.maxShots > 0 ? `${entry.hits}/${entry.maxShots} treff` : `${entry.hits} treff`}
             </p>
-            <p className="text-[11px] text-slate-400 mt-0.5 text-center">
-              Feltstevne{entry.innerHits > 0 ? ` • ${entry.innerHits} inner` : ''}
-            </p>
+            {entry.innerHits > 0 && (
+              <p className="text-xs text-slate-500 mt-0.5 text-center">{entry.innerHits} inner</p>
+            )}
+            <p className="text-[11px] text-slate-400 mt-0.5 text-center">Feltstevne</p>
           </>
         ) : (
           <>
-            <p className="text-lg font-bold text-slate-900 text-center">Banestevne: {entry.score}p</p>
+            <p className="text-lg font-bold text-slate-900 text-center">
+              {entry.maxScore > 0 ? `${entry.score} / ${entry.maxScore}` : `${entry.score}p`}
+            </p>
+            {entry.innerHits > 0 && (
+              <p className="text-xs text-slate-500 mt-0.5 text-center">{entry.innerHits} inner</p>
+            )}
             <p className="text-[11px] text-slate-400 mt-0.5 text-center">
-              Banestevne{entry.innerHits > 0 ? ` • ${entry.innerHits} inner` : ''}
+              {entry.percentage !== null ? `${formatPercentage(entry.percentage)} %` : 'Banestevne'}
             </p>
           </>
         )
       ) : (
         <>
-          <p className="text-lg font-bold text-slate-400 text-center">—</p>
+          <p className="text-lg font-bold text-slate-400 text-center">&mdash;</p>
           <p className="text-[11px] text-slate-400 mt-0.5 text-center">Ingen stevner enda</p>
         </>
       )}

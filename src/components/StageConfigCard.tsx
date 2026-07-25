@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { FieldFigure, ClickTable, ClickTableRow } from '../types/database';
-import { supabase } from '../lib/supabase';
+import { ShotCountInput } from './inputs/ShotCountInput';
+import { ShootingTimeInput } from './inputs/ShootingTimeInput';
 
 interface StageConfigCardProps {
   stageNumber: number;
@@ -46,8 +47,7 @@ export function StageConfigCard({
 }: StageConfigCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [localNotes, setLocalNotes] = useState(notes || '');
-
-  const selectedFigure = availableFigures.find(f => f.id === fieldFigureId);
+  const [timeStr, setTimeStr] = useState(String(timeLimitSeconds));
 
   useEffect(() => {
     if (competitionType === 'grovfelt' && distanceM && clickTable) {
@@ -154,9 +154,10 @@ export function StageConfigCard({
                 type="text"
                 inputMode="numeric"
                 pattern="[0-9]*"
-                value={timeLimitSeconds}
+                value={timeStr}
                 onChange={(e) => {
                   const v = e.target.value.replace(/[^0-9]/g, '');
+                  setTimeStr(v);
                   if (v) onUpdate({ time_limit_seconds: parseInt(v) });
                 }}
                 onFocus={(e) => e.target.select()}
@@ -202,18 +203,40 @@ export function StageConfigCard({
       )}
 
       {expanded && (
-        <div className="mt-3 pt-3 border-t border-gray-700">
-          <label className="block text-sm text-gray-400 mb-1">
-            Notater (valgfritt)
-          </label>
-          <textarea
-            value={localNotes}
-            onChange={(e) => setLocalNotes(e.target.value)}
-            onBlur={handleNotesBlur}
-            placeholder="Legg til notater for dette holdet..."
-            className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-            rows={3}
-          />
+        <div className="mt-3 pt-3 border-t border-gray-700 space-y-4">
+          <div>
+            <ShotCountInput
+              value={totalShots}
+              onChange={(v) => onUpdate({ total_shots: v })}
+              label="Skudd (hurtigvalg)"
+              compact
+            />
+            <div className="mt-3">
+              <ShootingTimeInput
+                value={timeStr}
+                onChange={(v) => {
+                  setTimeStr(v);
+                  const n = parseInt(v);
+                  if (n) onUpdate({ time_limit_seconds: n });
+                }}
+                label="Skytetid (hurtigvalg)"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">
+              Notater (valgfritt)
+            </label>
+            <textarea
+              value={localNotes}
+              onChange={(e) => setLocalNotes(e.target.value)}
+              onBlur={handleNotesBlur}
+              placeholder="Legg til notater for dette holdet..."
+              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              rows={3}
+            />
+          </div>
         </div>
       )}
     </div>
