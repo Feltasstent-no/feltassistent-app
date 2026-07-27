@@ -146,10 +146,12 @@ export function TrainingSessionSummary() {
     );
   }
 
-  const totalShots = seriesList.reduce((sum, s) => sum + s.shot_count, 0);
-  const totalScore = seriesList.reduce((sum, s) => sum + (s.score || 0), 0);
-  const totalInner = seriesList.reduce((sum, s) => sum + (s.inner_hits || 0), 0);
+  const isCompleted = session.status === 'completed';
+  const totalShots = isCompleted && session.total_shots > 0 ? session.total_shots : seriesList.reduce((sum, s) => sum + s.shot_count, 0);
+  const totalScore = isCompleted && session.total_score > 0 ? session.total_score : seriesList.reduce((sum, s) => sum + (s.score || 0), 0);
+  const totalInner = isCompleted && session.total_inner_hits > 0 ? session.total_inner_hits : seriesList.reduce((sum, s) => sum + (s.inner_hits || 0), 0);
   const totalHits = seriesList.reduce((sum, s) => sum + (s.hits || 0), 0);
+  const maxScoreFromSession = isCompleted && session.max_score_possible ? session.max_score_possible : null;
 
   return (
     <Layout>
@@ -211,8 +213,10 @@ export function TrainingSessionSummary() {
         <div className="bg-white border border-slate-200 rounded-xl p-5 mb-6">
           <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Sammendrag</h2>
           {session.session_type === 'range_match' ? (() => {
-            const maxScore = totalShots * 10;
-            const pct = maxScore > 0 ? (totalScore / maxScore) * 100 : null;
+            const maxScore = maxScoreFromSession || totalShots * 10;
+            const pct = isCompleted && session.score_percentage != null
+              ? Number(session.score_percentage)
+              : (maxScore > 0 ? (totalScore / maxScore) * 100 : null);
             return (
               <div className="space-y-3">
                 {pct !== null && (
@@ -290,7 +294,7 @@ export function TrainingSessionSummary() {
                 series={s}
                 images={seriesImages[s.id] || []}
                 userId={user!.id}
-                readOnly={session.session_type !== 'range_match'}
+                readOnly={false}
                 hideTimer
                 isRangeMatch={session.session_type === 'range_match'}
                 sourceType={session.session_type === 'range_match' ? 'bane' : 'trening'}

@@ -243,6 +243,7 @@ export function TrainingSessionActive() {
                   userId={user!.id}
                   readOnly={readOnly}
                   hideTimer={idx !== seriesList.length - 1}
+                  isRangeMatch={isRangeMatch}
                   sourceType="trening"
                   sourceName={session?.title || ''}
                   sourceId={session?.id}

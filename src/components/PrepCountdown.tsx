@@ -97,14 +97,14 @@ export function PrepCountdown({ seconds = 120, label = 'Klargjør', resetKey, va
   return (
     <button
       onClick={start}
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition ${
+      className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition ${
         isDark
-          ? 'bg-white/10 text-slate-300 border border-white/20 hover:bg-white/20 hover:text-white'
-          : 'bg-slate-100 text-slate-600 border border-slate-300 hover:bg-slate-200 hover:text-slate-800'
+          ? 'bg-amber-500/25 text-amber-200 border border-amber-400/50 hover:bg-amber-500/35 hover:text-amber-100'
+          : 'bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 hover:text-amber-900'
       }`}
       title="Start klargjøringstid"
     >
-      <Clock className="w-3 h-3" />
+      <Clock className="w-3.5 h-3.5" />
       <span>{label} {formatTime(remaining)}</span>
     </button>
   );

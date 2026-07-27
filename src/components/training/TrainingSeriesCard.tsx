@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { Camera, CheckCircle, Trash2, X, ChevronDown, ChevronUp, Lightbulb } from 'lucide-react';
-import { updateTrainingSeries, deleteTrainingSeries, uploadSeriesImage, deleteSeriesImage, getImageUrl } from '../../lib/training-session-service';
+import { updateTrainingSeries, deleteTrainingSeries, uploadSeriesImage, deleteSeriesImage, getImageUrl, recalculateSessionTotals } from '../../lib/training-session-service';
 import { FieldClockTimer } from '../FieldClockTimer';
 import { ImageLightbox } from '../ImageLightbox';
 import { supabase } from '../../lib/supabase';
@@ -26,6 +26,8 @@ export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer
   const [score, setScore] = useState(series.score != null ? String(series.score) : '');
   const [innerHits, setInnerHits] = useState(series.inner_hits != null ? String(series.inner_hits) : '');
   const [hits, setHits] = useState(series.hits != null ? String(series.hits) : '');
+  const [shotCount, setShotCount] = useState(String(series.shot_count));
+  const [shootingTime, setShootingTime] = useState(series.shooting_time_seconds != null ? String(series.shooting_time_seconds) : '');
   const [notes, setNotes] = useState(series.notes || '');
   const [saveFocusPoint, setSaveFocusPoint] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -45,6 +47,8 @@ export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer
       score: score ? parseInt(score) : null,
       innerHits: innerHits ? parseInt(innerHits) : null,
       hits: hits ? parseInt(hits) : null,
+      shotCount: shotCount ? parseInt(shotCount) : series.shot_count,
+      shootingTimeSeconds: shootingTime ? parseInt(shootingTime) : null,
       notes: notes || null,
       completed: true,
     });
@@ -80,6 +84,8 @@ export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer
       }
       setSaveFocusPoint(false);
     }
+
+    await recalculateSessionTotals(series.session_id);
 
     setSaving(false);
     onUpdated();
@@ -204,39 +210,64 @@ export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer
           )}
 
           {!readOnly && (
-            <div className={`grid ${isRangeMatch ? 'grid-cols-2' : 'grid-cols-3'} gap-3`}>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Poeng</label>
-                <input
-                  type="number"
-                  value={score}
-                  onChange={(e) => setScore(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-center text-sm font-semibold focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                  placeholder="—"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Inner</label>
-                <input
-                  type="number"
-                  value={innerHits}
-                  onChange={(e) => setInnerHits(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-center text-sm font-semibold focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                  placeholder="—"
-                />
-              </div>
-              {!isRangeMatch && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Treff</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Skudd</label>
                   <input
                     type="number"
-                    value={hits}
-                    onChange={(e) => setHits(e.target.value)}
+                    value={shotCount}
+                    onChange={(e) => setShotCount(e.target.value)}
+                    min="1"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-center text-sm font-semibold focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    placeholder="5"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Skytetid (sek)</label>
+                  <input
+                    type="number"
+                    value={shootingTime}
+                    onChange={(e) => setShootingTime(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-center text-sm font-semibold focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                     placeholder="—"
                   />
                 </div>
-              )}
+              </div>
+              <div className={`grid ${isRangeMatch ? 'grid-cols-2' : 'grid-cols-3'} gap-3`}>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Poeng</label>
+                  <input
+                    type="number"
+                    value={score}
+                    onChange={(e) => setScore(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-center text-sm font-semibold focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    placeholder="—"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Inner</label>
+                  <input
+                    type="number"
+                    value={innerHits}
+                    onChange={(e) => setInnerHits(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-center text-sm font-semibold focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    placeholder="—"
+                  />
+                </div>
+                {!isRangeMatch && (
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Treff</label>
+                    <input
+                      type="number"
+                      value={hits}
+                      onChange={(e) => setHits(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-center text-sm font-semibold focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                      placeholder="—"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

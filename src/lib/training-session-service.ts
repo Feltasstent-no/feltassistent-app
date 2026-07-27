@@ -230,6 +230,36 @@ export async function updateTrainingSeries(params: {
   return { error };
 }
 
+export async function recalculateSessionTotals(sessionId: string): Promise<{ error: any }> {
+  const { data: series } = await supabase
+    .from('training_series')
+    .select('shot_count, score, inner_hits')
+    .eq('session_id', sessionId);
+
+  if (!series) return { error: 'Could not fetch series' };
+
+  const totalShots = series.reduce((sum, s) => sum + (s.shot_count || 0), 0);
+  const totalScore = series.reduce((sum, s) => sum + (s.score || 0), 0);
+  const totalInnerHits = series.reduce((sum, s) => sum + (s.inner_hits || 0), 0);
+  const maxScorePossible = totalShots > 0 ? totalShots * 10 : null;
+  const scorePercentage = maxScorePossible && maxScorePossible > 0
+    ? (totalScore / maxScorePossible) * 100
+    : null;
+
+  const { error } = await supabase
+    .from('training_sessions')
+    .update({
+      total_shots: totalShots,
+      total_score: totalScore,
+      total_inner_hits: totalInnerHits,
+      max_score_possible: maxScorePossible,
+      score_percentage: scorePercentage,
+    })
+    .eq('id', sessionId);
+
+  return { error };
+}
+
 export async function deleteTrainingSeries(seriesId: string): Promise<{ error: any }> {
   const images = await getSeriesImages(seriesId);
   if (images.length > 0) {
