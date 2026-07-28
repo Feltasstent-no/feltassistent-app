@@ -562,7 +562,8 @@ export function CompetitionSummary() {
         >
           <button
             onClick={() => setLightboxImage(null)}
-            className="absolute top-4 right-4 p-2 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition z-10"
+            className="absolute right-4 p-2 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition z-10"
+            style={{ top: 'calc(env(safe-area-inset-top, 0px) + 16px)' }}
           >
             <X className="w-6 h-6" />
           </button>
