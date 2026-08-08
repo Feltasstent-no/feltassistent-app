@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Play, Pause, RotateCcw, AlertTriangle } from 'lucide-react';
 import { useWakeLock } from '../lib/use-wake-lock';
+import { preloadVoiceCues, unlockVoiceCues, playCue, playStartCommand, type VoiceCue } from '../lib/voice-commands';
 
 type Phase = 'idle' | 'prep_normal' | 'prep_warning' | 'shooting_start' | 'shooting' | 'shooting_warning' | 'shooting_critical' | 'finished';
 
@@ -9,6 +10,7 @@ interface FieldClockTimerProps {
   shootSeconds: number;
   warningSeconds?: number;
   compact?: boolean;
+  voiceCommandsEnabled?: boolean;
   onFinished?: () => void;
 }
 
@@ -42,10 +44,28 @@ export function FieldClockTimer({
   shootSeconds,
   warningSeconds = 10,
   compact = false,
+  voiceCommandsEnabled = false,
   onFinished,
 }: FieldClockTimerProps) {
   const [, forceRender] = useState(0);
   const intervalRef = useRef<number | null>(null);
+
+  const voiceEnabledRef = useRef(voiceCommandsEnabled);
+  voiceEnabledRef.current = voiceCommandsEnabled;
+  const playedCuesRef = useRef<Set<VoiceCue>>(new Set());
+  const startPendingRef = useRef(false);
+  const [starting, setStarting] = useState(false);
+
+  const cue = useCallback((name: VoiceCue) => {
+    if (!voiceEnabledRef.current) return;
+    if (playedCuesRef.current.has(name)) return;
+    playedCuesRef.current.add(name);
+    playCue(name);
+  }, []);
+
+  useEffect(() => {
+    if (voiceCommandsEnabled) preloadVoiceCues();
+  }, [voiceCommandsEnabled]);
 
   const timerState = useRef({
     timeRemaining: 0,
@@ -77,14 +97,16 @@ export function FieldClockTimer({
       const s = timerState.current;
 
       if (s.timeRemaining <= 0) {
-        playSound();
-        vibrate();
-
         if (s.phase === 'prep_normal' || s.phase === 'prep_warning') {
           s.phase = 'shooting_start';
           s.timeRemaining = shootSeconds;
-          playSound();
+          if (!voiceEnabledRef.current) {
+            playSound();
+            playSound();
+          }
           vibrate();
+          vibrate();
+          cue('fire');
           tick();
           return;
         }
@@ -96,6 +118,8 @@ export function FieldClockTimer({
           intervalRef.current = null;
         }
         playSound();
+        playSound();
+        vibrate();
         vibrate();
         onFinishedRef.current?.();
         tick();
@@ -107,6 +131,7 @@ export function FieldClockTimer({
 
       if (s.phase === 'prep_normal' && t === 5) {
         s.phase = 'prep_warning';
+        cue('ready');
       } else if (s.phase === 'shooting_start' && t === shootSeconds - 2) {
         s.phase = 'shooting';
       } else if (s.phase === 'shooting' && t <= effectiveWarning && t > 3) {
@@ -118,11 +143,21 @@ export function FieldClockTimer({
         if (t === 2 || t === 1) vibrate();
       }
 
+      if (
+        t === 2 &&
+        (s.phase === 'shooting_start' ||
+          s.phase === 'shooting' ||
+          s.phase === 'shooting_warning' ||
+          s.phase === 'shooting_critical')
+      ) {
+        cue('stop');
+      }
+
       tick();
     }, 1000);
-  }, [shootSeconds, effectiveWarning, tick]);
+  }, [shootSeconds, effectiveWarning, tick, cue]);
 
-  const handleStart = () => {
+  const beginRunning = () => {
     const s = timerState.current;
     if (s.phase === 'idle') {
       s.phase = 'prep_normal';
@@ -131,6 +166,26 @@ export function FieldClockTimer({
     s.isRunning = true;
     tick();
     startInterval();
+  };
+
+  const handleStart = () => {
+    const s = timerState.current;
+
+    if (voiceEnabledRef.current && s.phase === 'idle') {
+      if (startPendingRef.current) return;
+      startPendingRef.current = true;
+      setStarting(true);
+      unlockVoiceCues();
+      playedCuesRef.current.add('ready10');
+      playStartCommand(() => {
+        startPendingRef.current = false;
+        setStarting(false);
+        beginRunning();
+      });
+      return;
+    }
+
+    beginRunning();
   };
 
   const handlePause = () => {
@@ -146,6 +201,9 @@ export function FieldClockTimer({
     timerState.current.isRunning = false;
     timerState.current.phase = 'idle';
     timerState.current.timeRemaining = 0;
+    playedCuesRef.current.clear();
+    startPendingRef.current = false;
+    setStarting(false);
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
@@ -210,10 +268,11 @@ export function FieldClockTimer({
           </p>
           <button
             onClick={handleStart}
-            className="mt-3 bg-white hover:bg-white/90 text-slate-900 font-semibold px-6 py-2.5 rounded-full transition flex items-center gap-2 mx-auto shadow-lg active:scale-95"
+            disabled={starting}
+            className="mt-3 bg-white hover:bg-white/90 text-slate-900 font-semibold px-6 py-2.5 rounded-full transition flex items-center gap-2 mx-auto shadow-lg active:scale-95 disabled:opacity-70"
           >
             <Play className="w-4 h-4" />
-            <span>Start</span>
+            <span>{starting ? 'Starter...' : 'Start'}</span>
           </button>
         </div>
       </div>

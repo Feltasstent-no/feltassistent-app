@@ -7,6 +7,7 @@ interface UserPreferences {
   lastShooterClassCode?: string;
   lastTrainingLocation?: string;
   assistanceMode?: AssistanceMode;
+  voiceCommandsEnabled?: boolean;
   lastBallisticDefaults?: {
     sight_height_mm?: string;
     sight_radius_cm?: string;
@@ -73,4 +74,12 @@ export function getAssistanceMode(): AssistanceMode {
 
 export function setAssistanceMode(mode: AssistanceMode) {
   save({ assistanceMode: mode });
+}
+
+export function getVoiceCommandsEnabled(): boolean {
+  return load().voiceCommandsEnabled ?? false;
+}
+
+export function setVoiceCommandsEnabled(enabled: boolean) {
+  save({ voiceCommandsEnabled: enabled });
 }

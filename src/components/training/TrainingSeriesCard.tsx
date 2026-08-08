@@ -3,6 +3,7 @@ import { Camera, CheckCircle, Trash2, X, ChevronDown, ChevronUp, Lightbulb } fro
 import { updateTrainingSeries, deleteTrainingSeries, uploadSeriesImage, deleteSeriesImage, getImageUrl, recalculateSessionTotals } from '../../lib/training-session-service';
 import { FieldClockTimer } from '../FieldClockTimer';
 import { ImageLightbox } from '../ImageLightbox';
+import { getVoiceCommandsEnabled } from '../../lib/user-preferences';
 import { supabase } from '../../lib/supabase';
 import type { TrainingSeries, TrainingSeriesImage } from '../../types/database';
 
@@ -206,6 +207,7 @@ export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer
             <FieldClockTimer
               shootSeconds={series.shooting_time_seconds}
               compact
+              voiceCommandsEnabled={getVoiceCommandsEnabled()}
             />
           )}
 
