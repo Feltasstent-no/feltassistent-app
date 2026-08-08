@@ -7,113 +7,91 @@ const CUE_FILES: Record<VoiceCue, string> = {
   stop: '/audio/Stans.wav',
 };
 
-// iOS/PWA-safe playback: one shared AudioContext, all four WAVs decoded once to
-// AudioBuffers. Playing from a decoded buffer is deterministic, low-latency and never
-// produces audible artifacts during unlock (unlike muted HTMLAudioElement priming,
-// where iOS ignores volume=0 and plays the sound anyway).
+// One preloaded HTMLAudioElement per WAV. We never call .play() during preload/unlock
+// (no muted priming): iOS ignores volume=0 and would otherwise play the sound audibly.
+// The only element started directly from the Start user-gesture is 'ready10'
+// (StartKommando); once that user-activated playback happens, the remaining elements
+// are allowed to play later during the countdown.
 
-let audioContext: AudioContext | null = null;
-const buffers = new Map<VoiceCue, AudioBuffer>();
-const loading = new Map<VoiceCue, Promise<void>>();
+const elements = new Map<VoiceCue, HTMLAudioElement>();
 
-function getContext(): AudioContext | null {
-  if (typeof window === 'undefined') return null;
-  if (!audioContext) {
-    const Ctor = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!Ctor) return null;
-    try {
-      audioContext = new Ctor();
-    } catch {
-      return null;
-    }
+function getElement(cue: VoiceCue): HTMLAudioElement | null {
+  if (typeof Audio === 'undefined') return null;
+  let el = elements.get(cue);
+  if (!el) {
+    el = new Audio(CUE_FILES[cue]);
+    el.preload = 'auto';
+    elements.set(cue, el);
   }
-  return audioContext;
-}
-
-function loadCue(cue: VoiceCue): Promise<void> {
-  if (buffers.has(cue)) return Promise.resolve();
-  const existing = loading.get(cue);
-  if (existing) return existing;
-
-  const ctx = getContext();
-  if (!ctx) return Promise.resolve();
-
-  const promise = fetch(CUE_FILES[cue])
-    .then((res) => res.arrayBuffer())
-    .then(
-      (data) =>
-        new Promise<void>((resolve, reject) => {
-          // Callback form is used for broadest iOS Safari compatibility.
-          ctx.decodeAudioData(
-            data,
-            (buffer) => {
-              buffers.set(cue, buffer);
-              resolve();
-            },
-            (err) => reject(err)
-          );
-        })
-    )
-    .catch(() => {
-      // network/decoding failure — leave buffer unset, playback becomes a no-op
-    })
-    .finally(() => {
-      loading.delete(cue);
-    });
-
-  loading.set(cue, promise);
-  return promise;
+  return el;
 }
 
 export function preloadVoiceCues() {
-  (Object.keys(CUE_FILES) as VoiceCue[]).forEach(loadCue);
+  (Object.keys(CUE_FILES) as VoiceCue[]).forEach((cue) => {
+    const el = getElement(cue);
+    if (el) el.load();
+  });
 }
 
 export function unlockVoiceCues() {
-  // Must run inside the Start user-gesture. Only resumes the shared context; makes no
-  // sound and queues nothing.
-  const ctx = getContext();
-  if (ctx && ctx.state === 'suspended') {
-    ctx.resume().catch(() => {
-      // ignore — resume may reject if not in a gesture; playback simply stays blocked
-    });
-  }
+  // Ensure the elements exist and are loading. Intentionally does NOT call .play().
   preloadVoiceCues();
 }
 
-function playBuffer(cue: VoiceCue, onEnded?: () => void): boolean {
-  const ctx = getContext();
-  const buffer = buffers.get(cue);
-  if (!ctx || !buffer) return false;
-
-  try {
-    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-    source.connect(ctx.destination);
-    if (onEnded) source.onended = onEnded;
-    source.start(0);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 export function playStartCommand(onEnded: () => void) {
+  const el = getElement('ready10');
+  if (!el) {
+    console.debug('[voice] ready10 element unavailable, starting clock via fallback');
+    onEnded();
+    return;
+  }
+
   let finished = false;
   const finish = () => {
     if (finished) return;
     finished = true;
+    el.removeEventListener('ended', finish);
+    el.removeEventListener('error', finish);
     onEnded();
   };
 
-  const started = playBuffer('ready10', finish);
-  if (!started) {
-    // Buffer not ready or playback unavailable: never block the clock — start prep now.
+  el.addEventListener('ended', finish, { once: true });
+  el.addEventListener('error', finish, { once: true });
+
+  try {
+    el.currentTime = 0;
+    console.debug('[voice] play ready10', { readyState: el.readyState });
+    const result = el.play();
+    if (result && typeof result.then === 'function') {
+      result
+        .then(() => console.debug('[voice] ready10 play() success'))
+        .catch((err) => {
+          console.debug('[voice] ready10 play() failed, fallback start', err);
+          finish();
+        });
+    }
+  } catch (err) {
+    console.debug('[voice] ready10 play() threw, fallback start', err);
     finish();
   }
 }
 
 export function playCue(cue: VoiceCue) {
-  playBuffer(cue);
+  const el = getElement(cue);
+  if (!el) {
+    console.debug('[voice] element unavailable', cue);
+    return;
+  }
+  try {
+    el.currentTime = 0;
+    console.debug('[voice] play cue', cue, { readyState: el.readyState });
+    const result = el.play();
+    if (result && typeof result.then === 'function') {
+      result
+        .then(() => console.debug('[voice] cue play() success', cue))
+        .catch((err) => console.debug('[voice] cue play() failed', cue, err));
+    }
+  } catch (err) {
+    console.debug('[voice] cue play() threw', cue, err);
+  }
 }
