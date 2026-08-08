@@ -5,6 +5,20 @@
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
+/* Active match run shell: reserve room for the top header (incl. notch) and the
+   fixed mobile bottom navigation (incl. iPhone/PWA home-indicator safe area) so the
+   bottom action bar stays fully visible and tappable. */
+.match-run-shell {
+  height: calc(
+    100dvh - 4rem - env(safe-area-inset-top, 0px) - 5rem - env(safe-area-inset-bottom, 0px)
+  );
+}
+@media (min-width: 768px) {
+  .match-run-shell {
+    height: calc(100dvh - 8rem);
+  }
+}
+
 @keyframes fade-in-up {
   from { opacity: 0; transform: translate(-50%, 8px); }
   to { opacity: 1; transform: translate(-50%, 0); }

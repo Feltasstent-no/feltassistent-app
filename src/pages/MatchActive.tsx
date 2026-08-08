@@ -689,7 +689,7 @@ export function MatchActive() {
 
   return (
     <Layout>
-      <div className="h-[calc(100dvh-4rem-2rem)] md:h-[calc(100dvh-4rem-4rem)] flex flex-col overflow-hidden -mx-4 sm:-mx-6 lg:-mx-8 -my-4 sm:-my-8">
+      <div className="match-run-shell flex flex-col overflow-hidden -mx-4 sm:-mx-6 lg:-mx-8 -my-4 sm:-my-8">
         <div className="bg-white border-b border-slate-200 px-3 py-2.5 flex-shrink-0 space-y-2">
           <div className="flex items-center gap-3">
             <div className="flex-shrink-0 w-[72px]">
