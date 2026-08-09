@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Layout } from '../components/Layout';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -42,6 +42,7 @@ export function Profile() {
 
   const [license, setLicense] = useState<License | null>(null);
   const [licenseLoading, setLicenseLoading] = useState(true);
+  const autoTrialAttempted = useRef(false);
 
   useEffect(() => {
     fetchProfile();
@@ -157,6 +158,17 @@ export function Profile() {
       setLicenseLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (loading || licenseLoading) return;
+    if (!user || !profile) return;
+    if (profile.is_demo) return;
+    if (license) return;
+    if (autoTrialAttempted.current) return;
+    autoTrialAttempted.current = true;
+    handleStartTrial();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, licenseLoading, license, profile, user]);
 
   const [upgradeLoading, setUpgradeLoading] = useState(false);
 
@@ -526,18 +538,19 @@ function SubscriptionSection({ license, loading, onStartTrial, onUpgrade, upgrad
           <h3 className="text-lg font-semibold text-slate-900">Abonnement</h3>
         </div>
         <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
-          <p className="text-slate-600 text-sm mb-4">
-            Du har ikke startet prøveperioden enda.
-          </p>
+          <div className="flex items-center gap-2 text-slate-600 text-sm mb-4">
+            <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+            <span>Aktiverer prøveperiode...</span>
+          </div>
           <div className="flex items-center gap-2 text-xs text-slate-500 mb-4">
             <Info className="w-3.5 h-3.5" />
             <span>Full tilgang i 90 dager, deretter 299 kr/år</span>
           </div>
           <button
             onClick={onStartTrial}
-            className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-sm transition"
+            className="text-xs text-slate-500 underline hover:text-slate-700 transition"
           >
-            Start gratis prøveperiode
+            Tar det for lang tid? Prøv igjen
           </button>
         </div>
         <p className="text-xs text-slate-400 mt-3">Betaling og kvitteringer håndteres trygt via Stripe.</p>
