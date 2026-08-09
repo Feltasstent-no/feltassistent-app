@@ -452,7 +452,7 @@ export function Profile() {
               Denne kontoen brukes til demonstrasjon av Feltassistenten. Ingen betaling kreves.
             </p>
           </div>
-        ) : user?.email === 'andor@valuetech.no' && (
+        ) : (
           <SubscriptionSection license={license} loading={licenseLoading} onStartTrial={handleStartTrial} onUpgrade={handleUpgrade} upgradeLoading={upgradeLoading} onManage={handleManage} manageLoading={manageLoading} />
         )}
 
