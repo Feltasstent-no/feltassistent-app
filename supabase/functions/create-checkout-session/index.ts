@@ -103,6 +103,10 @@ Deno.serve(async (req: Request) => {
       automatic_tax: {
         enabled: true,
       },
+      billing_address_collection: "required",
+      customer_update: {
+        address: "auto",
+      },
       line_items: [{ price: plan.stripe_price_id, quantity: 1 }],
       success_url: `${origin}/profile?checkout=success`,
       cancel_url: `${origin}/profile?checkout=cancelled`,
