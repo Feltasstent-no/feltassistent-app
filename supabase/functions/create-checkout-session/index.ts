@@ -100,6 +100,9 @@ Deno.serve(async (req: Request) => {
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: stripeCustomerId,
+      automatic_tax: {
+        enabled: true,
+      },
       line_items: [{ price: plan.stripe_price_id, quantity: 1 }],
       success_url: `${origin}/profile?checkout=success`,
       cancel_url: `${origin}/profile?checkout=cancelled`,
