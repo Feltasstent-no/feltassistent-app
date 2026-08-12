@@ -117,8 +117,10 @@ export function FieldClockTimer({
           clearInterval(intervalRef.current);
           intervalRef.current = null;
         }
-        playSound();
-        playSound();
+        if (!voiceEnabledRef.current) {
+          playSound();
+          playSound();
+        }
         vibrate();
         vibrate();
         onFinishedRef.current?.();

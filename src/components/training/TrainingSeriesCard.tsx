@@ -3,7 +3,7 @@ import { Camera, CheckCircle, Trash2, X, ChevronDown, ChevronUp, Lightbulb } fro
 import { updateTrainingSeries, deleteTrainingSeries, uploadSeriesImage, deleteSeriesImage, getImageUrl, recalculateSessionTotals } from '../../lib/training-session-service';
 import { FieldClockTimer } from '../FieldClockTimer';
 import { ImageLightbox } from '../ImageLightbox';
-import { getVoiceCommandsEnabled } from '../../lib/user-preferences';
+
 import { supabase } from '../../lib/supabase';
 import type { TrainingSeries, TrainingSeriesImage } from '../../types/database';
 
@@ -14,6 +14,7 @@ interface TrainingSeriesCardProps {
   readOnly?: boolean;
   hideTimer?: boolean;
   isRangeMatch?: boolean;
+  voiceEnabled?: boolean;
   sourceType?: 'felt' | 'bane' | 'trening';
   sourceName?: string;
   sourceId?: string;
@@ -22,7 +23,7 @@ interface TrainingSeriesCardProps {
   onCompleted?: (wasAlreadyCompleted: boolean) => void;
 }
 
-export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer, isRangeMatch, sourceType, sourceName, sourceId, onUpdated, onDeleted, onCompleted }: TrainingSeriesCardProps) {
+export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer, isRangeMatch, voiceEnabled, sourceType, sourceName, sourceId, onUpdated, onDeleted, onCompleted }: TrainingSeriesCardProps) {
   const [expanded, setExpanded] = useState(!series.completed);
   const [score, setScore] = useState(series.score != null ? String(series.score) : '');
   const [innerHits, setInnerHits] = useState(series.inner_hits != null ? String(series.inner_hits) : '');
@@ -207,7 +208,7 @@ export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer
             <FieldClockTimer
               shootSeconds={series.shooting_time_seconds}
               compact
-              voiceCommandsEnabled={getVoiceCommandsEnabled()}
+              voiceCommandsEnabled={voiceEnabled ?? false}
             />
           )}
 

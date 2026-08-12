@@ -42,6 +42,7 @@ export function Onboarding() {
   const [selectedClassCode, setSelectedClassCode] = useState<string | null>(state.shooterClassCode);
   const [classSetup, setClassSetup] = useState<ShooterClassSetup | null>(null);
   const [setupResult, setSetupResult] = useState<SetupResultSummary | null>(null);
+  const [setupError, setSetupError] = useState<string | null>(null);
 
   const steps = getSteps(state.shootingType);
   const stepIndex = steps.indexOf(currentStep);
@@ -85,25 +86,39 @@ export function Onboarding() {
   const handleSetupComplete = async (weaponName: string, sightChoice: SightChoice | null) => {
     if (!user) return;
     setSaving(true);
+    setSetupError(null);
 
-    const result = await createOnboardingSetup({
-      userId: user.id,
-      weaponName,
-      caliberType: state.caliberType!,
-      sightChoice,
-      baneDistances: classSetup?.bane_distances || [200, 300],
-    });
+    try {
+      const result = await createOnboardingSetup({
+        userId: user.id,
+        weaponName,
+        caliberType: state.caliberType!,
+        sightChoice,
+        baneDistances: classSetup?.bane_distances || [200, 300],
+        fieldType: classSetup?.field_type === 'finfelt' ? 'finfelt' : 'grovfelt',
+      });
 
-    await refreshActiveSetup();
-    await completeOnboarding();
+      if (!result.weapon || !result.barrel) {
+        setSetupError('Vi klarte ikke å opprette våpenet og løpet ditt. Sjekk at du er tilkoblet og prøv igjen.');
+        setSaving(false);
+        return;
+      }
 
-    setSetupResult({
-      ...result,
-      caliberType: state.caliberType,
-      sightChoice,
-    });
-    setSaving(false);
-    setCurrentStep('complete');
+      await refreshActiveSetup();
+      await completeOnboarding();
+
+      setSetupResult({
+        ...result,
+        caliberType: state.caliberType,
+        sightChoice,
+      });
+      setSaving(false);
+      setCurrentStep('complete');
+    } catch (err) {
+      console.error('[Onboarding] Setup creation failed:', err);
+      setSetupError('Noe gikk galt under opprettelsen av oppsettet ditt. Prøv igjen.');
+      setSaving(false);
+    }
   };
 
   const handleFinish = () => {
@@ -175,6 +190,7 @@ export function Onboarding() {
               caliberType={state.caliberType}
               onComplete={handleSetupComplete}
               saving={saving}
+              error={setupError}
             />
           )}
 
@@ -219,6 +235,7 @@ export function Onboarding() {
 function CompletionScreen({ result, onFinish }: { result: SetupResultSummary; onFinish: () => void }) {
   const is22 = result.caliberType === '.22 LR';
   const is65Busk = result.caliberType === '6.5x55' && result.sightChoice && result.sightChoice !== 'annet_sikte';
+  const isBuskStandard = result.caliberType === '6.5x55' && result.sightChoice === 'busk_standard';
   const is65AnnetSikte = result.caliberType === '6.5x55' && result.sightChoice === 'annet_sikte';
 
   return (
@@ -231,8 +248,8 @@ function CompletionScreen({ result, onFinish }: { result: SetupResultSummary; on
       </div>
 
       <div className="bg-white rounded-xl border border-emerald-200 p-5 space-y-3">
-        <ResultRow done={result.weapon} label="Vapen" />
-        <ResultRow done={result.barrel} label="Lop" />
+        <ResultRow done={result.weapon} label="Våpen" />
+        <ResultRow done={result.barrel} label="Løp" />
         {is22 && <ResultRow done={result.ammo} label="Standard .22 LR-oppsett" />}
         {!is22 && <ResultRow done={result.ammo} label="Standard ammunisjon" />}
         {is65Busk && <ResultRow done={result.profile} label="Startprofil" />}
@@ -240,10 +257,23 @@ function CompletionScreen({ result, onFinish }: { result: SetupResultSummary; on
       </div>
 
       {/* Contextual message */}
-      {is65Busk && (
+      {isBuskStandard && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <p className="text-sm font-medium text-amber-900 mb-1">
+            Diamond Line Felt 900 m/s – Busk grovknepp
+          </p>
           <p className="text-sm text-amber-800 leading-relaxed">
-            Starttabellen er generert fra standard DFS-data. Kontroller alltid verdiene mot egen innskyting eller egen knepptabell.
+            Starttabellen er forhåndsutfylt med referanseverdier for Norma Diamond Line Felt 900 m/s og Busk grovknepp. Nullpunkt 300 m. Kontroller alltid verdiene mot eget våpen og egen innskyting.
+          </p>
+        </div>
+      )}
+      {is65Busk && !isBuskStandard && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <p className="text-sm font-medium text-amber-900 mb-1">
+            Diamond Line Felt 900 m/s – Busk finknepp
+          </p>
+          <p className="text-sm text-amber-800 leading-relaxed">
+            Starttabellen er forhåndsutfylt med referanseverdier for Norma Diamond Line Felt 900 m/s og Busk finknepp. Nullpunkt 300 m. Kontroller alltid verdiene mot eget våpen og egen innskyting.
           </p>
         </div>
       )}
@@ -251,7 +281,7 @@ function CompletionScreen({ result, onFinish }: { result: SetupResultSummary; on
       {is65AnnetSikte && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
           <p className="text-sm text-blue-800 leading-relaxed">
-            Knepptabell kan opprettes senere nar siktet er konfigurert.
+            Knepptabell kan opprettes senere når siktet er konfigurert.
           </p>
         </div>
       )}

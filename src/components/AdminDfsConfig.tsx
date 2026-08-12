@@ -31,7 +31,7 @@ function validate(form: EditForm): ValidationErrors {
   if (form.bane_distances.length === 0) errors.bane_distances = 'Velg minst en baneavstand';
   if (form.field_distance_min_m != null && form.field_distance_max_m != null &&
       form.field_distance_max_m < form.field_distance_min_m) {
-    errors.field_distance = 'Maks feltavstand kan ikke vaere lavere enn min';
+    errors.field_distance = 'Maks feltavstand kan ikke være lavere enn min';
   }
   return errors;
 }

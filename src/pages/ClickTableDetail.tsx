@@ -4,7 +4,11 @@ import { Layout } from '../components/Layout';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { ClickTable, ClickTableRow, Weapon, WeaponBarrel } from '../types/database';
-import { Plus, Trash2, Save, ArrowLeft, CreditCard as Edit, X, Minus } from 'lucide-react';
+import { Plus, Trash2, Save, ArrowLeft, CreditCard as Edit, X, Minus, Lock } from 'lucide-react';
+
+function isReferenceTable(table: { source_type?: string }): boolean {
+  return table.source_type === 'onboarding_reference';
+}
 
 export function ClickTableDetail() {
   const { id } = useParams();
@@ -87,18 +91,23 @@ export function ClickTableDetail() {
 
     setSaving(true);
 
+    const locked = isReferenceTable(table);
+    const updatePayload: Record<string, unknown> = {
+      name: formData.name,
+      notes: formData.notes || null,
+    };
+    if (!locked) {
+      updatePayload.ammo_type = formData.ammo_type || null;
+      updatePayload.caliber = formData.caliber || null;
+      updatePayload.bullet_weight = formData.bullet_weight || null;
+      updatePayload.muzzle_velocity = formData.muzzle_velocity || null;
+      updatePayload.zero_distance = parseInt(formData.zero_distance);
+      updatePayload.sight_info = formData.sight_info;
+    }
+
     const { error } = await supabase
       .from('click_tables')
-      .update({
-        name: formData.name,
-        ammo_type: formData.ammo_type || null,
-        caliber: formData.caliber || null,
-        bullet_weight: formData.bullet_weight || null,
-        muzzle_velocity: formData.muzzle_velocity || null,
-        zero_distance: parseInt(formData.zero_distance),
-        sight_info: formData.sight_info,
-        notes: formData.notes || null,
-      })
+      .update(updatePayload)
       .eq('id', table.id);
 
     setSaving(false);
@@ -240,78 +249,130 @@ export function ClickTableDetail() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Kaliber</label>
-                  <input
-                    type="text"
-                    value={formData.caliber}
-                    onChange={(e) => setFormData({ ...formData, caliber: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                  />
-                </div>
+              {isReferenceTable(table) ? (
+                <>
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Lock className="w-4 h-4 text-slate-400" />
+                      <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Referanseverdier (låst)</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                      {formData.caliber && (
+                        <div>
+                          <span className="text-slate-500">Kaliber</span>
+                          <p className="font-medium text-slate-800">{formData.caliber}</p>
+                        </div>
+                      )}
+                      {formData.ammo_type && (
+                        <div>
+                          <span className="text-slate-500">Ammunisjon</span>
+                          <p className="font-medium text-slate-800">{formData.ammo_type}</p>
+                        </div>
+                      )}
+                      {formData.bullet_weight && (
+                        <div>
+                          <span className="text-slate-500">Kulevekt</span>
+                          <p className="font-medium text-slate-800">{formData.bullet_weight}</p>
+                        </div>
+                      )}
+                      {formData.muzzle_velocity && (
+                        <div>
+                          <span className="text-slate-500">Utgangshastighet</span>
+                          <p className="font-medium text-slate-800">{formData.muzzle_velocity} m/s</p>
+                        </div>
+                      )}
+                      <div>
+                        <span className="text-slate-500">Innskutt avstand</span>
+                        <p className="font-medium text-slate-800">{formData.zero_distance} m</p>
+                      </div>
+                      {formData.sight_info && (
+                        <div>
+                          <span className="text-slate-500">Siktetype</span>
+                          <p className="font-medium text-slate-800">{formData.sight_info}</p>
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Disse verdiene er låst for Diamond Line-referansetabeller. Du kan finjustere kneppverdiene under.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Kaliber</label>
+                      <input
+                        type="text"
+                        value={formData.caliber}
+                        onChange={(e) => setFormData({ ...formData, caliber: e.target.value })}
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Ammunisjon</label>
-                  <input
-                    type="text"
-                    value={formData.ammo_type}
-                    onChange={(e) => setFormData({ ...formData, ammo_type: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Ammunisjon</label>
+                      <input
+                        type="text"
+                        value={formData.ammo_type}
+                        onChange={(e) => setFormData({ ...formData, ammo_type: e.target.value })}
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Kulevekt</label>
-                  <input
-                    type="text"
-                    value={formData.bullet_weight}
-                    onChange={(e) => setFormData({ ...formData, bullet_weight: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                  />
-                </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Kulevekt</label>
+                      <input
+                        type="text"
+                        value={formData.bullet_weight}
+                        onChange={(e) => setFormData({ ...formData, bullet_weight: e.target.value })}
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Utgangshastighet (m/s)</label>
-                  <input
-                    type="number"
-                    value={formData.muzzle_velocity}
-                    onChange={(e) => setFormData({ ...formData, muzzle_velocity: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Utgangshastighet (m/s)</label>
+                      <input
+                        type="number"
+                        value={formData.muzzle_velocity}
+                        onChange={(e) => setFormData({ ...formData, muzzle_velocity: e.target.value })}
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Innskutt avstand (m)</label>
-                  <input
-                    type="number"
-                    value={formData.zero_distance}
-                    onChange={(e) => setFormData({ ...formData, zero_distance: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                  />
-                </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Innskutt avstand (m)</label>
+                      <input
+                        type="number"
+                        value={formData.zero_distance}
+                        onChange={(e) => setFormData({ ...formData, zero_distance: e.target.value })}
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Siktetype</label>
-                  <select
-                    value={formData.sight_info}
-                    onChange={(e) => setFormData({ ...formData, sight_info: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                  >
-                    <option value="Busk Standard">Busk Standard (grovknepp)</option>
-                    <option value="Busk Finknepp">Busk (finknepp)</option>
-                    <option value="1/4 MOA">1/4 MOA</option>
-                    <option value="1/2 MOA">1/2 MOA</option>
-                    <option value="1 MOA">1 MOA</option>
-                    <option value="0.1 mil">0.1 mil</option>
-                    <option value="0.2 mil">0.2 mil</option>
-                  </select>
-                </div>
-              </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Siktetype</label>
+                      <select
+                        value={formData.sight_info}
+                        onChange={(e) => setFormData({ ...formData, sight_info: e.target.value })}
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                      >
+                        <option value="Busk Standard">Busk Standard (grovknepp)</option>
+                        <option value="Busk Finknepp">Busk (finknepp)</option>
+                        <option value="1/4 MOA">1/4 MOA</option>
+                        <option value="1/2 MOA">1/2 MOA</option>
+                        <option value="1 MOA">1 MOA</option>
+                        <option value="0.1 mil">0.1 mil</option>
+                        <option value="0.2 mil">0.2 mil</option>
+                      </select>
+                    </div>
+                  </div>
+                </>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Notater</label>

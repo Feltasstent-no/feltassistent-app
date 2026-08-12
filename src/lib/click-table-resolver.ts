@@ -26,9 +26,10 @@ export interface ResolvedClickData {
 
 export interface ElevationResult {
   clicks: number;
-  type: 'exact' | 'nearest' | 'interpolated' | 'calculated';
+  type: 'exact' | 'nearest' | 'interpolated' | 'calculated' | 'out_of_range';
   source: ResolvedSource;
   sourceName: string;
+  tableRange?: { min: number; max: number };
 }
 
 export interface WindResult {
@@ -51,11 +52,19 @@ async function fetchClickTableRows(clickTableId: string): Promise<ClickTableRow[
 function interpolateFromRows(
   distance_m: number,
   rows: ClickTableRow[]
-): { clicks: number; type: 'exact' | 'nearest' | 'interpolated' } {
-  const exact = rows.find(r => r.distance_m === distance_m);
-  if (exact) return { clicks: exact.clicks, type: 'exact' };
-
+): { clicks: number; type: 'exact' | 'interpolated' | 'out_of_range'; tableRange: { min: number; max: number } } {
   const sorted = [...rows].sort((a, b) => a.distance_m - b.distance_m);
+  const min = sorted[0]?.distance_m ?? 0;
+  const max = sorted[sorted.length - 1]?.distance_m ?? 0;
+  const tableRange = { min, max };
+
+  const exact = rows.find(r => r.distance_m === distance_m);
+  if (exact) return { clicks: exact.clicks, type: 'exact', tableRange };
+
+  if (distance_m < min || distance_m > max) {
+    return { clicks: 0, type: 'out_of_range', tableRange };
+  }
+
   const lower = sorted.filter(r => r.distance_m < distance_m).pop();
   const upper = sorted.find(r => r.distance_m > distance_m);
 
@@ -64,12 +73,11 @@ function interpolateFromRows(
     return {
       clicks: Math.round(lower.clicks + ratio * (upper.clicks - lower.clicks)),
       type: 'interpolated',
+      tableRange,
     };
   }
 
-  if (lower) return { clicks: lower.clicks, type: 'nearest' };
-  if (upper) return { clicks: upper.clicks, type: 'nearest' };
-  return { clicks: 0, type: 'nearest' };
+  return { clicks: 0, type: 'out_of_range', tableRange };
 }
 
 export async function resolveClickSource(
@@ -147,25 +155,38 @@ export async function getElevationFromResolver(
   distance_m: number,
   resolved: ResolvedClickData
 ): Promise<ElevationResult> {
+  let tableRange: { min: number; max: number } | undefined;
+
   if (resolved.clickTableId) {
     const rows = await fetchClickTableRows(resolved.clickTableId);
-    const result = interpolateFromRows(distance_m, rows);
-    return {
-      clicks: result.clicks,
-      type: result.type,
-      source: resolved.source,
-      sourceName: resolved.sourceName,
-    };
+    if (rows.length > 0) {
+      const result = interpolateFromRows(distance_m, rows);
+      if (result.type !== 'out_of_range') {
+        return {
+          clicks: result.clicks,
+          type: result.type,
+          source: resolved.source,
+          sourceName: resolved.sourceName,
+          tableRange: result.tableRange,
+        };
+      }
+      tableRange = result.tableRange;
+    }
   }
 
-  if (resolved.ballisticProfileId) {
+  const profileId = resolved.ballisticProfileId
+    || (resolved.clickTableId
+      ? (await supabase.from('click_tables').select('ballistic_profile_id').eq('id', resolved.clickTableId).maybeSingle()).data?.ballistic_profile_id
+      : null);
+
+  if (profileId) {
     const { data: profile } = await supabase
       .from('ballistic_profiles')
       .select('*')
-      .eq('id', resolved.ballisticProfileId)
+      .eq('id', profileId)
       .maybeSingle();
 
-    if (profile) {
+    if (profile && distance_m >= profile.min_distance_m && distance_m <= profile.max_distance_m) {
       const distTable = generateDistanceTable(profile);
       const rec = getClickRecommendation(distance_m, distTable);
       return {
@@ -173,15 +194,17 @@ export async function getElevationFromResolver(
         type: 'calculated',
         source: 'direct_calculation',
         sourceName: SOURCE_LABELS['direct_calculation'],
+        tableRange,
       };
     }
   }
 
   return {
     clicks: 0,
-    type: 'nearest',
-    source: 'direct_calculation',
-    sourceName: SOURCE_LABELS['direct_calculation'],
+    type: 'out_of_range',
+    source: resolved.source,
+    sourceName: resolved.sourceName,
+    tableRange,
   };
 }
 

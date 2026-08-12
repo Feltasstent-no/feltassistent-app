@@ -12,6 +12,7 @@ interface OnboardingSetupParams {
   caliberType: CaliberType;
   sightChoice: SightChoice | null;
   baneDistances: number[];
+  fieldType?: 'grovfelt' | 'finfelt';
 }
 
 interface SetupResult {
@@ -38,6 +39,54 @@ const DFS_STANDARD_PROFILES: Record<string, {
   },
 };
 
+const DIAMOND_LINE_GROVKNEPP_TABLE: { distance_m: number; clicks: number }[] = [
+  { distance_m: 100, clicks: -13 },
+  { distance_m: 125, clicks: -12 },
+  { distance_m: 150, clicks: -11 },
+  { distance_m: 175, clicks: -9 },
+  { distance_m: 200, clicks: -7 },
+  { distance_m: 225, clicks: -6 },
+  { distance_m: 250, clicks: -4 },
+  { distance_m: 275, clicks: -2 },
+  { distance_m: 300, clicks: 0 },
+  { distance_m: 325, clicks: 2 },
+  { distance_m: 350, clicks: 4 },
+  { distance_m: 375, clicks: 6 },
+  { distance_m: 400, clicks: 9 },
+  { distance_m: 425, clicks: 11 },
+  { distance_m: 450, clicks: 13 },
+  { distance_m: 475, clicks: 16 },
+  { distance_m: 500, clicks: 18 },
+  { distance_m: 525, clicks: 21 },
+  { distance_m: 550, clicks: 23 },
+  { distance_m: 575, clicks: 25 },
+  { distance_m: 600, clicks: 29 },
+];
+
+const DIAMOND_LINE_FINKNEPP_TABLE: { distance_m: number; clicks: number }[] = [
+  { distance_m: 100, clicks: -26 },
+  { distance_m: 125, clicks: -24 },
+  { distance_m: 150, clicks: -22 },
+  { distance_m: 175, clicks: -18 },
+  { distance_m: 200, clicks: -14 },
+  { distance_m: 225, clicks: -12 },
+  { distance_m: 250, clicks: -8 },
+  { distance_m: 275, clicks: -4 },
+  { distance_m: 300, clicks: 0 },
+  { distance_m: 325, clicks: 4 },
+  { distance_m: 350, clicks: 8 },
+  { distance_m: 375, clicks: 12 },
+  { distance_m: 400, clicks: 18 },
+  { distance_m: 425, clicks: 22 },
+  { distance_m: 450, clicks: 26 },
+  { distance_m: 475, clicks: 32 },
+  { distance_m: 500, clicks: 36 },
+  { distance_m: 525, clicks: 42 },
+  { distance_m: 550, clicks: 46 },
+  { distance_m: 575, clicks: 50 },
+  { distance_m: 600, clicks: 58 },
+];
+
 function getCaliberString(caliberType: CaliberType): string {
   if (caliberType === '.22 LR') return '.22 LR';
   if (caliberType === '6.5x55') return '6.5x55';
@@ -51,7 +100,7 @@ function getDefaultAmmoName(caliberType: CaliberType): string {
 }
 
 export async function createOnboardingSetup(params: OnboardingSetupParams): Promise<SetupResult> {
-  const { userId, weaponName, caliberType, sightChoice, baneDistances } = params;
+  const { userId, weaponName, caliberType, sightChoice, baneDistances, fieldType } = params;
   const result: SetupResult = { weapon: false, barrel: false, ammo: false, profile: false, clickTable: false };
   let createdProfileId: string | null = null;
   let createdClickTableId: string | null = null;
@@ -63,6 +112,7 @@ export async function createOnboardingSetup(params: OnboardingSetupParams): Prom
     .from('weapons')
     .insert({
       user_id: userId,
+      weapon_number: '1',
       weapon_name: weaponName,
       caliber,
       is_active: true,
@@ -78,6 +128,7 @@ export async function createOnboardingSetup(params: OnboardingSetupParams): Prom
     .from('weapon_barrels')
     .insert({
       weapon_id: weapon.id,
+      barrel_number: '1',
       barrel_name: 'Løp 1',
       installed_date: new Date().toISOString().split('T')[0],
       is_active: true,
@@ -115,7 +166,9 @@ export async function createOnboardingSetup(params: OnboardingSetupParams): Prom
   // 4. Create ballistic profile + click table (only for 6.5x55 + Busk)
   if (caliberType === '6.5x55' && sightChoice && sightChoice !== 'annet_sikte') {
     const defaults = DFS_STANDARD_PROFILES['6.5x55'];
-    const maxDistance = Math.max(...baneDistances, 300);
+    const maxDistance = fieldType === 'grovfelt'
+      ? Math.max(...baneDistances, 600)
+      : Math.max(...baneDistances, 300);
 
     const profileData = {
       user_id: userId,
@@ -125,7 +178,7 @@ export async function createOnboardingSetup(params: OnboardingSetupParams): Prom
       bullet_name: defaults.bullet_name,
       ballistic_coefficient: defaults.ballistic_coefficient,
       muzzle_velocity: defaults.muzzle_velocity,
-      zero_distance_m: 100,
+      zero_distance_m: 300,
       min_distance_m: 100,
       max_distance_m: maxDistance,
       distance_interval_m: 25,
@@ -195,35 +248,42 @@ export async function createOnboardingSetup(params: OnboardingSetupParams): Prom
         .from('click_tables')
         .insert({
           user_id: userId,
-          name: `Starttabell - ${weaponName}`,
+          name: sightChoice === 'busk_finknepp'
+            ? `Diamond Line Felt 900 m/s - Finknepp - ${weaponName}`
+            : `Diamond Line Felt 900 m/s - ${weaponName}`,
           caliber,
           ammo_type: defaults.bullet_name,
           muzzle_velocity: defaults.muzzle_velocity,
-          zero_distance: 100,
+          zero_distance: 300,
           sight_info: sightChoice === 'busk_standard' ? 'Busk Standard (grovknepp)' : 'Busk Finknepp',
           weapon_id: weapon.id,
           barrel_id: barrel.id,
           ballistic_profile_id: profile.id,
+          source_type: 'onboarding_reference',
           is_active: true,
         })
         .select()
         .single();
 
       if (!ctErr && ctData) {
-        // Insert rows from the distance table
-        const rows = distanceTable
-          .filter(r => r.distance_m >= 100)
-          .map(r => ({
-            click_table_id: ctData.id,
-            distance_m: r.distance_m,
-            clicks_up: Math.round(r.click_value),
-          }));
+        const refTable = sightChoice === 'busk_finknepp'
+          ? DIAMOND_LINE_FINKNEPP_TABLE
+          : DIAMOND_LINE_GROVKNEPP_TABLE;
+        const rows = refTable.map(r => ({
+          click_table_id: ctData.id,
+          distance_m: r.distance_m,
+          clicks: r.clicks,
+        }));
 
         if (rows.length > 0) {
-          await supabase.from('click_table_rows').insert(rows);
+          const { error: rowsErr } = await supabase.from('click_table_rows').insert(rows);
+          if (!rowsErr) {
+            result.clickTable = true;
+            createdClickTableId = ctData.id;
+          } else {
+            console.error('[Onboarding] click_table_rows insert failed:', rowsErr);
+          }
         }
-        result.clickTable = true;
-        createdClickTableId = ctData.id;
       }
     }
   }

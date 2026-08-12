@@ -8,6 +8,7 @@ interface UserPreferences {
   lastTrainingLocation?: string;
   assistanceMode?: AssistanceMode;
   voiceCommandsEnabled?: boolean;
+  fieldClockVoiceEnabled?: boolean;
   lastBallisticDefaults?: {
     sight_height_mm?: string;
     sight_radius_cm?: string;
@@ -82,4 +83,12 @@ export function getVoiceCommandsEnabled(): boolean {
 
 export function setVoiceCommandsEnabled(enabled: boolean) {
   save({ voiceCommandsEnabled: enabled });
+}
+
+export function getFieldClockVoiceEnabled(): boolean {
+  return load().fieldClockVoiceEnabled ?? false;
+}
+
+export function setFieldClockVoiceEnabled(enabled: boolean) {
+  save({ fieldClockVoiceEnabled: enabled });
 }

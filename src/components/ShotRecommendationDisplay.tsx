@@ -1,5 +1,5 @@
 import { ShotRecommendation } from '../lib/field-assistant';
-import { Target, ArrowUp, Wind, Info, Database, FileText, Calculator } from 'lucide-react';
+import { Target, ArrowUp, Wind, Info, Database, FileText, Calculator, AlertTriangle } from 'lucide-react';
 
 
 interface ShotRecommendationDisplayProps {
@@ -39,18 +39,34 @@ export function ShotRecommendationDisplay({ recommendation }: ShotRecommendation
               <ArrowUp className="w-4 h-4 inline mr-1" />
               Høydekorreksjon
             </label>
-            <div className={`p-3 sm:p-4 rounded-lg border-2 ${getClickDisplayClass(elevation_clicks)}`}>
-              <div className="text-2xl sm:text-3xl font-bold text-center">
-                {elevation_clicks > 0 ? '+' : ''}{elevation_clicks}
+            {elevation_type === 'out_of_range' ? (
+              <div className="p-3 sm:p-4 rounded-lg border-2 border-amber-300 bg-amber-50">
+                <div className="flex items-center justify-center gap-2 mb-1">
+                  <AlertTriangle className="w-5 h-5 text-amber-600" />
+                  <span className="text-base font-semibold text-amber-800">Ingen kneppverdi</span>
+                </div>
+                <p className="text-sm text-center text-amber-700">
+                  {distance_m} m ligger utenfor knepptabellens område
+                  {recommendation.tableRange && ` (${recommendation.tableRange.min}–${recommendation.tableRange.max} m)`}.
+                </p>
+                <p className="text-xs text-center text-amber-600 mt-1.5">
+                  Legg inn en verdi for denne avstanden i knepptabellen, eller bruk ballistisk profil.
+                </p>
               </div>
-              <div className="text-sm text-center mt-1">knepp</div>
-              <div className="text-xs text-center mt-1 opacity-75">
-                {elevation_type === 'exact' && 'Eksakt'}
-                {elevation_type === 'nearest' && 'Nærmeste'}
-                {elevation_type === 'interpolated' && 'Interpolert'}
-                {elevation_type === 'calculated' && 'Beregnet'}
+            ) : (
+              <div className={`p-3 sm:p-4 rounded-lg border-2 ${getClickDisplayClass(elevation_clicks)}`}>
+                <div className="text-2xl sm:text-3xl font-bold text-center">
+                  {elevation_clicks > 0 ? '+' : ''}{elevation_clicks}
+                </div>
+                <div className="text-sm text-center mt-1">knepp</div>
+                <div className="text-xs text-center mt-1 opacity-75">
+                  {elevation_type === 'exact' && 'Eksakt'}
+                  {elevation_type === 'nearest' && 'Nærmeste'}
+                  {elevation_type === 'interpolated' && 'Interpolert'}
+                  {elevation_type === 'calculated' && 'Beregnet fra ballistisk profil'}
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {wind_clicks !== undefined && wind_clicks !== 0 && (

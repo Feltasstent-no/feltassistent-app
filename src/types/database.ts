@@ -320,6 +320,7 @@ export interface ClickTable {
   notes: string | null;
   ballistic_profile_id: string | null;
   table_type: string;
+  source_type: string;
   reference_distance_m: number | null;
   reference_clicks: number | null;
   is_active: boolean;

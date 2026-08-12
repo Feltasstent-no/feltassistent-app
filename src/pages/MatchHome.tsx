@@ -272,8 +272,8 @@ export function MatchHome() {
             onDismiss={() => setShowOnboardingSuccess(false)}
             onAction={() => {
               setShowOnboardingSuccess(false);
-              if (onboardingResult.clickTable) {
-                navigate('/shot-assistant');
+              if (onboardingResult.clickTable && activeSetup?.click_table_id) {
+                navigate(`/click-tables/${activeSetup.click_table_id}`);
               } else {
                 navigate('/field-clock');
               }
@@ -862,8 +862,8 @@ function OnboardingSuccessCard({ result, onDismiss, onAction }: {
       </div>
 
       <div className="space-y-1.5 mb-4">
-        {result.weapon && <SuccessRow label="Vapen" />}
-        {result.barrel && <SuccessRow label="Lop" />}
+        {result.weapon && <SuccessRow label="Våpen" />}
+        {result.barrel && <SuccessRow label="Løp" />}
         {result.ammo && <SuccessRow label="Ammunisjon" />}
         {result.profile && <SuccessRow label="Startprofil" />}
         {result.clickTable && <SuccessRow label="Starttabell" />}
@@ -876,12 +876,12 @@ function OnboardingSuccessCard({ result, onDismiss, onAction }: {
         {has65Busk ? (
           <>
             <Crosshair className="w-4 h-4" />
-            <span>Apne kneppassistent</span>
+            <span>Se og kontroller knepptabell</span>
           </>
         ) : (
           <>
             <Clock className="w-4 h-4" />
-            <span>Apne feltklokke</span>
+            <span>Åpne feltklokke</span>
           </>
         )}
       </button>

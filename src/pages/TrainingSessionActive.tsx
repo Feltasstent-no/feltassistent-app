@@ -19,8 +19,9 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useWakeLock } from '../lib/use-wake-lock';
 import {
   ArrowLeft, Plus, CheckCircle, XCircle, Pencil, Target, Trophy,
-  MapPin, Calendar, Cloud, Copy,
+  MapPin, Calendar, Cloud, Copy, Volume2, VolumeX,
 } from 'lucide-react';
+import { getVoiceCommandsEnabled, setVoiceCommandsEnabled } from '../lib/user-preferences';
 import type { TrainingSession, TrainingSeries, TrainingSeriesImage } from '../types/database';
 
 export function TrainingSessionActive() {
@@ -37,6 +38,7 @@ export function TrainingSessionActive() {
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [finishing, setFinishing] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(getVoiceCommandsEnabled);
 
   const isActive = session?.status === 'active';
   const isRangeMatch = session?.session_type === 'range_match';
@@ -178,6 +180,25 @@ export function TrainingSessionActive() {
                 <Pencil className="w-4 h-4" />
               </button>
             )}
+            {isActive && (
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !voiceEnabled;
+                  setVoiceEnabled(next);
+                  setVoiceCommandsEnabled(next);
+                }}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition ${
+                  voiceEnabled
+                    ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                }`}
+                aria-label={voiceEnabled ? 'Slå av lyd' : 'Slå på lyd'}
+              >
+                {voiceEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+                {voiceEnabled ? 'Lyd på' : 'Lyd av'}
+              </button>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-500 mt-1">
             <span className="flex items-center gap-1 flex-shrink-0 whitespace-nowrap">
@@ -244,6 +265,7 @@ export function TrainingSessionActive() {
                   readOnly={readOnly}
                   hideTimer={idx !== seriesList.length - 1}
                   isRangeMatch={isRangeMatch}
+                  voiceEnabled={voiceEnabled}
                   sourceType="trening"
                   sourceName={session?.title || ''}
                   sourceId={session?.id}

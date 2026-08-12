@@ -322,7 +322,7 @@ export function ShotAssistant() {
                     onChange={(e) => setDistanceStr(e.target.value)}
                     className="w-full px-4 py-2 border border-slate-300 rounded-md bg-white text-slate-900"
                     min="50"
-                    max="600"
+                    max="1200"
                     step="10"
                   />
                 </div>

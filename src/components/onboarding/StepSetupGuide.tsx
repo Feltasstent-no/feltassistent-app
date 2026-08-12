@@ -10,9 +10,10 @@ interface Props {
   caliberType: CaliberType | null;
   onComplete: (weaponName: string, sightChoice: SightChoice | null) => void;
   saving: boolean;
+  error?: string | null;
 }
 
-export function StepSetupGuide({ classSetup, caliberType, onComplete, saving }: Props) {
+export function StepSetupGuide({ classSetup, caliberType, onComplete, saving, error }: Props) {
   const [weaponName, setWeaponName] = useState('');
   const [sightChoice, setSightChoice] = useState<SightChoice | null>(null);
 
@@ -117,6 +118,12 @@ export function StepSetupGuide({ classSetup, caliberType, onComplete, saving }: 
               desc="Knepptabell kan opprettes senere"
             />
           </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-xl">
+          <p className="text-sm text-red-700">{error}</p>
         </div>
       )}
 

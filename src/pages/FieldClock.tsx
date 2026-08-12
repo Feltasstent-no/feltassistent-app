@@ -3,7 +3,9 @@ import { Layout } from '../components/Layout';
 import { supabase } from '../lib/supabase';
 import { FieldClockPreset } from '../types/database';
 import { useWakeLock } from '../lib/use-wake-lock';
-import { Play, Pause, RotateCcw, X, ChevronDown, ChevronUp, AlertTriangle, Clock, Timer, BookOpen, Minus, Plus } from 'lucide-react';
+import { Play, Pause, RotateCcw, X, ChevronDown, ChevronUp, AlertTriangle, Clock, Timer, BookOpen, Minus, Plus, Volume2, VolumeX } from 'lucide-react';
+import { preloadVoiceCues, unlockVoiceCues, playStartCommand, playCue } from '../lib/voice-commands';
+import { getFieldClockVoiceEnabled, setFieldClockVoiceEnabled } from '../lib/user-preferences';
 
 function formatDisplayTime(seconds: number) {
   if (seconds <= 0) return '0s';
@@ -363,7 +365,12 @@ export function FieldClock() {
   const [isRunning, setIsRunning] = useState(false);
   const [phase, setPhase] = useState<'idle' | 'prep_normal' | 'prep_warning' | 'shooting_start' | 'shooting' | 'shooting_warning' | 'shooting_critical' | 'finished'>('idle');
   const [previewSeconds, setPreviewSeconds] = useState(0);
+  const [voiceEnabled, setVoiceEnabled] = useState(getFieldClockVoiceEnabled);
+  const [startPending, setStartPending] = useState(false);
   const intervalRef = useRef<number | null>(null);
+  const voiceEnabledRef = useRef(voiceEnabled);
+  const playedCuesRef = useRef<Set<string>>(new Set());
+  voiceEnabledRef.current = voiceEnabled;
 
   useWakeLock(selectedPreset !== null);
 
@@ -372,6 +379,17 @@ export function FieldClock() {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
+  }, []);
+
+  useEffect(() => {
+    if (voiceEnabled) preloadVoiceCues();
+  }, [voiceEnabled]);
+
+  const cueOnce = useCallback((name: 'ready' | 'fire' | 'stop') => {
+    if (!voiceEnabledRef.current) return;
+    if (playedCuesRef.current.has(name)) return;
+    playedCuesRef.current.add(name);
+    playCue(name);
   }, []);
 
   const effectivePrep = selectedPreset ? overrides.prep_seconds : 15;
@@ -396,6 +414,7 @@ export function FieldClock() {
 
           if (phase === 'prep_normal' && newTime === 5) {
             setPhase('prep_warning');
+            cueOnce('ready');
           } else if (phase === 'shooting_start' && newTime === effectiveShoot - 2) {
             setPhase('shooting');
           } else if (phase === 'shooting' && newTime <= warningThreshold && newTime > 3) {
@@ -405,6 +424,14 @@ export function FieldClock() {
             vibrate();
           } else if (phase === 'shooting_critical') {
             if (newTime === 2 || newTime === 1) vibrate();
+          }
+
+          if (
+            newTime === 2 &&
+            (phase === 'shooting_start' || phase === 'shooting' ||
+              phase === 'shooting_warning' || phase === 'shooting_critical')
+          ) {
+            cueOnce('stop');
           }
 
           return newTime;
@@ -433,15 +460,14 @@ export function FieldClock() {
   };
 
   const handlePhaseComplete = () => {
-    playSound();
-    vibrate();
-
     switch (phase) {
       case 'prep_normal':
       case 'prep_warning':
         setPhase('shooting_start');
         setTimeRemaining(effectiveShoot);
-        playSound();
+        cueOnce('fire');
+        if (!voiceEnabledRef.current) { playSound(); playSound(); }
+        vibrate();
         vibrate();
         break;
       case 'shooting_start':
@@ -450,7 +476,8 @@ export function FieldClock() {
       case 'shooting_critical':
         setPhase('finished');
         setIsRunning(false);
-        playSound();
+        if (!voiceEnabledRef.current) { playSound(); playSound(); }
+        vibrate();
         vibrate();
         break;
       default:
@@ -517,19 +544,46 @@ export function FieldClock() {
 
   const handleStart = () => {
     if (!selectedPreset) return;
-    if (phase === 'idle') {
-      setPhase('prep_normal');
-      setTimeRemaining(effectivePrep);
+    if (startPending) return;
+
+    const beginPrep = () => {
+      playedCuesRef.current.clear();
+      if (phase === 'idle') {
+        setPhase('prep_normal');
+        setTimeRemaining(effectivePrep);
+      }
+      setIsRunning(true);
+      setStartPending(false);
+    };
+
+    if (phase === 'idle' && voiceEnabledRef.current) {
+      setStartPending(true);
+      unlockVoiceCues();
+      playStartCommand(() => beginPrep());
+    } else {
+      playedCuesRef.current.clear();
+      if (phase === 'idle') {
+        setPhase('prep_normal');
+        setTimeRemaining(effectivePrep);
+      }
+      setIsRunning(true);
     }
-    setIsRunning(true);
   };
 
   const handlePause = () => setIsRunning(false);
+
+  const handleToggleVoice = () => {
+    const next = !voiceEnabled;
+    setVoiceEnabled(next);
+    setFieldClockVoiceEnabled(next);
+  };
 
   const handleReset = () => {
     setIsRunning(false);
     setPhase('idle');
     setTimeRemaining(0);
+    setStartPending(false);
+    playedCuesRef.current.clear();
   };
 
   const handleBack = () => {
@@ -725,10 +779,11 @@ export function FieldClock() {
                 {!isRunning && phase !== 'finished' && (
                   <button
                     onClick={handleStart}
-                    className="bg-white hover:bg-white/90 text-slate-900 font-semibold px-6 sm:px-8 py-3 sm:py-4 rounded-full transition flex items-center space-x-2 shadow-xl active:scale-95"
+                    disabled={startPending}
+                    className={`bg-white hover:bg-white/90 text-slate-900 font-semibold px-6 sm:px-8 py-3 sm:py-4 rounded-full transition flex items-center space-x-2 shadow-xl active:scale-95 ${startPending ? 'opacity-60 cursor-not-allowed' : ''}`}
                   >
                     <Play className="w-5 h-5 sm:w-6 sm:h-6" />
-                    <span>{phase === 'idle' ? 'Start' : 'Fortsett'}</span>
+                    <span>{startPending ? 'Startkommando...' : phase === 'idle' ? 'Start' : 'Fortsett'}</span>
                   </button>
                 )}
 
@@ -760,6 +815,20 @@ export function FieldClock() {
                     <span>Nullstill</span>
                   </button>
                 )}
+
+                <button
+                  type="button"
+                  onClick={handleToggleVoice}
+                  className={`flex items-center gap-1.5 px-4 py-2.5 rounded-full text-sm font-semibold transition active:scale-95 ${
+                    voiceEnabled
+                      ? 'bg-emerald-500/30 text-emerald-100 hover:bg-emerald-500/40'
+                      : 'bg-white/15 text-white/70 hover:bg-white/25'
+                  }`}
+                  aria-label={voiceEnabled ? 'Slå av stemmekommandoer' : 'Slå på stemmekommandoer'}
+                >
+                  {voiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                  {voiceEnabled ? 'Lyd på' : 'Lyd av'}
+                </button>
               </div>
             </div>
           </div>

@@ -29,11 +29,12 @@ export interface ShotRecommendation {
   profile?: BallisticProfile;
   click_table?: ClickTable;
   elevation_clicks: number;
-  elevation_type: 'exact' | 'nearest' | 'interpolated' | 'reference' | 'calculated';
+  elevation_type: 'exact' | 'nearest' | 'interpolated' | 'reference' | 'calculated' | 'out_of_range';
   wind_clicks?: number;
   wind_speed_ms?: number;
   wind_direction?: string;
   notes: string[];
+  tableRange?: { min: number; max: number };
   source: 'ballistic_profile' | 'click_table';
   resolved_source?: string;
   resolved_source_name?: string;
@@ -450,6 +451,7 @@ export async function calculateShotRecommendationResolved(
     figure,
     elevation_clicks: elevation.clicks,
     elevation_type: elevation.type,
+    tableRange: elevation.tableRange,
     notes,
     source: resolved.clickTableId ? 'click_table' : 'ballistic_profile',
     resolved_source: resolved.source,
