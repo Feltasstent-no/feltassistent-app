@@ -10,6 +10,7 @@ export function AdminTemplates() {
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -58,7 +59,10 @@ export function AdminTemplates() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (creating) return;
+    setCreating(true);
 
+    try {
     const { error } = await supabase.from('competition_templates').insert({
       name: formData.name,
       competition_type: formData.competition_type,
@@ -77,6 +81,9 @@ export function AdminTemplates() {
       fetchData();
       setShowNew(false);
       resetForm();
+    }
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -327,9 +334,10 @@ export function AdminTemplates() {
             <div className="flex space-x-2 pt-2">
               <button
                 type="submit"
-                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-lg transition"
+                disabled={creating}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Opprett mal
+                {creating ? 'Oppretter...' : 'Opprett mal'}
               </button>
               <button
                 type="button"

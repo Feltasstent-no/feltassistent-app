@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Target } from 'lucide-react';
+import { Target, Mail, CheckCircle, RefreshCw } from 'lucide-react';
 
 export function Register() {
   const navigate = useNavigate();
@@ -11,6 +11,11 @@ export function Register() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmationSent, setConfirmationSent] = useState(false);
+
+  const [resending, setResending] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState(false);
+  const [resendError, setResendError] = useState<string | null>(null);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,13 +34,14 @@ export function Register() {
       return;
     }
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: {
           full_name: fullName,
         },
+        emailRedirectTo: `${window.location.origin}/login`,
       },
     });
 
@@ -44,10 +50,95 @@ export function Register() {
         ? 'Bruker eksisterer allerede'
         : error.message);
       setLoading(false);
-    } else {
+      return;
+    }
+
+    if (data.session) {
       navigate('/onboarding');
+      return;
+    }
+
+    if (data.user && !data.session) {
+      setConfirmationSent(true);
+      setLoading(false);
     }
   };
+
+  const handleResend = async () => {
+    if (resending) return;
+    setResending(true);
+    setResendSuccess(false);
+    setResendError(null);
+
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/login`,
+      },
+    });
+
+    if (error) {
+      setResendError('Kunne ikke sende bekreftelsesmail på nytt. Prøv igjen om litt.');
+    } else {
+      setResendSuccess(true);
+    }
+    setResending(false);
+  };
+
+  if (confirmationSent) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-teal-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="bg-white rounded-2xl shadow-xl p-8">
+            <div className="text-center mb-6">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-emerald-100 rounded-full mb-4">
+                <Mail className="w-8 h-8 text-emerald-600" />
+              </div>
+              <h1 className="text-2xl font-bold text-slate-900">Sjekk e-posten din</h1>
+              <p className="text-slate-600 mt-3 leading-relaxed">
+                Vi har sendt en bekreftelseslenke til{' '}
+                <span className="font-semibold text-slate-800">{email}</span>.
+                Bekreft e-postadressen før du logger inn og fullfører oppsettet av Feltassistenten.
+              </p>
+            </div>
+
+            <div className="border-t border-slate-100 pt-5 mt-2">
+              <p className="text-sm text-slate-500 text-center mb-3">Fikk du ikke e-posten?</p>
+
+              {resendSuccess && (
+                <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-lg text-sm text-center mb-3 flex items-center justify-center gap-2">
+                  <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                  Ny bekreftelsesmail er sendt.
+                </div>
+              )}
+
+              {resendError && (
+                <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg text-sm text-center mb-3">
+                  {resendError}
+                </div>
+              )}
+
+              <button
+                onClick={handleResend}
+                disabled={resending}
+                className="w-full flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2.5 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <RefreshCw className={`w-4 h-4 ${resending ? 'animate-spin' : ''}`} />
+                {resending ? 'Sender...' : 'Send bekreftelsesmail på nytt'}
+              </button>
+            </div>
+
+            <div className="mt-6 text-center">
+              <Link to="/login" className="text-emerald-600 hover:text-emerald-700 font-semibold text-sm">
+                Gå til innlogging
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-teal-50 flex items-center justify-center p-4">

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Target, ArrowLeft, Mail } from 'lucide-react';
+import { Target, ArrowLeft, Mail, RefreshCw, CheckCircle } from 'lucide-react';
 
 export function Login() {
   const navigate = useNavigate();
@@ -11,11 +11,19 @@ export function Login() {
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<'login' | 'forgot'>('login');
   const [resetSent, setResetSent] = useState(false);
+  const [emailNotConfirmed, setEmailNotConfirmed] = useState(false);
+
+  const [resending, setResending] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState(false);
+  const [resendError, setResendError] = useState<string | null>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setEmailNotConfirmed(false);
+    setResendSuccess(false);
+    setResendError(null);
 
     const { error } = await supabase.auth.signInWithPassword({
       email,
@@ -23,13 +31,40 @@ export function Login() {
     });
 
     if (error) {
-      setError(error.message === 'Invalid login credentials'
-        ? 'Ugyldig e-post eller passord'
-        : error.message);
+      if (error.message === 'Email not confirmed') {
+        setEmailNotConfirmed(true);
+        setError(null);
+      } else {
+        setError(error.message === 'Invalid login credentials'
+          ? 'Ugyldig e-post eller passord'
+          : error.message);
+      }
       setLoading(false);
     } else {
       navigate('/match');
     }
+  };
+
+  const handleResendConfirmation = async () => {
+    if (resending) return;
+    setResending(true);
+    setResendSuccess(false);
+    setResendError(null);
+
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/login`,
+      },
+    });
+
+    if (error) {
+      setResendError('Kunne ikke sende bekreftelsesmail på nytt. Prøv igjen om litt.');
+    } else {
+      setResendSuccess(true);
+    }
+    setResending(false);
   };
 
   const handleResetPassword = async (e: React.FormEvent) => {
@@ -176,6 +211,40 @@ export function Login() {
               </div>
             )}
 
+            {emailNotConfirmed && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
+                <div className="text-sm text-amber-900">
+                  <p className="font-semibold mb-1">E-postadressen er ikke bekreftet</p>
+                  <p>Sjekk innboksen din og bekreft e-postadressen før du logger inn.</p>
+                </div>
+
+                {resendSuccess && (
+                  <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-3 py-2 rounded-lg text-sm flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                    Ny bekreftelsesmail er sendt.
+                  </div>
+                )}
+
+                {resendError && (
+                  <div className="bg-red-50 border border-red-200 text-red-800 px-3 py-2 rounded-lg text-sm">
+                    {resendError}
+                  </div>
+                )}
+
+                {email && (
+                  <button
+                    type="button"
+                    onClick={handleResendConfirmation}
+                    disabled={resending}
+                    className="w-full flex items-center justify-center gap-2 bg-amber-100 hover:bg-amber-200 text-amber-900 font-medium py-2 px-3 rounded-lg text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${resending ? 'animate-spin' : ''}`} />
+                    {resending ? 'Sender...' : 'Send bekreftelsesmail på nytt'}
+                  </button>
+                )}
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={loading}
@@ -187,7 +256,7 @@ export function Login() {
 
           <div className="mt-4 text-center">
             <button
-              onClick={() => { setMode('forgot'); setError(null); }}
+              onClick={() => { setMode('forgot'); setError(null); setEmailNotConfirmed(false); }}
               className="text-sm text-slate-500 hover:text-emerald-600 transition"
             >
               Glemt passord?
