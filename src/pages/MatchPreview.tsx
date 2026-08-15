@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useKeyboardVisible } from '../hooks/useKeyboardVisible';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { FieldFigurePreview } from '../components/FieldFigurePreview';
@@ -69,6 +70,7 @@ export function MatchPreview() {
   });
   const [subHoldsMap, setSubHoldsMap] = useState<Record<string, MatchSubHold[]>>({});
   const [loading, setLoading] = useState(true);
+  const keyboardOpen = useKeyboardVisible();
   const [editingHoldId, setEditingHoldId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -322,7 +324,7 @@ export function MatchPreview() {
         )}
 
         <div
-          className="fixed left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-slate-200 z-50 md:static md:bg-transparent md:border-0 md:mt-8 md:z-auto md:bottom-0"
+          className={`fixed left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-slate-200 z-50 md:static md:bg-transparent md:border-0 md:mt-8 md:z-auto md:bottom-0 transition-transform duration-200 ${keyboardOpen ? 'translate-y-full' : 'translate-y-0'}`}
           style={{ bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))' }}
         >
           <div className="max-w-3xl mx-auto px-4 pt-3 pb-3 md:px-0">

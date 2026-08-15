@@ -1,4 +1,5 @@
 import { ReactNode, useEffect, useState } from 'react';
+import { useKeyboardVisible } from '../hooks/useKeyboardVisible';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -13,6 +14,7 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const { user, signOut, isAdmin } = useAuth();
+  const keyboardOpen = useKeyboardVisible();
   const location = useLocation();
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
@@ -140,11 +142,11 @@ export function Layout({ children }: LayoutProps) {
         </div>
       </header>
 
-      <main className="flex-1 px-4 sm:px-6 lg:px-8 py-4 sm:py-8 pb-20 md:pb-8 md:ml-64">
+      <main className={`flex-1 px-4 sm:px-6 lg:px-8 py-4 sm:py-8 md:pb-8 md:ml-64 ${keyboardOpen ? 'pb-4' : 'pb-20'}`}>
         {children}
       </main>
 
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 md:hidden z-40" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+      <nav className={`fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 md:hidden z-40 transition-transform duration-200 ${keyboardOpen ? 'translate-y-full' : 'translate-y-0'}`} style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
         <div className="flex justify-around gap-1 px-2 py-2">
           {navItems.map((item) => {
             const Icon = item.icon;

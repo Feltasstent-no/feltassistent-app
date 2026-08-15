@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { AmmoInventory } from '../types/database';
+import type { AmmoInventory, AmmunitionBatch } from '../types/database';
 
 export interface AmmoInventoryLogEntry {
   id: string;
@@ -348,4 +348,160 @@ export async function setAmmoDefault(
     .eq('id', inventoryId);
 
   return { error };
+}
+
+// ── Ammunition Batches ──────────────────────────────────────
+
+export async function getBatchesForAmmoIds(
+  ammoInventoryIds: string[]
+): Promise<Record<string, AmmunitionBatch[]>> {
+  if (ammoInventoryIds.length === 0) return {};
+
+  const { data } = await supabase
+    .from('ammunition_batches')
+    .select('*')
+    .in('ammo_inventory_id', ammoInventoryIds)
+    .order('created_at', { ascending: false });
+
+  const map: Record<string, AmmunitionBatch[]> = {};
+  for (const batch of data || []) {
+    const key = batch.ammo_inventory_id;
+    if (!map[key]) map[key] = [];
+    map[key].push(batch);
+  }
+  return map;
+}
+
+export async function getBatchesForAmmo(ammoInventoryId: string): Promise<AmmunitionBatch[]> {
+  const { data } = await supabase
+    .from('ammunition_batches')
+    .select('*')
+    .eq('ammo_inventory_id', ammoInventoryId)
+    .order('created_at', { ascending: false });
+
+  return data || [];
+}
+
+export async function createBatch(
+  params: Omit<AmmunitionBatch, 'id' | 'created_at' | 'updated_at'>
+): Promise<{ data: AmmunitionBatch | null; error: any }> {
+  const { data, error } = await supabase
+    .from('ammunition_batches')
+    .insert(params)
+    .select()
+    .single();
+
+  return { data, error };
+}
+
+export async function updateBatch(
+  id: string,
+  updates: Partial<Omit<AmmunitionBatch, 'id' | 'user_id' | 'ammo_inventory_id' | 'created_at' | 'updated_at'>>
+): Promise<{ error: any }> {
+  const { error } = await supabase
+    .from('ammunition_batches')
+    .update(updates)
+    .eq('id', id);
+
+  return { error };
+}
+
+export async function deleteBatch(id: string): Promise<{ error: any }> {
+  const { error } = await supabase
+    .from('ammunition_batches')
+    .delete()
+    .eq('id', id);
+
+  return { error };
+}
+
+// ── Reloading Log ──────────────────────────────────────────
+
+export interface ReloadingLogBatch extends AmmunitionBatch {
+  ammo_inventory: {
+    name: string;
+    caliber: string | null;
+    ammo_name: string | null;
+    usage_type: string;
+    weapon_id: string;
+    barrel_id: string | null;
+  } | null;
+}
+
+export async function getReloadingLogBatches(): Promise<ReloadingLogBatch[]> {
+  const { data } = await supabase
+    .from('ammunition_batches')
+    .select('*, ammo_inventory:ammo_inventory_id(name, caliber, ammo_name, usage_type, weapon_id, barrel_id)')
+    .eq('ammo_origin', 'reloaded')
+    .order('production_date', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false });
+
+  return (data || []) as ReloadingLogBatch[];
+}
+
+// ── Reloading Statistics ────────────────────────────────────
+
+export interface ReloadingStats {
+  thisYear: number;
+  last12Months: number;
+  totalRegistered: number;
+  batchCount: number;
+  batchesWithoutQuantity: number;
+  batchesWithoutDate: number;
+  lastProductionDate: string | null;
+}
+
+export async function getReloadingStats(): Promise<ReloadingStats | null> {
+  const { data } = await supabase
+    .from('ammunition_batches')
+    .select('quantity_produced, production_date')
+    .eq('ammo_origin', 'reloaded');
+
+  if (!data || data.length === 0) return null;
+
+  const now = new Date();
+  const yearStart = `${now.getFullYear()}-01-01`;
+  const rolling12 = new Date(now);
+  rolling12.setMonth(rolling12.getMonth() - 12);
+  const rolling12Str = rolling12.toISOString().slice(0, 10);
+
+  let thisYear = 0;
+  let last12Months = 0;
+  let totalRegistered = 0;
+  let batchesWithoutQuantity = 0;
+  let batchesWithoutDate = 0;
+  let lastProductionDate: string | null = null;
+
+  for (const row of data) {
+    const qty = row.quantity_produced as number | null;
+    const date = row.production_date as string | null;
+
+    if (qty == null) {
+      batchesWithoutQuantity++;
+    } else {
+      totalRegistered += qty;
+      if (date != null) {
+        if (date >= yearStart) thisYear += qty;
+        if (date >= rolling12Str) last12Months += qty;
+      }
+    }
+
+    if (date == null) {
+      batchesWithoutDate++;
+    } else {
+      if (lastProductionDate == null || date > lastProductionDate) {
+        lastProductionDate = date;
+      }
+    }
+  }
+
+  return {
+    thisYear,
+    last12Months,
+    totalRegistered,
+    batchCount: data.length,
+    batchesWithoutQuantity,
+    batchesWithoutDate,
+    lastProductionDate,
+  };
 }

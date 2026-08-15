@@ -47,6 +47,7 @@ import { RangeMatchSetup } from './pages/RangeMatchSetup';
 import { RangeMatchRun } from './pages/RangeMatchRun';
 import { WindTest } from './pages/WindTest';
 import { FocusPoints } from './pages/FocusPoints';
+import { ReloadingLog } from './pages/ReloadingLog';
 import { OfflineBanner } from './components/OfflineBanner';
 import { SyncStatusIndicator } from './components/SyncStatusIndicator';
 
@@ -402,6 +403,15 @@ function App() {
               element={
                 <ProtectedRoute>
                   <MatchHistory />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/reloading-log"
+              element={
+                <ProtectedRoute>
+                  <ReloadingLog />
                 </ProtectedRoute>
               }
             />

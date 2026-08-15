@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useKeyboardVisible } from '../hooks/useKeyboardVisible';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { FieldFigurePreview } from '../components/FieldFigurePreview';
@@ -37,6 +38,7 @@ export function MatchConfigure() {
   const [editingHoldId, setEditingHoldId] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [starting, setStarting] = useState(false);
+  const keyboardOpen = useKeyboardVisible();
   const [clickTableRows, setClickTableRows] = useState<ClickTableRow[]>([]);
   const [subHoldsMap, setSubHoldsMap] = useState<Record<string, MatchSubHold[]>>({});
   const [ammoList, setAmmoList] = useState<AmmoInventory[]>([]);
@@ -588,7 +590,7 @@ export function MatchConfigure() {
         </div>
 
         <div
-          className="fixed left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-slate-200 z-50 p-4 md:static md:bg-white md:border md:rounded-xl md:shadow-lg md:p-6 md:z-auto"
+          className={`fixed left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-slate-200 z-50 p-4 md:static md:bg-white md:border md:rounded-xl md:shadow-lg md:p-6 md:z-auto transition-transform duration-200 ${keyboardOpen ? 'translate-y-full' : 'translate-y-0'}`}
           style={{ bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))' }}
         >
           <button

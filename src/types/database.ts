@@ -517,6 +517,55 @@ export interface AmmoInventory {
   updated_at: string;
 }
 
+export type BatchOrigin = 'factory' | 'reloaded';
+export type BatchStatus = 'test_batch' | 'in_use' | 'blocked' | 'depleted' | 'archived';
+export type CaseMarkingColor = 'none' | 'red' | 'blue' | 'green' | 'black' | 'yellow' | 'other';
+
+export interface AmmunitionBatch {
+  id: string;
+  user_id: string;
+  ammo_inventory_id: string;
+
+  batch_number: string | null;
+  ammo_origin: BatchOrigin;
+  production_date: string | null;
+  quantity_produced: number | null;
+  status: BatchStatus;
+
+  bullet_manufacturer: string | null;
+  bullet_model: string | null;
+  bullet_type: string | null;
+  bullet_weight_gr: number | null;
+  bullet_lot_number: string | null;
+
+  powder_manufacturer: string | null;
+  powder_type: string | null;
+  powder_charge_gr: number | null;
+  powder_lot_number: string | null;
+
+  primer_manufacturer: string | null;
+  primer_type: string | null;
+  primer_lot_number: string | null;
+
+  case_manufacturer: string | null;
+  case_lot_number: string | null;
+  case_reload_count: number | null;
+  case_batch_reference: string | null;
+  case_marking_color: CaseMarkingColor | null;
+  case_marking_note: string | null;
+
+  col_mm: number | null;
+  cbto_mm: number | null;
+  case_length_mm: number | null;
+  sizing_method: string | null;
+  crimp: string | null;
+  load_data_source: string | null;
+
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface FieldClockPreset {
   id: string;
   name: string;

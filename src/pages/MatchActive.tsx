@@ -580,6 +580,7 @@ export function MatchActive() {
   };
 
   const handlePhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.target.blur();
     if (!e.target.files || e.target.files.length === 0 || !currentHold || !user) return;
 
     if (!navigator.onLine) {
@@ -616,6 +617,7 @@ export function MatchActive() {
   };
 
   const handleSubHoldPhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.target.blur();
     if (!e.target.files || e.target.files.length === 0 || !user) return;
     const subHoldId = pendingSubHoldIdRef.current;
     if (!subHoldId) return;

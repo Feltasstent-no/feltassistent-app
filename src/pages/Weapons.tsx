@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useActiveSetup } from '../contexts/ActiveSetupContext';
 import { useOnboarding } from '../contexts/OnboardingContext';
 import { Weapon, WeaponBarrel } from '../types/database';
-import { Plus, Crosshair, Trash2, Save, X, Calendar, CreditCard as Edit, PlusCircle, ChevronDown, ChevronUp, History, Pencil, AlertTriangle, Info, ArrowRight, Loader2 } from 'lucide-react';
+import { Plus, Crosshair, Trash2, Save, X, Calendar, CreditCard as Edit, PlusCircle, ChevronDown, ChevronUp, History, Pencil, AlertTriangle, Info, ArrowRight, Loader2, Check } from 'lucide-react';
 import { getBarrelHealthStatus, getBarrelLifespanLimit } from '../lib/barrel-lifespan';
 import { logWeaponShots } from '../lib/weapon-shot-service';
 import { AmmoInventorySection } from '../components/AmmoInventorySection';
@@ -735,33 +735,28 @@ export function Weapons() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-1">
-              <div className="bg-white rounded-xl border border-slate-200 p-4">
-                <h2 className="font-semibold text-slate-900 mb-4">Mine våpen</h2>
-                <div className="space-y-2">
-                  {weapons.map((weapon) => (
-                    <button
-                      key={weapon.id}
-                      onClick={() => selectWeapon(weapon)}
-                      className={`w-full text-left p-3 rounded-lg transition ${
-                        selectedWeapon?.id === weapon.id
-                          ? 'bg-emerald-50 border border-emerald-200'
-                          : 'bg-slate-50 hover:bg-slate-100'
-                      }`}
-                    >
-                      <p className="font-medium text-slate-900">{weapon.weapon_name}</p>
-                      <p className="text-sm text-slate-600">{weapon.weapon_type}</p>
-                      {weapon.caliber && (
-                        <p className="text-xs text-slate-500">{weapon.caliber}</p>
-                      )}
-                    </button>
-                  ))}
-                </div>
+          <div className="space-y-6">
+            {!showNewWeapon && weapons.length > 1 && (
+              <div className="flex gap-2 flex-wrap">
+                {weapons.map((weapon) => (
+                  <button
+                    key={weapon.id}
+                    onClick={() => selectWeapon(weapon)}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition ${
+                      selectedWeapon?.id === weapon.id
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    {weapon.weapon_name}
+                    {activeSetup?.weapon_id === weapon.id && (
+                      <span className="ml-1.5 text-xs opacity-75">●</span>
+                    )}
+                  </button>
+                ))}
               </div>
-            </div>
+            )}
 
-            <div className="lg:col-span-2">
               {showNewWeapon ? (
                 <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6">
                   <div className="flex items-center justify-between mb-6">
@@ -915,7 +910,8 @@ export function Weapons() {
                           {editMode ? 'Rediger våpen' : selectedWeapon.weapon_name}
                         </h2>
                         {activeSetup?.weapon_id === selectedWeapon.id && (
-                          <span className="inline-block mt-1 px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded">
+                          <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[11px] font-medium rounded">
+                            <Check className="w-3 h-3" />
                             Aktivt våpen
                           </span>
                         )}
@@ -1216,6 +1212,24 @@ export function Weapons() {
                         <span>Nytt løp</span>
                       </button>
                     </div>
+                    {(() => {
+                      const activeBarrel = barrels.find(b => b.id === activeSetup?.barrel_id);
+                      return activeBarrel ? (
+                        <div className="mb-3 flex items-center justify-between gap-2 flex-wrap text-xs">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[11px] font-medium rounded">
+                            <Check className="w-3 h-3" />
+                            I aktivt oppsett: {activeBarrel.barrel_name || activeBarrel.barrel_number}
+                          </span>
+                          <button
+                            onClick={() => navigate('/match')}
+                            className="text-slate-500 hover:text-slate-700 font-medium inline-flex items-center gap-1 transition"
+                          >
+                            Bytt oppsett
+                            <ArrowRight className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ) : null;
+                    })()}
                     <div className="flex items-start gap-2 mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
                       <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
                       <p className="text-xs text-blue-700">
@@ -1503,8 +1517,9 @@ export function Weapons() {
                                 <div className="flex items-center space-x-2 mb-1">
                                   <p className="font-semibold text-slate-900">{barrel.barrel_number}</p>
                                   {activeSetup?.barrel_id === barrel.id && (
-                                    <span className="px-2 py-0.5 bg-emerald-600 text-white text-xs rounded-full">
-                                      Aktivt løp
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[11px] font-medium rounded">
+                                      <Check className="w-3 h-3" />
+                                      I aktivt oppsett
                                     </span>
                                   )}
                                   <span className="px-2 py-0.5 bg-slate-200 text-slate-700 text-xs rounded">
@@ -1803,7 +1818,6 @@ export function Weapons() {
                   <p className="text-slate-600">Velg et våpen eller opprett et nytt</p>
                 </div>
               )}
-            </div>
           </div>
         )}
       </div>

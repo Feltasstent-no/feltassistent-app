@@ -12,6 +12,7 @@ import { History, Play, BookOpen, XCircle, Clock, Crosshair, Minus, CheckCircle,
 import { EditMetadataModal } from '../components/EditMetadataModal';
 import apertureIcon from '../assets/aperture_icon_light.svg';
 import { AmmoStatusCard } from '../components/AmmoStatusCard';
+import { ReloadingStatsCard } from '../components/ReloadingStatsCard';
 import type { MatchSession } from '../lib/match-service';
 import { supabase } from '../lib/supabase';
 import { logWeaponShots } from '../lib/weapon-shot-service';
@@ -274,6 +275,8 @@ export function MatchHome() {
               setShowOnboardingSuccess(false);
               if (onboardingResult.clickTable && activeSetup?.click_table_id) {
                 navigate(`/click-tables/${activeSetup.click_table_id}`);
+              } else if (!onboardingResult.clickTable && !onboardingResult.profile) {
+                navigate('/click-tables/new');
               } else {
                 navigate('/field-clock');
               }
@@ -281,9 +284,16 @@ export function MatchHome() {
           />
         )}
 
-        {!setupComplete && userMode !== 'finfelt_only' && (
+        {!setupComplete && userMode !== 'finfelt_only' && !(showOnboardingSuccess && onboardingResult) && (
           <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 sm:p-6 mb-8">
-            <h2 className="text-lg font-bold text-slate-900 mb-4">Før du kan bruke appen må du sette opp:</h2>
+            <h2 className="text-lg font-bold text-slate-900 mb-2">
+              {hasWeaponAndBarrel ? 'Oppsettet er nesten ferdig' : 'Før du kan bruke appen må du sette opp:'}
+            </h2>
+            {hasWeaponAndBarrel && (
+              <p className="text-sm text-slate-600 mb-4">
+                Opprett knepptabell eller ballistisk profil for å bruke kneppassistenten og starte stevner.
+              </p>
+            )}
             <ul className="space-y-2 mb-6">
               <li className="flex items-start gap-2.5">
                 {hasWeaponAndBarrel ? (
@@ -307,10 +317,16 @@ export function MatchHome() {
               </li>
             </ul>
             <button
-              onClick={() => navigate('/weapons')}
+              onClick={() => {
+                if (hasWeaponAndBarrel && !hasClickTableOrProfile) {
+                  navigate('/click-tables/new');
+                } else {
+                  navigate('/weapons');
+                }
+              }}
               className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition flex items-center justify-center space-x-2"
             >
-              <span>Start oppsett</span>
+              <span>{hasWeaponAndBarrel && !hasClickTableOrProfile ? 'Opprett knepptabell' : 'Start oppsett'}</span>
               <ArrowRight className="w-5 h-5" />
             </button>
           </div>
@@ -725,7 +741,12 @@ export function MatchHome() {
           </div>
         )}
 
-        {fullSetupComplete && <AmmoStatusCard />}
+        {fullSetupComplete && (
+          <>
+            <AmmoStatusCard />
+            <ReloadingStatsCard />
+          </>
+        )}
 
         {recentItems.length > 0 && (
           <div>
@@ -843,22 +864,32 @@ function OnboardingSuccessCard({ result, onDismiss, onAction }: {
   onDismiss: () => void;
   onAction: () => void;
 }) {
-  const is22 = result.caliberType === '.22 LR';
   const has65Busk = result.caliberType === '6.5x55' && result.clickTable;
+  const isComplete = result.clickTable || result.profile;
 
   return (
-    <div className="mb-6 bg-emerald-50 border border-emerald-200 rounded-xl p-4 sm:p-5 relative">
+    <div className={`mb-6 border rounded-xl p-4 sm:p-5 relative ${
+      isComplete ? 'bg-emerald-50 border-emerald-200' : 'bg-blue-50 border-blue-200'
+    }`}>
       <button
         onClick={onDismiss}
-        className="absolute top-3 right-3 text-emerald-400 hover:text-emerald-600 transition-colors"
+        className={`absolute top-3 right-3 transition-colors ${
+          isComplete ? 'text-emerald-400 hover:text-emerald-600' : 'text-blue-400 hover:text-blue-600'
+        }`}
         aria-label="Lukk"
       >
         <XCircle className="w-5 h-5" />
       </button>
 
       <div className="flex items-center gap-2.5 mb-3">
-        <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
-        <h3 className="font-bold text-slate-900">Feltassistenten er klar</h3>
+        {isComplete ? (
+          <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+        ) : (
+          <CheckCircle2 className="w-5 h-5 text-blue-600 flex-shrink-0" />
+        )}
+        <h3 className="font-bold text-slate-900">
+          {isComplete ? 'Feltassistenten er klar' : 'Grunnoppsettet er klart'}
+        </h3>
       </div>
 
       <div className="space-y-1.5 mb-4">
@@ -867,13 +898,32 @@ function OnboardingSuccessCard({ result, onDismiss, onAction }: {
         {result.ammo && <SuccessRow label="Ammunisjon" />}
         {result.profile && <SuccessRow label="Startprofil" />}
         {result.clickTable && <SuccessRow label="Starttabell" />}
+        {!isComplete && (
+          <div className="flex items-center gap-2">
+            <Minus className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+            <span className="text-sm text-slate-500">Knepptabell / ballistisk profil mangler</span>
+          </div>
+        )}
       </div>
+
+      {!isComplete && (
+        <p className="text-xs text-slate-600 mb-3">
+          Opprett knepptabell for å kunne bruke kneppassistenten og starte stevner. Feltklokken kan brukes allerede nå.
+        </p>
+      )}
 
       <button
         onClick={onAction}
-        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition flex items-center justify-center gap-2"
+        className={`w-full py-2.5 text-white text-sm font-semibold rounded-lg transition flex items-center justify-center gap-2 ${
+          isComplete ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'
+        }`}
       >
-        {has65Busk ? (
+        {!isComplete ? (
+          <>
+            <ArrowRight className="w-4 h-4" />
+            <span>Opprett knepptabell</span>
+          </>
+        ) : has65Busk ? (
           <>
             <Crosshair className="w-4 h-4" />
             <span>Se og kontroller knepptabell</span>

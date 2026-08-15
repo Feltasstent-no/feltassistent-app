@@ -4,7 +4,7 @@ import {
   Package, Plus, Minus, PlusCircle, X, Pencil, Trash2,
   ChevronDown, ChevronUp, History, Star, Target, Crosshair, TreePine, Loader2,
 } from 'lucide-react';
-import type { AmmoInventory, Weapon, WeaponBarrel } from '../types/database';
+import type { AmmoInventory, AmmunitionBatch, Weapon, WeaponBarrel } from '../types/database';
 import {
   getAmmoInventoryForWeapon,
   createAmmoInventory,
@@ -14,8 +14,15 @@ import {
   addAmmoToInventory,
   setAmmoAsCurrentActive,
   setAmmoDefault,
+  getBatchesForAmmoIds,
+  createBatch,
+  updateBatch,
 } from '../lib/ammo-inventory-service';
 import { AmmoHistoryModal } from './AmmoHistoryModal';
+import { BatchDetailsForm, EMPTY_BATCH_FORM, batchFormHasData, parseDecimalInput, batchFormToPayload } from './BatchDetailsForm';
+import type { BatchFormValues } from './BatchDetailsForm';
+import { BatchInfoDisplay, buildBatchSummary } from './BatchInfoDisplay';
+import { BatchModal } from './BatchModal';
 
 interface AmmoInventorySectionProps {
   weapon: Weapon;
@@ -29,11 +36,22 @@ const USAGE_TYPE_LABELS: Record<string, string> = {
   annet: 'Annet',
 };
 
+const USAGE_TYPE_COLORS: Record<string, string> = {
+  felt: 'bg-sky-100 text-sky-700',
+  bane: 'bg-violet-100 text-violet-700',
+  trening: 'bg-amber-100 text-amber-700',
+  annet: 'bg-slate-100 text-slate-600',
+};
+
 const DEFAULT_CONTEXTS: { key: 'felt' | 'bane' | 'trening'; label: string; icon: typeof Target }[] = [
   { key: 'felt', label: 'Felt', icon: TreePine },
   { key: 'bane', label: 'Bane', icon: Target },
   { key: 'trening', label: 'Trening', icon: Crosshair },
 ];
+
+
+
+
 
 export function AmmoInventorySection({ weapon, barrels }: AmmoInventorySectionProps) {
   const { user } = useAuth();
@@ -54,6 +72,14 @@ export function AmmoInventorySection({ weapon, barrels }: AmmoInventorySectionPr
   const [isAdjustingAmmo, setIsAdjustingAmmo] = useState(false);
   const [adjustAmmoError, setAdjustAmmoError] = useState<string | null>(null);
   const [quickAddingKey, setQuickAddingKey] = useState<string | null>(null);
+  const [batchForm, setBatchForm] = useState<BatchFormValues>({ ...EMPTY_BATCH_FORM });
+  const [stockManuallyEdited, setStockManuallyEdited] = useState(false);
+  const [bulletWeightManuallyEdited, setBulletWeightManuallyEdited] = useState(false);
+  const [bulletModelManuallyEdited, setBulletModelManuallyEdited] = useState(false);
+  const [batchesMap, setBatchesMap] = useState<Record<string, AmmunitionBatch[]>>({});
+  const [batchWarning, setBatchWarning] = useState<string | null>(null);
+  const [batchModal, setBatchModal] = useState<{ ammoId: string; ammoName: string; batch: AmmunitionBatch | null; copyFrom?: AmmunitionBatch } | null>(null);
+  const [batchOpenIds, setBatchOpenIds] = useState<Set<string>>(new Set());
 
   const [form, setForm] = useState({
     name: '',
@@ -75,6 +101,13 @@ export function AmmoInventorySection({ weapon, barrels }: AmmoInventorySectionPr
   const fetchInventory = async () => {
     const data = await getAmmoInventoryForWeapon(weapon.id);
     setItems(data);
+    if (data.length > 0) {
+      const ids = data.map(i => i.id);
+      const batches = await getBatchesForAmmoIds(ids);
+      setBatchesMap(batches);
+    } else {
+      setBatchesMap({});
+    }
   };
 
   const resetForm = () => {
@@ -90,6 +123,56 @@ export function AmmoInventorySection({ weapon, barrels }: AmmoInventorySectionPr
       barrel_id: '',
       notes: '',
     });
+    setBatchForm({ ...EMPTY_BATCH_FORM });
+    setBatchWarning(null);
+    setStockManuallyEdited(false);
+    setBulletWeightManuallyEdited(false);
+    setBulletModelManuallyEdited(false);
+  };
+
+  const handleBatchFormChange = (newBatch: BatchFormValues) => {
+    const oldQty = batchForm.quantity_produced;
+    const newQty = newBatch.quantity_produced;
+    setBatchForm(newBatch);
+
+    if (newBatch.ammo_origin === 'reloaded' && !stockManuallyEdited && oldQty !== newQty) {
+      const parsed = parseInt(newQty, 10);
+      if (!isNaN(parsed) && parsed >= 0) {
+        setForm(prev => ({ ...prev, stock_quantity: String(parsed) }));
+      } else if (newQty === '') {
+        setForm(prev => ({ ...prev, stock_quantity: '0' }));
+      }
+    }
+
+    if (!bulletWeightManuallyEdited && newBatch.bullet_weight_gr !== batchForm.bullet_weight_gr) {
+      setBulletWeightManuallyEdited(true);
+    }
+    if (!bulletModelManuallyEdited && newBatch.bullet_model !== batchForm.bullet_model) {
+      setBulletModelManuallyEdited(true);
+    }
+  };
+
+  const handleAmmoFormChange = (field: string, value: string) => {
+    setForm(prev => ({ ...prev, [field]: value }));
+
+    if (!showNewForm) return;
+
+    if (field === 'bullet_weight_gr' && !bulletWeightManuallyEdited) {
+      setBatchForm(prev => {
+        if (prev.bullet_weight_gr === '' || prev.bullet_weight_gr === form.bullet_weight_gr) {
+          return { ...prev, bullet_weight_gr: value };
+        }
+        return prev;
+      });
+    }
+    if (field === 'ammo_name' && !bulletModelManuallyEdited) {
+      setBatchForm(prev => {
+        if (prev.bullet_model === '' || prev.bullet_model === form.ammo_name) {
+          return { ...prev, bullet_model: value };
+        }
+        return prev;
+      });
+    }
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -101,7 +184,7 @@ export function AmmoInventorySection({ weapon, barrels }: AmmoInventorySectionPr
     setCreateAmmoError(null);
 
     try {
-      const { error } = await createAmmoInventory({
+      const { data: newAmmo, error } = await createAmmoInventory({
         userId: user.id,
         weaponId: weapon.id,
         barrelId: form.barrel_id || null,
@@ -109,7 +192,7 @@ export function AmmoInventorySection({ weapon, barrels }: AmmoInventorySectionPr
         usageType: form.usage_type,
         caliber: form.caliber || undefined,
         ammoName: form.ammo_name || undefined,
-        bulletWeightGr: form.bullet_weight_gr ? parseFloat(form.bullet_weight_gr) : undefined,
+        bulletWeightGr: form.bullet_weight_gr ? parseFloat(parseDecimalInput(form.bullet_weight_gr)) : undefined,
         stockQuantity: parseInt(form.stock_quantity) || 0,
         trackStock: form.track_stock,
         autoDeductAfterMatch: form.auto_deduct_after_match,
@@ -117,6 +200,17 @@ export function AmmoInventorySection({ weapon, barrels }: AmmoInventorySectionPr
       });
 
       if (error) throw error;
+
+      if (newAmmo && batchFormHasData(batchForm)) {
+        try {
+          const batchPayload = batchFormToPayload(batchForm, user.id, newAmmo.id);
+          const { error: batchError } = await createBatch(batchPayload);
+          if (batchError) throw batchError;
+        } catch (batchErr) {
+          console.error('Error creating batch:', batchErr);
+          setBatchWarning('Ammunisjonen ble opprettet, men batchdetaljene kunne ikke lagres. Du kan legge dem til senere.');
+        }
+      }
 
       setShowNewForm(false);
       resetForm();
@@ -147,7 +241,7 @@ export function AmmoInventorySection({ weapon, barrels }: AmmoInventorySectionPr
         usage_type: form.usage_type as AmmoInventory['usage_type'],
         caliber: form.caliber || null,
         ammo_name: form.ammo_name || null,
-        bullet_weight_gr: form.bullet_weight_gr ? parseFloat(form.bullet_weight_gr) : null,
+        bullet_weight_gr: form.bullet_weight_gr ? parseFloat(parseDecimalInput(form.bullet_weight_gr)) : null,
         track_stock: form.track_stock,
         auto_deduct_after_match: form.auto_deduct_after_match,
         barrel_id: form.barrel_id || null,
@@ -187,9 +281,10 @@ export function AmmoInventorySection({ weapon, barrels }: AmmoInventorySectionPr
     }
   };
 
-  const startEdit = (item: AmmoInventory) => {
+  const startEdit = async (item: AmmoInventory) => {
     setEditingItem(item);
     setShowNewForm(false);
+    setBatchWarning(null);
     setForm({
       name: item.name,
       usage_type: item.usage_type,
@@ -202,6 +297,7 @@ export function AmmoInventorySection({ weapon, barrels }: AmmoInventorySectionPr
       barrel_id: item.barrel_id || '',
       notes: item.notes || '',
     });
+
   };
 
   const handleAdjust = async () => {
@@ -315,7 +411,7 @@ export function AmmoInventorySection({ weapon, barrels }: AmmoInventorySectionPr
             <input
               type="text"
               value={form.ammo_name}
-              onChange={(e) => setForm({ ...form, ammo_name: e.target.value })}
+              onChange={(e) => handleAmmoFormChange('ammo_name', e.target.value)}
               className={`w-full px-3 py-2 rounded-lg border ${isEdit ? 'border-blue-200' : 'border-emerald-200'} focus:ring-2 focus:ring-emerald-500 focus:border-transparent`}
               placeholder="F.eks. Scenar 139gr"
             />
@@ -326,7 +422,7 @@ export function AmmoInventorySection({ weapon, barrels }: AmmoInventorySectionPr
               type="number"
               step="0.1"
               value={form.bullet_weight_gr}
-              onChange={(e) => setForm({ ...form, bullet_weight_gr: e.target.value })}
+              onChange={(e) => handleAmmoFormChange('bullet_weight_gr', e.target.value)}
               className={`w-full px-3 py-2 rounded-lg border ${isEdit ? 'border-blue-200' : 'border-emerald-200'} focus:ring-2 focus:ring-emerald-500 focus:border-transparent`}
               placeholder="139"
             />
@@ -352,13 +448,29 @@ export function AmmoInventorySection({ weapon, barrels }: AmmoInventorySectionPr
         )}
 
         {!isEdit && (
+          <BatchDetailsForm
+            values={batchForm}
+            onChange={handleBatchFormChange}
+            disabled={isBusy}
+          />
+        )}
+
+        {!isEdit && (
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">Antall på lager</label>
+            <label className="block text-xs font-medium text-slate-700 mb-1">
+              {batchForm.ammo_origin === 'reloaded' ? 'Startbeholdning' : 'Antall på lager'}
+            </label>
+            {batchForm.ammo_origin === 'reloaded' && !stockManuallyEdited && (
+              <p className="text-[10px] text-slate-400 mb-1">Fylles automatisk fra antall ladet, men kan endres.</p>
+            )}
             <input
               type="number"
               min="0"
               value={form.stock_quantity}
-              onChange={(e) => setForm({ ...form, stock_quantity: e.target.value })}
+              onChange={(e) => {
+                setStockManuallyEdited(true);
+                setForm({ ...form, stock_quantity: e.target.value });
+              }}
               className={`w-full px-3 py-2 rounded-lg border ${isEdit ? 'border-blue-200' : 'border-emerald-200'} focus:ring-2 focus:ring-emerald-500 focus:border-transparent`}
             />
           </div>
@@ -399,6 +511,11 @@ export function AmmoInventorySection({ weapon, barrels }: AmmoInventorySectionPr
         {busyError && (
           <div className="p-2 bg-red-50 border border-red-200 rounded-lg">
             <p className="text-xs text-red-700">{busyError}</p>
+          </div>
+        )}
+        {batchWarning && (
+          <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg">
+            <p className="text-xs text-amber-700">{batchWarning}</p>
           </div>
         )}
         <div className="flex space-x-2">
@@ -499,7 +616,7 @@ export function AmmoInventorySection({ weapon, barrels }: AmmoInventorySectionPr
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold text-slate-900 text-sm">{item.name}</span>
-                        <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded">
+                        <span className={`text-[11px] font-medium px-2 py-0.5 rounded ${USAGE_TYPE_COLORS[item.usage_type] || 'bg-slate-100 text-slate-600'}`}>
                           {USAGE_TYPE_LABELS[item.usage_type] || item.usage_type}
                         </span>
                         {item.auto_deduct_after_match && (
@@ -508,7 +625,7 @@ export function AmmoInventorySection({ weapon, barrels }: AmmoInventorySectionPr
                           </span>
                         )}
                         {item.is_current_active && (
-                          <span className="inline-flex items-center gap-0.5 text-xs px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded font-medium">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[11px] font-medium rounded">
                             <Star className="w-3 h-3" />
                             Aktiv
                           </span>
@@ -738,12 +855,112 @@ export function AmmoInventorySection({ weapon, barrels }: AmmoInventorySectionPr
                       {item.notes}
                     </p>
                   )}
+
+                  {(() => {
+                    const batches = batchesMap[item.id] ?? [];
+                    const batchCount = batches.length;
+                    const isOpen = batchOpenIds.has(item.id);
+
+                    if (batchCount === 0) {
+                      return (
+                        <div className="mt-2 pt-2 border-t border-slate-200/70 flex items-center justify-between">
+                          <span className="text-[11px] text-slate-400">Batchdata &middot; Ikke registrert</span>
+                          <button
+                            type="button"
+                            onClick={() => setBatchModal({ ammoId: item.id, ammoName: item.name, batch: null })}
+                            className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 hover:text-amber-700 hover:bg-amber-50 px-1.5 py-0.5 rounded transition"
+                          >
+                            <Plus className="w-3 h-3" />
+                            Legg til
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    const firstBatch = batches[0];
+                    const summary = buildBatchSummary(firstBatch);
+
+                    return (
+                      <div className="mt-2 pt-2 border-t border-slate-200/70">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBatchOpenIds(prev => {
+                              const next = new Set(prev);
+                              if (next.has(item.id)) next.delete(item.id);
+                              else next.add(item.id);
+                              return next;
+                            });
+                          }}
+                          className="w-full flex items-center justify-between gap-2 group"
+                        >
+                          <div className="min-w-0 text-left">
+                            <p className="text-[11px] font-medium text-slate-700 truncate">
+                              {batchCount === 1 ? summary.title : `Batcher (${batchCount})`}
+                            </p>
+                            <p className="text-[10px] text-slate-400 truncate">
+                              {batchCount === 1 ? summary.subtitle : summary.title + (batchCount > 2 ? ` +${batchCount - 1} til` : ` + 1 til`)}
+                            </p>
+                          </div>
+                          {isOpen ? (
+                            <ChevronUp className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                          ) : (
+                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                          )}
+                        </button>
+                        {isOpen && (
+                          <div className="mt-2 space-y-2">
+                            {batches.map((batch) => (
+                              <BatchInfoDisplay
+                                key={batch.id}
+                                batch={batch}
+                                onEdit={() => setBatchModal({ ammoId: item.id, ammoName: item.name, batch })}
+                                onCopy={() => setBatchModal({ ammoId: item.id, ammoName: item.name, batch: null, copyFrom: batch })}
+                              />
+                            ))}
+                            <button
+                              type="button"
+                              onClick={() => setBatchModal({ ammoId: item.id, ammoName: item.name, batch: null })}
+                              className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 hover:text-amber-700 hover:bg-amber-50 px-2 py-1 rounded transition"
+                            >
+                              <Plus className="w-3 h-3" />
+                              Ny batch
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })}
           </div>
         )}
       </div>
+
+      {batchModal && (
+        <BatchModal
+          ammoName={batchModal.ammoName}
+          batch={batchModal.batch}
+          copyFrom={batchModal.copyFrom}
+          onSave={async (values: BatchFormValues) => {
+            if (!user) return;
+            if (batchModal.batch) {
+              const payload = batchFormToPayload(values, user.id, batchModal.ammoId);
+              const { user_id, ammo_inventory_id, ...updates } = payload;
+              const { error } = await updateBatch(batchModal.batch.id, updates);
+              if (error) throw error;
+            } else {
+              const payload = batchFormToPayload(values, user.id, batchModal.ammoId);
+              const { error } = await createBatch(payload);
+              if (error) throw error;
+            }
+            setBatchModal(null);
+            await fetchInventory();
+          }}
+          onClose={() => setBatchModal(null)}
+        />
+      )}
 
       {historyItem && (
         <AmmoHistoryModal

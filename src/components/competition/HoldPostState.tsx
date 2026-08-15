@@ -108,7 +108,7 @@ export function HoldPostState({
                     <select
                       value={selectedFigure || ''}
                       onChange={(e) => setSelectedFigure(e.target.value || null)}
-                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-200 text-sm"
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-200 text-base"
                     >
                       <option value="">Velg figur</option>
                       {figures.map((f) => (

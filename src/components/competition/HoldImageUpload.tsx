@@ -101,6 +101,7 @@ export function HoldImageUpload({
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const originalFile = event.target.files?.[0];
+    event.target.blur();
     if (!originalFile || !user) return;
 
     if (!navigator.onLine) {
