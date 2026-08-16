@@ -324,8 +324,8 @@ export function MatchPreview() {
         )}
 
         <div
-          className={`fixed left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-slate-200 z-50 md:static md:bg-transparent md:border-0 md:mt-8 md:z-auto md:bottom-0 transition-transform duration-200 ${keyboardOpen ? 'translate-y-full' : 'translate-y-0'}`}
-          style={{ bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))' }}
+          className="fixed left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-slate-200 z-50 md:static md:bg-transparent md:border-0 md:mt-8 md:z-auto md:bottom-0"
+          style={{ bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))', display: keyboardOpen ? 'none' : undefined }}
         >
           <div className="max-w-3xl mx-auto px-4 pt-3 pb-3 md:px-0">
             <p className="text-xs text-center text-slate-500 mb-2">

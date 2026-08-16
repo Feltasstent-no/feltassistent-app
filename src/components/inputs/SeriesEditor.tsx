@@ -96,8 +96,8 @@ export function SeriesEditor({
     ? 'block text-xs font-medium text-gray-400 mb-1'
     : 'block text-xs font-medium text-slate-600 mb-1';
   const inputClass = darkMode
-    ? 'w-full px-3 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-center font-semibold text-gray-200 focus:ring-2 focus:ring-emerald-500 focus:border-transparent'
-    : 'w-full px-3 py-2.5 border border-slate-300 rounded-lg text-center font-semibold focus:ring-2 focus:ring-emerald-500 focus:border-transparent';
+    ? 'w-full px-3 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-center text-base font-semibold text-gray-200 focus:ring-2 focus:ring-emerald-500 focus:border-transparent'
+    : 'w-full px-3 py-2.5 border border-slate-300 rounded-lg text-center text-base font-semibold focus:ring-2 focus:ring-emerald-500 focus:border-transparent';
 
   return (
     <div className={`space-y-4 ${compact ? 'space-y-3' : ''}`}>

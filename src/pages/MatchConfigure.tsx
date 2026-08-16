@@ -590,8 +590,8 @@ export function MatchConfigure() {
         </div>
 
         <div
-          className={`fixed left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-slate-200 z-50 p-4 md:static md:bg-white md:border md:rounded-xl md:shadow-lg md:p-6 md:z-auto transition-transform duration-200 ${keyboardOpen ? 'translate-y-full' : 'translate-y-0'}`}
-          style={{ bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))' }}
+          className="fixed left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-slate-200 z-50 p-4 md:static md:bg-white md:border md:rounded-xl md:shadow-lg md:p-6 md:z-auto"
+          style={{ bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))', display: keyboardOpen ? 'none' : undefined }}
         >
           <button
             onClick={handleStartMatch}

@@ -222,7 +222,7 @@ export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer
                     value={shotCount}
                     onChange={(e) => setShotCount(e.target.value)}
                     min="1"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-center text-sm font-semibold focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-center text-base font-semibold focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                     placeholder="5"
                   />
                 </div>
@@ -232,7 +232,7 @@ export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer
                     type="number"
                     value={shootingTime}
                     onChange={(e) => setShootingTime(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-center text-sm font-semibold focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-center text-base font-semibold focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                     placeholder="—"
                   />
                 </div>
@@ -244,7 +244,7 @@ export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer
                     type="number"
                     value={score}
                     onChange={(e) => setScore(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-center text-sm font-semibold focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-center text-base font-semibold focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                     placeholder="—"
                   />
                 </div>
@@ -254,7 +254,7 @@ export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer
                     type="number"
                     value={innerHits}
                     onChange={(e) => setInnerHits(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-center text-sm font-semibold focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-center text-base font-semibold focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                     placeholder="—"
                   />
                 </div>
@@ -265,7 +265,7 @@ export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer
                       type="number"
                       value={hits}
                       onChange={(e) => setHits(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-center text-sm font-semibold focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-center text-base font-semibold focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                       placeholder="—"
                     />
                   </div>
