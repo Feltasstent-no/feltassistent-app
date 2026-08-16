@@ -15,6 +15,8 @@ interface TrainingSeriesCardProps {
   hideTimer?: boolean;
   isRangeMatch?: boolean;
   voiceEnabled?: boolean;
+  isExpanded?: boolean;
+  onToggleExpand?: () => void;
   sourceType?: 'felt' | 'bane' | 'trening';
   sourceName?: string;
   sourceId?: string;
@@ -23,8 +25,12 @@ interface TrainingSeriesCardProps {
   onCompleted?: (wasAlreadyCompleted: boolean) => void;
 }
 
-export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer, isRangeMatch, voiceEnabled, sourceType, sourceName, sourceId, onUpdated, onDeleted, onCompleted }: TrainingSeriesCardProps) {
-  const [expanded, setExpanded] = useState(!series.completed);
+export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer, isRangeMatch, voiceEnabled, isExpanded: controlledExpanded, onToggleExpand, sourceType, sourceName, sourceId, onUpdated, onDeleted, onCompleted }: TrainingSeriesCardProps) {
+  const [internalExpanded, setInternalExpanded] = useState(!series.completed);
+  const expanded = controlledExpanded !== undefined ? controlledExpanded : internalExpanded;
+  const setExpanded = onToggleExpand
+    ? (val: boolean) => { if (val) onToggleExpand(); else if (controlledExpanded) onToggleExpand(); }
+    : (val: boolean) => setInternalExpanded(val);
   const [score, setScore] = useState(series.score != null ? String(series.score) : '');
   const [innerHits, setInnerHits] = useState(series.inner_hits != null ? String(series.inner_hits) : '');
   const [hits, setHits] = useState(series.hits != null ? String(series.hits) : '');
@@ -135,7 +141,7 @@ export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer
       series.completed ? 'border-emerald-200' : 'border-slate-200'
     }`}>
       <button
-        onClick={() => setExpanded(!expanded)}
+        onClick={() => onToggleExpand ? onToggleExpand() : setInternalExpanded(!internalExpanded)}
         className="w-full flex items-center justify-between p-4 pr-14 text-left"
       >
         <div className="flex items-center gap-3 min-w-0">

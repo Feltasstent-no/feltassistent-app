@@ -575,7 +575,7 @@ function HoldCard({
                       <div key={sh.id} className="flex items-center gap-2 bg-slate-50 rounded-lg px-3 py-2">
                         <span className="text-xs font-bold text-slate-500 w-5">{si + 1}.</span>
                         {sh.field_figure && (
-                          <div className="w-8 h-8 flex-shrink-0 bg-white rounded border border-slate-200 p-0.5">
+                          <div className="w-8 h-8 flex-shrink-0 bg-white rounded border border-slate-200 p-0.5 flex items-center justify-center">
                             <FieldFigurePreview figure={sh.field_figure} size="sm" showDetails={false} />
                           </div>
                         )}
@@ -602,7 +602,7 @@ function HoldCard({
                 <>
                   <div className="flex items-center gap-2.5">
                     {figure && (
-                      <div className="w-10 h-10 sm:w-14 sm:h-14 flex-shrink-0 bg-slate-50 rounded-lg border border-slate-200 p-0.5 sm:p-1">
+                      <div className="w-10 h-10 sm:w-14 sm:h-14 flex-shrink-0 bg-slate-50 rounded-lg border border-slate-200 p-0.5 sm:p-1 flex items-center justify-center">
                         <FieldFigurePreview
                           figure={figure}
                           size="sm"

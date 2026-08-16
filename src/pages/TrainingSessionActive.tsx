@@ -39,6 +39,7 @@ export function TrainingSessionActive() {
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(getVoiceCommandsEnabled);
+  const [expandedSeriesId, setExpandedSeriesId] = useState<string | null>(null);
 
   const isActive = session?.status === 'active';
   const isRangeMatch = session?.session_type === 'range_match';
@@ -266,6 +267,8 @@ export function TrainingSessionActive() {
                   hideTimer={idx !== seriesList.length - 1}
                   isRangeMatch={isRangeMatch}
                   voiceEnabled={voiceEnabled}
+                  isExpanded={expandedSeriesId === s.id || (expandedSeriesId === null && !s.completed && idx === seriesList.findIndex(x => !x.completed))}
+                  onToggleExpand={() => setExpandedSeriesId(prev => prev === s.id ? null : s.id)}
                   sourceType="trening"
                   sourceName={session?.title || ''}
                   sourceId={session?.id}

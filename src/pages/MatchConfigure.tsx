@@ -480,7 +480,7 @@ export function MatchConfigure() {
                           {(() => {
                             const figure = availableFigures.find((f) => f.id === hold.field_figure_id);
                             return figure ? (
-                              <div className="w-24 h-24 sm:w-32 sm:h-32 bg-slate-50 rounded-lg border-2 border-slate-200 p-2">
+                              <div className="w-24 h-24 sm:w-32 sm:h-32 bg-slate-50 rounded-lg border-2 border-slate-200 p-2 flex items-center justify-center">
                                 <FieldFigurePreview
                                   figure={figure}
                                   size="lg"
