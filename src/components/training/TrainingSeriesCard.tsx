@@ -141,7 +141,7 @@ export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer
       series.completed ? 'border-emerald-200' : 'border-slate-200'
     }`}>
       <button
-        onClick={() => onToggleExpand ? onToggleExpand() : setInternalExpanded(!internalExpanded)}
+        onClick={() => { if (confirmDelete) return; onToggleExpand ? onToggleExpand() : setInternalExpanded(!internalExpanded); }}
         className="w-full flex items-center justify-between p-4 pr-14 text-left"
       >
         <div className="flex items-center gap-3 min-w-0">
@@ -187,21 +187,24 @@ export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer
               <Trash2 className="w-4 h-4" />
             </button>
           ) : (
-            <div className="flex items-center gap-1 bg-white rounded-md shadow-sm border border-red-200 p-0.5">
+            <div
+              className="flex items-center gap-1.5 bg-white rounded-lg shadow-md border border-red-200 px-1.5 py-1"
+              onClick={(e) => e.stopPropagation()}
+            >
               <button
                 type="button"
-                onClick={(e) => { e.stopPropagation(); handleDelete(); }}
-                className="px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs font-semibold rounded transition"
+                onClick={handleDelete}
+                className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-semibold rounded-md transition min-h-[32px]"
               >
                 Slett
               </button>
               <button
                 type="button"
-                onClick={(e) => { e.stopPropagation(); setConfirmDelete(false); }}
-                className="p-1 text-slate-400 hover:text-slate-600 transition"
+                onClick={() => setConfirmDelete(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 transition min-h-[32px] flex items-center justify-center"
                 aria-label="Avbryt"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
           )}
@@ -310,7 +313,7 @@ export function TrainingSeriesCard({ series, images, userId, readOnly, hideTimer
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={2}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-base focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none"
                 placeholder="Observasjoner..."
               />
               {notes.trim() && (
