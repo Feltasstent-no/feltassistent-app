@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
@@ -40,6 +40,8 @@ export function TrainingSessionActive() {
   const [finishing, setFinishing] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(getVoiceCommandsEnabled);
   const [expandedSeriesId, setExpandedSeriesId] = useState<string | null>(null);
+  const [addingCopy, setAddingCopy] = useState(false);
+  const addingCopyRef = useRef(false);
 
   const isActive = session?.status === 'active';
   const isRangeMatch = session?.session_type === 'range_match';
@@ -80,7 +82,7 @@ export function TrainingSessionActive() {
       });
       setEditingSeries(null);
     } else {
-      await addTrainingSeries({
+      const { data: newSeries } = await addTrainingSeries({
         sessionId: id,
         userId: user.id,
         orderIndex: seriesList.length,
@@ -88,23 +90,32 @@ export function TrainingSessionActive() {
         shootingTimeSeconds: params.shootingTimeSeconds,
         distanceM: params.distanceM,
       });
+      if (newSeries?.id) setExpandedSeriesId(newSeries.id);
     }
     await fetchData();
   };
 
   const handleCopyLast = async () => {
-    if (!id || !user) return;
+    if (!id || !user || addingCopyRef.current) return;
     const last = seriesList[seriesList.length - 1];
     if (!last) return;
-    await addTrainingSeries({
-      sessionId: id,
-      userId: user.id,
-      orderIndex: seriesList.length,
-      shotCount: last.shot_count,
-      shootingTimeSeconds: last.shooting_time_seconds,
-      distanceM: last.distance_m,
-    });
-    await fetchData();
+    addingCopyRef.current = true;
+    setAddingCopy(true);
+    try {
+      const { data: newSeries } = await addTrainingSeries({
+        sessionId: id,
+        userId: user.id,
+        orderIndex: seriesList.length,
+        shotCount: last.shot_count,
+        shootingTimeSeconds: last.shooting_time_seconds,
+        distanceM: last.distance_m,
+      });
+      await fetchData();
+      if (newSeries?.id) setExpandedSeriesId(newSeries.id);
+    } finally {
+      addingCopyRef.current = false;
+      setAddingCopy(false);
+    }
   };
 
   const handleFinish = async () => {
@@ -257,17 +268,19 @@ export function TrainingSessionActive() {
               <p className="text-sm text-slate-400">'Legg til din første serie for å starte'</p>
             </div>
           ) : (
-            seriesList.map((s, idx) => (
+            seriesList.map((s, idx) => {
+              const isSeriesExpanded = expandedSeriesId === s.id || (expandedSeriesId === null && !s.completed && idx === seriesList.findIndex(x => !x.completed));
+              return (
               <div key={s.id} className="relative">
                 <TrainingSeriesCard
                   series={s}
                   images={seriesImages[s.id] || []}
                   userId={user!.id}
                   readOnly={readOnly}
-                  hideTimer={idx !== seriesList.length - 1}
+                  hideTimer={!isSeriesExpanded || s.completed}
                   isRangeMatch={isRangeMatch}
                   voiceEnabled={voiceEnabled}
-                  isExpanded={expandedSeriesId === s.id || (expandedSeriesId === null && !s.completed && idx === seriesList.findIndex(x => !x.completed))}
+                  isExpanded={isSeriesExpanded}
                   onToggleExpand={() => setExpandedSeriesId(prev => prev === s.id ? null : s.id)}
                   sourceType="trening"
                   sourceName={session?.title || ''}
@@ -275,17 +288,10 @@ export function TrainingSessionActive() {
                   onUpdated={fetchData}
                   onDeleted={fetchData}
                 />
-                {isActive && !s.completed && (
-                  <button
-                    onClick={() => setEditingSeries(s)}
-                    className="absolute top-2 right-12 p-1.5 text-slate-300 hover:text-blue-600 hover:bg-blue-50 rounded-md transition z-10"
-                    aria-label="Rediger serie"
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </button>
-                )}
+
               </div>
-            ))
+              );
+            })
           )}
         </div>
 
@@ -302,10 +308,11 @@ export function TrainingSessionActive() {
               {lastSeries && (
                 <button
                   onClick={handleCopyLast}
-                  className="w-full py-2.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 font-medium rounded-xl transition flex items-center justify-center gap-2 text-sm"
+                  disabled={addingCopy}
+                  className="w-full py-2.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 disabled:opacity-50 disabled:pointer-events-none text-slate-700 font-medium rounded-xl transition flex items-center justify-center gap-2 text-sm"
                 >
                   <Copy className="w-4 h-4" />
-                  Kopier forrige serie
+                  {addingCopy ? 'Kopierer...' : 'Kopier forrige serie'}
                 </button>
               )}
             </div>
