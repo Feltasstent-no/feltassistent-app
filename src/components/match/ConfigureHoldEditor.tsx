@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Layers } from 'lucide-react';
 import { FieldFigureSelector } from '../FieldFigureSelector';
 import { SubHoldEditor, type SubHoldFormData } from './SubHoldEditor';
@@ -55,6 +55,7 @@ export function ConfigureHoldEditor({
   ]);
   const [loadedSubHolds, setLoadedSubHolds] = useState(false);
   const [savingComposite, setSavingComposite] = useState(false);
+  const savingCompositeRef = useRef(false);
 
   const isGrovfelt = competitionType !== 'finfelt';
 
@@ -107,64 +108,70 @@ export function ConfigureHoldEditor({
   };
 
   const handleSaveComposite = async () => {
+    if (savingCompositeRef.current) return;
     if (subHolds.length < 2) return;
     if (!subHolds.every(sh => sh.fieldFigureId && sh.distanceM > 0)) return;
 
+    savingCompositeRef.current = true;
     setSavingComposite(true);
 
-    const firstSub = subHolds[0];
-    const totalShots = subHolds.reduce((sum, sh) => sum + sh.shotCount, 0);
+    try {
+      const firstSub = subHolds[0];
+      const totalShots = subHolds.reduce((sum, sh) => sum + sh.shotCount, 0);
 
-    await onUpdate(hold.id, {
-      field_figure_id: firstSub.fieldFigureId!,
-      distance_m: firstSub.distanceM,
-      shot_count: totalShots,
-    });
+      await onUpdate(hold.id, {
+        field_figure_id: firstSub.fieldFigureId!,
+        distance_m: firstSub.distanceM,
+        shot_count: totalShots,
+      });
 
-    await supabase
-      .from('match_holds')
-      .update({ is_composite: true })
-      .eq('id', hold.id);
+      await supabase
+        .from('match_holds')
+        .update({ is_composite: true })
+        .eq('id', hold.id);
 
-    const existingSubHolds = await getSubHolds(hold.id);
-    const existingIds = new Set(existingSubHolds.map(sh => sh.id));
-    const currentIds = new Set(subHolds.filter(sh => sh.id).map(sh => sh.id!));
+      const existingSubHolds = await getSubHolds(hold.id);
+      const existingIds = new Set(existingSubHolds.map(sh => sh.id));
+      const currentIds = new Set(subHolds.filter(sh => sh.id).map(sh => sh.id!));
 
-    for (const esh of existingSubHolds) {
-      if (!currentIds.has(esh.id)) {
-        await deleteSubHold(esh.id);
+      for (const esh of existingSubHolds) {
+        if (!currentIds.has(esh.id)) {
+          await deleteSubHold(esh.id);
+        }
       }
-    }
 
-    for (let i = 0; i < subHolds.length; i++) {
-      const sh = subHolds[i];
-      if (sh.id && existingIds.has(sh.id)) {
-        await updateSubHold({
-          subHoldId: sh.id,
-          fieldFigureId: sh.fieldFigureId,
-          distanceM: sh.distanceM,
-          shotCount: sh.shotCount,
-          elevationClicks: sh.elevationClicks,
-          windClicks: sh.windClicks,
-        });
-      } else {
-        await createSubHold({
-          matchHoldId: hold.id,
-          orderIndex: i,
-          fieldFigureId: sh.fieldFigureId,
-          distanceM: sh.distanceM,
-          shotCount: sh.shotCount,
-          elevationClicks: sh.elevationClicks,
-          windClicks: sh.windClicks,
-        });
+      for (let i = 0; i < subHolds.length; i++) {
+        const sh = subHolds[i];
+        if (sh.id && existingIds.has(sh.id)) {
+          await updateSubHold({
+            subHoldId: sh.id,
+            fieldFigureId: sh.fieldFigureId,
+            distanceM: sh.distanceM,
+            shotCount: sh.shotCount,
+            elevationClicks: sh.elevationClicks,
+            windClicks: sh.windClicks,
+          });
+        } else {
+          await createSubHold({
+            matchHoldId: hold.id,
+            orderIndex: i,
+            fieldFigureId: sh.fieldFigureId,
+            distanceM: sh.distanceM,
+            shotCount: sh.shotCount,
+            elevationClicks: sh.elevationClicks,
+            windClicks: sh.windClicks,
+          });
+        }
       }
+
+      await syncCompositeHoldShotCount(hold.id);
+
+      onSubHoldsChanged(hold.id, true);
+      onClose();
+    } finally {
+      savingCompositeRef.current = false;
+      setSavingComposite(false);
     }
-
-    await syncCompositeHoldShotCount(hold.id);
-
-    setSavingComposite(false);
-    onSubHoldsChanged(hold.id, true);
-    onClose();
   };
 
   const handleRevertToSimple = async () => {

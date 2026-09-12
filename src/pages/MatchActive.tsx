@@ -68,6 +68,8 @@ export function MatchActive() {
   const [showEditMeta, setShowEditMeta] = useState(false);
   const [showReshootConfirm, setShowReshootConfirm] = useState(false);
   const [reshootBusy, setReshootBusy] = useState(false);
+  const reshootBusyRef = useRef(false);
+  const unknownConfirmRef = useRef(false);
   const [showReshootChoice, setShowReshootChoice] = useState<{
     originalHoldId: string;
     reshootHoldId: string;
@@ -283,51 +285,57 @@ export function MatchActive() {
 
   const handleCreateReshoot = async () => {
     if (!currentHold || !session || reshootBusy) return;
+    if (reshootBusyRef.current) return;
+    reshootBusyRef.current = true;
 
-    const already = await hasReshoot(currentHold.id);
-    if (already) {
-      alert('Dette holdet har allerede en omskyting.');
+    try {
+      const already = await hasReshoot(currentHold.id);
+      if (already) {
+        alert('Dette holdet har allerede en omskyting.');
+        setShowReshootConfirm(false);
+        return;
+      }
+
+      setReshootBusy(true);
+      const { hold: newHold, error } = await createReshootHold(currentHold.id);
+
+      if (error || !newHold) {
+        alert(error?.message || 'Kunne ikke opprette omskyting.');
+        setReshootBusy(false);
+        setShowReshootConfirm(false);
+        return;
+      }
+
+      const [updatedHolds, subHoldsMap] = await Promise.all([
+        getMatchHolds(session.id),
+        getSubHoldsForSession(session.id),
+      ]);
+
+      const holdsWithSubs = updatedHolds.map(h => ({
+        ...h,
+        sub_holds: subHoldsMap[h.id] || undefined,
+      }));
+
+      const newIndex = holdsWithSubs.findIndex(h => h.id === newHold.id);
+      const targetIndex = newIndex >= 0 ? newIndex : holdsWithSubs.length - 1;
+
+      await updateMatchSessionHoldIndex(session.id, targetIndex);
+
+      const nextCurrent = holdsWithSubs[targetIndex] ?? null;
+
+      setHolds(holdsWithSubs);
+      setCurrentHold(nextCurrent);
+      setSession({ ...session, current_hold_index: targetIndex });
+      setInitialElapsedTime(0);
+      setClockStarted(false);
+      setShowResetReminder(false);
+      setIsLastHoldReset(false);
+      setShowEditModal(false);
       setShowReshootConfirm(false);
-      return;
-    }
-
-    setReshootBusy(true);
-    const { hold: newHold, error } = await createReshootHold(currentHold.id);
-
-    if (error || !newHold) {
-      alert(error?.message || 'Kunne ikke opprette omskyting.');
       setReshootBusy(false);
-      setShowReshootConfirm(false);
-      return;
+    } finally {
+      reshootBusyRef.current = false;
     }
-
-    const [updatedHolds, subHoldsMap] = await Promise.all([
-      getMatchHolds(session.id),
-      getSubHoldsForSession(session.id),
-    ]);
-
-    const holdsWithSubs = updatedHolds.map(h => ({
-      ...h,
-      sub_holds: subHoldsMap[h.id] || undefined,
-    }));
-
-    const newIndex = holdsWithSubs.findIndex(h => h.id === newHold.id);
-    const targetIndex = newIndex >= 0 ? newIndex : holdsWithSubs.length - 1;
-
-    await updateMatchSessionHoldIndex(session.id, targetIndex);
-
-    const nextCurrent = holdsWithSubs[targetIndex] ?? null;
-
-    setHolds(holdsWithSubs);
-    setCurrentHold(nextCurrent);
-    setSession({ ...session, current_hold_index: targetIndex });
-    setInitialElapsedTime(0);
-    setClockStarted(false);
-    setShowResetReminder(false);
-    setIsLastHoldReset(false);
-    setShowEditModal(false);
-    setShowReshootConfirm(false);
-    setReshootBusy(false);
   };
 
   const finishMatch = async () => {
@@ -495,48 +503,54 @@ export function MatchActive() {
 
   const handleUnknownHoldConfirm = async (config: UnknownHoldConfirmConfig) => {
     if (!currentHold || !session) return;
+    if (unknownConfirmRef.current) return;
+    unknownConfirmRef.current = true;
 
-    await updateMatchHold({
-      holdId: currentHold.id,
-      fieldFigureId: config.field_figure_id,
-      distanceM: config.distance_m,
-      recommendedClicks: config.clicks ?? undefined,
-      shotCount: config.shot_count,
-      shootingTimeSeconds: config.shooting_time_seconds,
-    });
+    try {
+      await updateMatchHold({
+        holdId: currentHold.id,
+        fieldFigureId: config.field_figure_id,
+        distanceM: config.distance_m,
+        recommendedClicks: config.clicks ?? undefined,
+        shotCount: config.shot_count,
+        shootingTimeSeconds: config.shooting_time_seconds,
+      });
 
-    if (config.is_composite) {
-      await supabase
-        .from('match_holds')
-        .update({ is_composite: true })
-        .eq('id', currentHold.id);
+      if (config.is_composite) {
+        await supabase
+          .from('match_holds')
+          .update({ is_composite: true })
+          .eq('id', currentHold.id);
 
-      for (let i = 0; i < config.sub_holds.length; i++) {
-        const sh = config.sub_holds[i];
-        await createSubHold({
-          matchHoldId: currentHold.id,
-          orderIndex: i,
-          fieldFigureId: sh.fieldFigureId,
-          distanceM: sh.distanceM,
-          shotCount: sh.shotCount,
-          elevationClicks: sh.elevationClicks,
-          windClicks: sh.windClicks,
-        });
+        for (let i = 0; i < config.sub_holds.length; i++) {
+          const sh = config.sub_holds[i];
+          await createSubHold({
+            matchHoldId: currentHold.id,
+            orderIndex: i,
+            fieldFigureId: sh.fieldFigureId,
+            distanceM: sh.distanceM,
+            shotCount: sh.shotCount,
+            elevationClicks: sh.elevationClicks,
+            windClicks: sh.windClicks,
+          });
+        }
+
+        await syncCompositeHoldShotCount(currentHold.id);
       }
 
-      await syncCompositeHoldShotCount(currentHold.id);
-    }
+      if (session.click_table_id && config.distance_m > 0) {
+        await recalculateHoldClicks(session.id, currentHold.id, config.distance_m);
+      }
 
-    if (session.click_table_id && config.distance_m > 0) {
-      await recalculateHoldClicks(session.id, currentHold.id, config.distance_m);
-    }
+      if (config.wind_clicks != null) {
+        await updateHoldWindCorrection(currentHold.id, config.wind_clicks);
+      }
 
-    if (config.wind_clicks != null) {
-      await updateHoldWindCorrection(currentHold.id, config.wind_clicks);
+      await fetchData();
+      setShowUnknownSetup(false);
+    } finally {
+      unknownConfirmRef.current = false;
     }
-
-    await fetchData();
-    setShowUnknownSetup(false);
   };
 
   const handleClockStart = async () => {

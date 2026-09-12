@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, Layers } from 'lucide-react';
 import { CompactFigureSelector } from '../CompactFigureSelector';
 import { SubHoldEditor, type SubHoldFormData } from './SubHoldEditor';
@@ -34,6 +34,7 @@ export function AddHoldModal({
   const defaultTime = competitionType === 'finfelt' ? 120 : 60;
   const [shootingTimeInput, setShootingTimeInput] = useState(String(defaultTime));
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
 
   const [isComposite, setIsComposite] = useState(false);
   const [subHolds, setSubHolds] = useState<SubHoldFormData[]>([
@@ -67,72 +68,75 @@ export function AddHoldModal({
     : !!selectedFigureId && distance > 0 && !timeInvalid;
 
   const handleSave = async () => {
+    if (savingRef.current) return;
     if (!canSave) return;
+    savingRef.current = true;
     setSaving(true);
 
-    if (isComposite) {
-      const firstSub = subHolds[0];
-      const { hold, error } = await addMatchHold({
-        sessionId,
-        shootingTimeSeconds: parsedShootingTime,
-        shotCount: compositeShotTotal,
-        fieldFigureId: firstSub.fieldFigureId,
-        distanceM: firstSub.distanceM,
-      });
-
-      if (error || !hold) {
-        setSaving(false);
-        alert('Kunne ikke legge til hold: ' + (error?.message || 'Ukjent feil'));
-        return;
-      }
-
-      await supabase
-        .from('match_holds')
-        .update({ is_composite: true })
-        .eq('id', hold.id);
-
-      for (let i = 0; i < subHolds.length; i++) {
-        const sh = subHolds[i];
-        await createSubHold({
-          matchHoldId: hold.id,
-          orderIndex: i,
-          fieldFigureId: sh.fieldFigureId,
-          distanceM: sh.distanceM,
-          shotCount: sh.shotCount,
-          elevationClicks: sh.elevationClicks,
-          windClicks: sh.windClicks,
+    try {
+      if (isComposite) {
+        const firstSub = subHolds[0];
+        const { hold, error } = await addMatchHold({
+          sessionId,
+          shootingTimeSeconds: parsedShootingTime,
+          shotCount: compositeShotTotal,
+          fieldFigureId: firstSub.fieldFigureId,
+          distanceM: firstSub.distanceM,
         });
+
+        if (error || !hold) {
+          alert('Kunne ikke legge til hold: ' + (error?.message || 'Ukjent feil'));
+          return;
+        }
+
+        await supabase
+          .from('match_holds')
+          .update({ is_composite: true })
+          .eq('id', hold.id);
+
+        for (let i = 0; i < subHolds.length; i++) {
+          const sh = subHolds[i];
+          await createSubHold({
+            matchHoldId: hold.id,
+            orderIndex: i,
+            fieldFigureId: sh.fieldFigureId,
+            distanceM: sh.distanceM,
+            shotCount: sh.shotCount,
+            elevationClicks: sh.elevationClicks,
+            windClicks: sh.windClicks,
+          });
+        }
+
+        await syncCompositeHoldShotCount(hold.id);
+
+        if (competitionType !== 'finfelt') {
+          await recalculateHoldClicks(sessionId, hold.id, firstSub.distanceM);
+        }
+
+        onSaved(hold.id);
+      } else {
+        const { hold, error } = await addMatchHold({
+          sessionId,
+          shootingTimeSeconds: parsedShootingTime,
+          shotCount,
+          fieldFigureId: selectedFigureId,
+          distanceM: distance,
+        });
+
+        if (error || !hold) {
+          alert('Kunne ikke legge til hold: ' + (error?.message || 'Ukjent feil'));
+          return;
+        }
+
+        if (competitionType !== 'finfelt') {
+          await recalculateHoldClicks(sessionId, hold.id, distance);
+        }
+
+        onSaved(hold.id);
       }
-
-      await syncCompositeHoldShotCount(hold.id);
-
-      if (competitionType !== 'finfelt') {
-        await recalculateHoldClicks(sessionId, hold.id, firstSub.distanceM);
-      }
-
+    } finally {
+      savingRef.current = false;
       setSaving(false);
-      onSaved(hold.id);
-    } else {
-      const { hold, error } = await addMatchHold({
-        sessionId,
-        shootingTimeSeconds: parsedShootingTime,
-        shotCount,
-        fieldFigureId: selectedFigureId,
-        distanceM: distance,
-      });
-
-      if (error || !hold) {
-        setSaving(false);
-        alert('Kunne ikke legge til hold: ' + (error?.message || 'Ukjent feil'));
-        return;
-      }
-
-      if (competitionType !== 'finfelt') {
-        await recalculateHoldClicks(sessionId, hold.id, distance);
-      }
-
-      setSaving(false);
-      onSaved(hold.id);
     }
   };
 
