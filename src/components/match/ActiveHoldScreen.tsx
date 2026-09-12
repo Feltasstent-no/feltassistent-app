@@ -407,6 +407,13 @@ export function ActiveHoldScreen({
                   <Camera className="w-4 h-4" />
                   <span>Legg til bilde</span>
                 </button>
+                <button
+                  onClick={onComplete}
+                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-base font-bold rounded-xl transition shadow-lg flex items-center justify-center space-x-2"
+                >
+                  <CheckCircle className="w-5 h-5" />
+                  <span>{isLastHold ? 'Avslutt stevne' : 'Fullfør hold'}</span>
+                </button>
               </div>
             ) : (
               <>
