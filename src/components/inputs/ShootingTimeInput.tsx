@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { Minus, Plus } from 'lucide-react';
 
 const TIME_PRESETS = [
@@ -23,7 +24,30 @@ export function ShootingTimeInput({
   suffix,
 }: ShootingTimeInputProps) {
   const parsed = parseInt(value) || 0;
+  const isEmpty = value.trim() === '' || parsed === 0;
   const timeInvalid = parsed < 10;
+  const showInvalid = isEmpty || timeInvalid;
+
+  const [local, setLocal] = useState(value);
+  const focusedRef = useRef(false);
+
+  useEffect(() => {
+    if (!focusedRef.current) {
+      setLocal(value);
+    }
+  }, [value]);
+
+  const commitLocal = () => {
+    focusedRef.current = false;
+    if (local !== value) {
+      onChange(local);
+    }
+  };
+
+  const commitImmediate = (next: string) => {
+    setLocal(next);
+    onChange(next);
+  };
 
   return (
     <div>
@@ -35,7 +59,7 @@ export function ShootingTimeInput({
           <button
             key={tp.seconds}
             type="button"
-            onClick={() => onChange(String(tp.seconds))}
+            onClick={() => commitImmediate(String(tp.seconds))}
             className={`px-3 py-2 rounded-xl text-sm font-semibold transition active:scale-95 ${
               parsed === tp.seconds
                 ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/25'
@@ -49,32 +73,45 @@ export function ShootingTimeInput({
       <div className="flex items-center gap-3">
         <button
           type="button"
-          onClick={() => onChange(String(Math.max(10, parsed - 5)))}
+          onClick={() => commitImmediate(String(Math.max(10, parsed - 5)))}
           className="w-10 h-10 rounded-lg border-2 border-slate-300 hover:bg-slate-100 flex items-center justify-center transition active:scale-95"
         >
           <Minus className="w-4 h-4 text-slate-600" />
         </button>
         <input
-          type="number"
+          type="text"
           inputMode="numeric"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
+          pattern="[0-9]*"
+          value={local}
+          onFocus={(e) => {
+            focusedRef.current = true;
+            e.target.select();
+          }}
+          onChange={(e) => setLocal(e.target.value.replace(/[^0-9]/g, ''))}
+          onBlur={commitLocal}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.currentTarget.blur();
+            }
+          }}
           className={`flex-1 text-center text-xl font-bold border-2 rounded-lg py-2 outline-none transition ${
-            timeInvalid && value !== ''
-              ? 'border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500'
+            showInvalid
+              ? 'bg-red-50 border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500'
               : 'border-slate-300 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500'
           }`}
         />
         <button
           type="button"
-          onClick={() => onChange(String(parsed + 5))}
+          onClick={() => commitImmediate(String(parsed + 5))}
           className="w-10 h-10 rounded-lg border-2 border-slate-300 hover:bg-slate-100 flex items-center justify-center transition active:scale-95"
         >
           <Plus className="w-4 h-4 text-slate-600" />
         </button>
       </div>
-      {timeInvalid && value !== '' && (
-        <p className="text-xs text-red-500 mt-1">Minimum 10 sekunder</p>
+      {showInvalid && (
+        <p className="text-xs text-red-600 font-medium mt-1">
+          {isEmpty ? 'Mangler skytetid' : 'Minimum 10 sekunder'}
+        </p>
       )}
     </div>
   );

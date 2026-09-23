@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, AlertTriangle, Layers } from 'lucide-react';
+import { X, AlertTriangle, Layers, Minus, Plus } from 'lucide-react';
 import { CompactFigureSelector } from '../CompactFigureSelector';
 import { SubHoldEditor, type SubHoldFormData } from './SubHoldEditor';
 import { getFieldFigures } from '../../lib/field-assistant';

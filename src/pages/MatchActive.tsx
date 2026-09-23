@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Pencil, RotateCw } from 'lucide-react';
+import { Pencil, RotateCw, ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { ActiveHoldScreen } from '../components/match/ActiveHoldScreen';
@@ -8,6 +8,7 @@ import { ResetReminder } from '../components/match/ResetReminder';
 import { EditHoldModal } from '../components/match/EditHoldModal';
 import { AddHoldModal } from '../components/match/AddHoldModal';
 import { FirstHoldModal } from '../components/match/FirstHoldModal';
+import { PostHoldActions } from '../components/match/PostHoldActions';
 import { MatchUnknownHoldSetup, type UnknownHoldConfirmConfig } from '../components/match/MatchUnknownHoldSetup';
 import { useBlockNavigation } from '../lib/use-block-navigation';
 import { useWakeLock } from '../lib/use-wake-lock';
@@ -23,17 +24,21 @@ import {
   startHold,
   getElapsedTime,
   updateHoldWindCorrection,
+  updateHoldElevationCorrection,
   updateMatchAmmoDeduction,
   updateMatchMetadata,
   updateMatchShotCounts,
   getSubHoldsForSession,
   updateMatchHold,
   recalculateHoldClicks,
+  effectiveElevation,
   createSubHold,
   syncCompositeHoldShotCount,
   createReshootHold,
   hasReshoot,
   setCountingAttempt,
+  getLogicalHoldNumber,
+  getOrdinaryHoldCount,
 } from '../lib/match-service';
 import { enqueueUpload } from '../lib/upload-queue';
 import { compressImage } from '../lib/image-compression';
@@ -56,7 +61,13 @@ export function MatchActive() {
   const [currentHoldHasPhoto, setCurrentHoldHasPhoto] = useState(false);
   const [showResetReminder, setShowResetReminder] = useState(false);
   const [isLastHoldReset, setIsLastHoldReset] = useState(false);
-  const [clockStarted, setClockStarted] = useState(false);
+  const [postHold, setPostHold] = useState<{
+    completedHoldId: string;
+    isLast: boolean;
+    nextIndex: number;
+  } | null>(null);
+  const [optimisticStartHoldId, setOptimisticStartHoldId] = useState<string | null>(null);
+  const [viewedHoldIndex, setViewedHoldIndex] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [ammoName, setAmmoName] = useState<string | null>(null);
   const [ammoStock, setAmmoStock] = useState<number | null>(null);
@@ -67,6 +78,7 @@ export function MatchActive() {
   const [showUnknownSetup, setShowUnknownSetup] = useState(false);
   const [showEditMeta, setShowEditMeta] = useState(false);
   const [showReshootConfirm, setShowReshootConfirm] = useState(false);
+  const [reshootSourceId, setReshootSourceId] = useState<string | null>(null);
   const [reshootBusy, setReshootBusy] = useState(false);
   const reshootBusyRef = useRef(false);
   const unknownConfirmRef = useRef(false);
@@ -77,6 +89,8 @@ export function MatchActive() {
     reshootIndex: number;
   } | null>(null);
   const [choiceBusy, setChoiceBusy] = useState(false);
+  const [finishingMatch, setFinishingMatch] = useState(false);
+  const finishingMatchRef = useRef(false);
   const [fieldFigures, setFieldFigures] = useState<FieldFigure[]>([]);
   const [assistMode] = useState<AssistanceMode>(getAssistanceMode);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -91,8 +105,17 @@ export function MatchActive() {
     }
   }, [currentHold?.id]);
 
+  useEffect(() => {
+    setViewedHoldIndex(null);
+  }, [session?.current_hold_index]);
+
+  const clockStarted =
+    !!currentHold &&
+    ((currentHold.started_at != null && !currentHold.completed) ||
+      optimisticStartHoldId === currentHold.id);
+
   useBlockNavigation(
-    clockStarted && !showResetReminder,
+    clockStarted && !showResetReminder && !postHold,
     'Du er midt i et hold. Klokken vil starte på nytt hvis du forlater.'
   );
 
@@ -172,6 +195,7 @@ export function MatchActive() {
 
   const handleCompleteHold = async () => {
     if (!currentHold || !session) return;
+    if (finishingMatchRef.current) return;
 
     await completeHold(currentHold.id);
 
@@ -187,7 +211,14 @@ export function MatchActive() {
       return;
     }
 
-    await proceedAfterHoldComplete();
+    const nextIndex = findNextOrdinaryIndex(session.current_hold_index);
+    const isLast = nextIndex === -1;
+    const isFinfelt = session.competition_type === 'finfelt';
+    const showReset = assistMode !== 'minimal' && !isFinfelt;
+
+    setPostHold({ completedHoldId: currentHold.id, isLast, nextIndex });
+    setIsLastHoldReset(isLast);
+    setShowResetReminder(showReset);
   };
 
   const findNextOrdinaryIndex = (fromIndex: number, holdsArr = holds): number => {
@@ -197,35 +228,15 @@ export function MatchActive() {
     return -1;
   };
 
-  const proceedAfterHoldComplete = async () => {
-    if (!session) return;
-
-    const nextIndex = findNextOrdinaryIndex(session.current_hold_index);
-    const isFinfelt = session.competition_type === 'finfelt';
-    const isLast = nextIndex === -1;
-    const showReset = assistMode !== 'minimal' && !isFinfelt;
-
-    if (isLast && showReset) {
-      setIsLastHoldReset(true);
-      setShowResetReminder(true);
-      return;
-    }
-
-    if (isLast) {
-      await finishMatch();
-      return;
-    }
-
-    if (showReset) {
-      setIsLastHoldReset(false);
-      setShowResetReminder(true);
-    } else {
-      handleNextHold();
-    }
+  const handlePostHoldReshoot = () => {
+    if (!postHold) return;
+    setReshootSourceId(postHold.completedHoldId);
+    setShowReshootConfirm(true);
   };
 
   const handleReshootChoice = async (winner: 'original' | 'reshoot') => {
     if (!showReshootChoice || !session) return;
+    if (finishingMatchRef.current) return;
     setChoiceBusy(true);
 
     const { error } = await setCountingAttempt({
@@ -284,25 +295,29 @@ export function MatchActive() {
   };
 
   const handleCreateReshoot = async () => {
-    if (!currentHold || !session || reshootBusy) return;
+    const originalHoldId = reshootSourceId;
+    if (!originalHoldId || !session || reshootBusy) return;
+    if (finishingMatchRef.current) return;
     if (reshootBusyRef.current) return;
     reshootBusyRef.current = true;
 
     try {
-      const already = await hasReshoot(currentHold.id);
+      const already = await hasReshoot(originalHoldId);
       if (already) {
         alert('Dette holdet har allerede en omskyting.');
         setShowReshootConfirm(false);
+        setReshootSourceId(null);
         return;
       }
 
       setReshootBusy(true);
-      const { hold: newHold, error } = await createReshootHold(currentHold.id);
+      const { hold: newHold, error } = await createReshootHold(originalHoldId);
 
       if (error || !newHold) {
         alert(error?.message || 'Kunne ikke opprette omskyting.');
         setReshootBusy(false);
         setShowReshootConfirm(false);
+        setReshootSourceId(null);
         return;
       }
 
@@ -326,13 +341,16 @@ export function MatchActive() {
       setHolds(holdsWithSubs);
       setCurrentHold(nextCurrent);
       setSession({ ...session, current_hold_index: targetIndex });
+      setViewedHoldIndex(null);
       setInitialElapsedTime(0);
-      setClockStarted(false);
+      setOptimisticStartHoldId(null);
       setShowResetReminder(false);
       setIsLastHoldReset(false);
       setShowEditModal(false);
       setShowReshootConfirm(false);
+      setReshootSourceId(null);
       setReshootBusy(false);
+      setPostHold(null);
     } finally {
       reshootBusyRef.current = false;
     }
@@ -340,71 +358,84 @@ export function MatchActive() {
 
   const finishMatch = async () => {
     if (!session || !user) return;
+    if (finishingMatchRef.current) return;
+    finishingMatchRef.current = true;
+    setFinishingMatch(true);
 
-    await completeMatchSession(session.id);
+    try {
+      await completeMatchSession(session.id);
 
-    const totalShots = holds.reduce((sum, h) => sum + h.shot_count, 0);
+      const totalShots = holds.reduce((sum, h) => sum + h.shot_count, 0);
 
-    await updateMatchShotCounts({
-      sessionId: session.id,
-      calculatedShotCount: totalShots,
-    });
+      await updateMatchShotCounts({
+        sessionId: session.id,
+        calculatedShotCount: totalShots,
+      });
 
-    if (totalShots > 0) {
-      try {
-        const activeSetup = await getUserActiveSetup(user.id);
-        if (activeSetup?.weapon_id) {
-          await logWeaponShots({
+      if (totalShots > 0) {
+        try {
+          const activeSetup = await getUserActiveSetup(user.id);
+          if (activeSetup?.weapon_id) {
+            await logWeaponShots({
+              userId: user.id,
+              weaponId: activeSetup.weapon_id,
+              shotsFired: totalShots,
+              shotDate: session.match_date || new Date().toISOString().split('T')[0],
+              comment: session.match_name,
+              source: 'match',
+            });
+          }
+        } catch (e) {
+          console.error('[MatchActive] Failed to log weapon shots:', e);
+        }
+      }
+
+      if (session.ammo_inventory_id) {
+        const { data: freshSession } = await supabase
+          .from('match_sessions')
+          .select('ammo_deducted_count')
+          .eq('id', session.id)
+          .maybeSingle();
+
+        if (freshSession?.ammo_deducted_count == null) {
+          const { error } = await deductAmmoFromInventory({
+            inventoryId: session.ammo_inventory_id,
             userId: user.id,
-            weaponId: activeSetup.weapon_id,
-            shotsFired: totalShots,
-            shotDate: session.match_date || new Date().toISOString().split('T')[0],
-            comment: session.match_name,
-            source: 'match',
+            quantity: totalShots,
+            matchSessionId: session.id,
+            notes: `Automatisk trekk: ${session.match_name}`,
           });
-        }
-      } catch (e) {
-        console.error('[MatchActive] Failed to log weapon shots:', e);
-      }
-    }
 
-    if (session.ammo_inventory_id) {
-      const { data: freshSession } = await supabase
-        .from('match_sessions')
-        .select('ammo_deducted_count')
-        .eq('id', session.id)
-        .maybeSingle();
-
-      if (freshSession?.ammo_deducted_count == null) {
-        const { error } = await deductAmmoFromInventory({
-          inventoryId: session.ammo_inventory_id,
-          userId: user.id,
-          quantity: totalShots,
-          matchSessionId: session.id,
-          notes: `Automatisk trekk: ${session.match_name}`,
-        });
-
-        if (!error) {
-          await updateMatchAmmoDeduction({
-            sessionId: session.id,
-            ammoInventoryId: session.ammo_inventory_id,
-            ammoDeductedCount: totalShots,
-          });
+          if (!error) {
+            await updateMatchAmmoDeduction({
+              sessionId: session.id,
+              ammoInventoryId: session.ammo_inventory_id,
+              ammoDeductedCount: totalShots,
+            });
+          }
         }
       }
-    }
 
-    navigate(`/match/${session.id}/summary`);
+      navigate(`/match/${session.id}/summary`);
+    } catch (e) {
+      console.error('[MatchActive] finishMatch failed:', e);
+      finishingMatchRef.current = false;
+      setFinishingMatch(false);
+      alert('Kunne ikke fullføre stevnet. Prøv igjen.');
+    }
   };
 
   const handleLastHoldConfirm = async () => {
     setShowResetReminder(false);
     setIsLastHoldReset(false);
+    setPostHold(null);
     await finishMatch();
   };
 
   const handleNextHold = async () => {
     if (!session) return;
+
+    setPostHold(null);
 
     const prevIndex = session.current_hold_index;
     const nextIndex = findNextOrdinaryIndex(prevIndex);
@@ -422,6 +453,8 @@ export function MatchActive() {
       try {
         await updateMatchSessionHoldIndex(session.id, nextIndex);
         const fetched = await getCurrentHold(session.id, nextIndex);
+        setInitialElapsedTime(0);
+        setOptimisticStartHoldId(null);
         setCurrentHold(fetched);
         setSession({ ...session, current_hold_index: nextIndex });
         setShowResetReminder(false);
@@ -431,6 +464,8 @@ export function MatchActive() {
       return;
     }
 
+    setInitialElapsedTime(0);
+    setOptimisticStartHoldId(null);
     setCurrentHold(nextHoldFromState);
     setSession({ ...session, current_hold_index: nextIndex });
     setShowResetReminder(false);
@@ -454,7 +489,7 @@ export function MatchActive() {
     if (!session) return;
 
     if (confirm('Pause stevnet? Du kan fortsette senere.')) {
-      setClockStarted(false);
+      setOptimisticStartHoldId(null);
       await pauseMatchSession(session.id);
       navigate('/match');
     }
@@ -462,41 +497,50 @@ export function MatchActive() {
 
 
   const handleAddHold = () => {
+    if (finishingMatchRef.current) return;
     setShowAddHoldModal(true);
   };
 
-  const handleAddHoldSaved = async () => {
+  const handleAddHoldSaved = async (newHoldId: string) => {
     if (!session) return;
 
     setShowAddHoldModal(false);
 
-    const nextIndex = session.current_hold_index + 1;
-    await updateMatchSessionHoldIndex(session.id, nextIndex);
-
-    const [updatedHolds, nextHold, subHoldsMap] = await Promise.all([
+    const [updatedHolds, subHoldsMap] = await Promise.all([
       getMatchHolds(session.id),
-      getCurrentHold(session.id, nextIndex),
       getSubHoldsForSession(session.id),
     ]);
-
-    if (nextHold && subHoldsMap[nextHold.id]) {
-      nextHold.sub_holds = subHoldsMap[nextHold.id];
-    }
 
     const holdsWithSubs = updatedHolds.map(h => ({
       ...h,
       sub_holds: subHoldsMap[h.id] || undefined,
     }));
 
+    const newHold = holdsWithSubs.find(h => h.id === newHoldId) ?? null;
+
+    if (!newHold) {
+      console.warn('[MatchActive] handleAddHoldSaved: new hold not found', newHoldId);
+      setHolds(holdsWithSubs);
+      return;
+    }
+
+    await updateMatchSessionHoldIndex(session.id, newHold.order_index);
+
     setHolds(holdsWithSubs);
     setShowResetReminder(false);
     setIsLastHoldReset(false);
-    setCurrentHold(nextHold);
-    setSession({ ...session, current_hold_index: nextIndex });
+    setPostHold(null);
+    setShowReshootConfirm(false);
+    setReshootSourceId(null);
+    setViewedHoldIndex(null);
+    setInitialElapsedTime(0);
+    setOptimisticStartHoldId(null);
+    setCurrentHold(newHold);
+    setSession({ ...session, current_hold_index: newHold.order_index });
 
-    if (session.distance_mode === 'ukjent' && nextHold && !nextHold.field_figure_id && !nextHold.started_at) {
+    if (session.distance_mode === 'ukjent' && !newHold.field_figure_id && !newHold.started_at) {
       setShowUnknownSetup(true);
-    } else if (assistMode === 'guided' && nextHold && !nextHold.started_at) {
+    } else if (assistMode === 'guided' && !newHold.started_at) {
       setShowHoldSetupModal(true);
     }
   };
@@ -554,34 +598,42 @@ export function MatchActive() {
   };
 
   const handleClockStart = async () => {
+    if (finishingMatchRef.current) return;
     if (currentHold) {
+      const startedAt = new Date().toISOString();
+      setOptimisticStartHoldId(currentHold.id);
+      setCurrentHold((prev) =>
+        prev && prev.started_at == null ? { ...prev, started_at: startedAt } : prev
+      );
       await startHold(currentHold.id);
     }
-    setClockStarted(true);
   };
 
-  const handleClockComplete = () => {
-    setClockStarted(false);
-  };
+  const handleClockComplete = () => {};
 
   const [initialElapsedTime, setInitialElapsedTime] = useState(0);
 
   useEffect(() => {
-    if (currentHold?.started_at) {
-      const elapsed = getElapsedTime(currentHold.started_at);
-      setInitialElapsedTime(elapsed);
-      if (elapsed > 0 && !currentHold.completed) {
-        setClockStarted(true);
-      }
+    if (currentHold?.started_at && !currentHold.completed) {
+      setInitialElapsedTime(getElapsedTime(currentHold.started_at));
     } else {
       setInitialElapsedTime(0);
     }
-  }, [currentHold?.id, currentHold?.started_at]);
+  }, [currentHold?.id, currentHold?.started_at, currentHold?.completed]);
 
   const handleWindCorrectionChange = async (holdId: string, clicks: number) => {
+    if (finishingMatchRef.current) return;
     await updateHoldWindCorrection(holdId, clicks);
     if (currentHold && currentHold.id === holdId) {
       setCurrentHold({ ...currentHold, wind_correction_clicks: clicks });
+    }
+  };
+
+  const handleElevationCorrectionChange = async (holdId: string, clicks: number | null) => {
+    if (finishingMatchRef.current) return;
+    await updateHoldElevationCorrection(holdId, clicks);
+    if (currentHold && currentHold.id === holdId) {
+      setCurrentHold({ ...currentHold, elevation_correction_clicks: clicks });
     }
   };
 
@@ -690,8 +742,8 @@ export function MatchActive() {
     return (
       <Layout>
         <MatchUnknownHoldSetup
-          holdIndex={session.current_hold_index}
-          totalHolds={holds.length}
+          holdIndex={getLogicalHoldNumber(currentHold, holds) - 1}
+          totalHolds={getOrdinaryHoldCount(holds)}
           shootingTimeSeconds={currentHold.shooting_time_seconds}
           shotCount={currentHold.shot_count}
           figures={fieldFigures}
@@ -703,21 +755,68 @@ export function MatchActive() {
     );
   }
 
+  const activeIndex = session.current_hold_index;
+  const isReviewing =
+    viewedHoldIndex !== null &&
+    viewedHoldIndex !== activeIndex &&
+    !!holds[viewedHoldIndex];
+  const displayedHold = isReviewing ? holds[viewedHoldIndex] : currentHold;
+  const displayedIndex = isReviewing ? (viewedHoldIndex as number) : activeIndex;
+  const ordinaryHoldCount = getOrdinaryHoldCount(holds);
+  const displayedLogicalNumber = getLogicalHoldNumber(displayedHold, holds);
+  const activeLogicalNumber = getLogicalHoldNumber(currentHold, holds);
+
+  const browsableIndices = holds
+    .map((_, i) => i)
+    .filter(
+      (i) =>
+        i === activeIndex ||
+        (!holds[i].reshoot_of_hold_id && i < activeIndex)
+    );
+  const viewPos = browsableIndices.indexOf(displayedIndex);
+  const canViewPrev = viewPos > 0;
+  const canViewNext = isReviewing && viewPos >= 0 && viewPos < browsableIndices.length - 1;
+
+  const goToViewed = (targetIndex: number) => {
+    if (targetIndex === activeIndex) {
+      if (currentHold.started_at && !currentHold.completed) {
+        setInitialElapsedTime(getElapsedTime(currentHold.started_at));
+      }
+      setViewedHoldIndex(null);
+    } else {
+      setViewedHoldIndex(targetIndex);
+    }
+  };
+  const handleViewPrev = () => {
+    if (canViewPrev) goToViewed(browsableIndices[viewPos - 1]);
+  };
+  const handleViewNext = () => {
+    if (canViewNext) goToViewed(browsableIndices[viewPos + 1]);
+  };
+  const handleBackToActive = () => goToViewed(activeIndex);
+
   return (
     <Layout>
+      {finishingMatch && (
+        <div className="fixed inset-0 z-[100] bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
+          <div className="w-10 h-10 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" />
+          <p className="text-base font-semibold text-slate-700">Fullfører stevnet…</p>
+        </div>
+      )}
       <div className="match-run-shell flex flex-col overflow-hidden -mx-4 sm:-mx-6 lg:-mx-8 -my-4 sm:-my-8">
         <div className="bg-white border-b border-slate-200 px-3 py-2.5 flex-shrink-0 space-y-2">
           <div className="flex items-center gap-3">
             <div className="flex-shrink-0 w-[72px]">
               <p className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold leading-none mb-0.5">Hold</p>
               <p className="text-lg font-bold text-slate-900 leading-tight tabular-nums">
-                {session.current_hold_index + 1}<span className="text-slate-400 font-medium text-sm"> / {holds.length}</span>
+                {displayedLogicalNumber}<span className="text-slate-400 font-medium text-sm"> / {ordinaryHoldCount}</span>
               </p>
             </div>
             <div className="min-w-0 flex-1">
               <button
                 onClick={() => setShowEditMeta(true)}
-                className="block text-sm font-semibold text-slate-800 truncate w-full text-left hover:text-slate-600 transition"
+                disabled={finishingMatch}
+                className="block text-sm font-semibold text-slate-800 truncate w-full text-left hover:text-slate-600 transition disabled:opacity-60"
                 title="Rediger stevneinfo"
               >
                 {session.match_name}
@@ -736,16 +835,8 @@ export function MatchActive() {
             <div className="flex items-center gap-1.5 flex-shrink-0">
               <UploadQueueStatus />
               <button
-                onClick={() => setShowReshootConfirm(true)}
-                disabled={clockStarted || !!currentHold?.reshoot_of_hold_id}
-                className="w-7 h-7 rounded-md border border-slate-200 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition"
-                title={currentHold?.reshoot_of_hold_id ? 'Dette er allerede en omskyting' : 'Opprett omskyting'}
-              >
-                <RotateCw className="w-3 h-3 text-amber-600" />
-              </button>
-              <button
                 onClick={() => setShowEditModal(true)}
-                disabled={clockStarted}
+                disabled={clockStarted || isReviewing || finishingMatch}
                 className="w-7 h-7 rounded-md border border-slate-200 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition"
                 title="Rediger hold"
               >
@@ -756,51 +847,116 @@ export function MatchActive() {
           <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
             <div
               className="h-full bg-emerald-500 transition-all duration-500"
-              style={{ width: `${holds.length > 0 ? Math.min(((session.current_hold_index + 1) / holds.length) * 100, 100) : 0}%` }}
+              style={{ width: `${ordinaryHoldCount > 0 ? Math.min((activeLogicalNumber / ordinaryHoldCount) * 100, 100) : 0}%` }}
             />
           </div>
         </div>
 
-        {currentHold?.reshoot_of_hold_id && (() => {
-          const origIdx = holds.findIndex(h => h.id === currentHold.reshoot_of_hold_id);
-          return (
-            <div className="bg-amber-50 border-b border-amber-200 px-3 py-1.5 flex items-center justify-center gap-2 flex-shrink-0">
-              <RotateCw className="w-3.5 h-3.5 text-amber-700" />
-              <span className="text-xs font-bold text-amber-800">
-                Omskyting av hold {origIdx >= 0 ? origIdx + 1 : '?'}
-              </span>
+        {isReviewing ? (
+          <div className="bg-emerald-50 border-b border-emerald-200 px-3 py-2 flex-shrink-0">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <CheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-emerald-800 leading-tight">Gjennomfort hold - kun visning</p>
+                  <p className="text-[11px] text-emerald-700 leading-tight">
+                    Hold {displayedLogicalNumber} av {ordinaryHoldCount} · Aktivt hold: {activeLogicalNumber}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleBackToActive}
+                className="flex-shrink-0 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition"
+              >
+                Tilbake til aktivt hold
+              </button>
             </div>
-          );
-        })()}
+            <div className="flex items-center gap-2 mt-2">
+              <button
+                onClick={handleViewPrev}
+                disabled={!canViewPrev}
+                className="flex-1 py-2 bg-white border border-emerald-300 text-emerald-700 text-xs font-semibold rounded-lg hover:bg-emerald-100 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1 transition"
+              >
+                <ChevronLeft className="w-4 h-4" /> Forrige
+              </button>
+              <button
+                onClick={handleViewNext}
+                disabled={!canViewNext}
+                className="flex-1 py-2 bg-white border border-emerald-300 text-emerald-700 text-xs font-semibold rounded-lg hover:bg-emerald-100 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1 transition"
+              >
+                Neste <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+            {displayedHold.completed && !displayedHold.reshoot_of_hold_id && (
+              <button
+                onClick={() => {
+                  setReshootSourceId(displayedHold.id);
+                  setShowReshootConfirm(true);
+                }}
+                disabled={finishingMatch}
+                className="w-full mt-2 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition"
+              >
+                <RotateCw className="w-4 h-4" /> Omskyting av dette holdet
+              </button>
+            )}
+          </div>
+        ) : canViewPrev ? (
+          <div className="bg-slate-50 border-b border-slate-200 px-3 py-1.5 flex-shrink-0">
+            <button
+              onClick={handleViewPrev}
+              className="text-xs font-semibold text-slate-600 hover:text-slate-900 flex items-center gap-1 transition"
+            >
+              <ChevronLeft className="w-4 h-4" /> Se forrige hold
+            </button>
+          </div>
+        ) : null}
+
+        {!isReviewing && displayedHold?.reshoot_of_hold_id && (
+          <div className="bg-amber-50 border-b border-amber-200 px-3 py-1.5 flex items-center justify-center gap-2 flex-shrink-0">
+            <RotateCw className="w-3.5 h-3.5 text-amber-700" />
+            <span className="text-xs font-bold text-amber-800">
+              Omskyting av hold {getLogicalHoldNumber(displayedHold, holds)}
+            </span>
+          </div>
+        )}
 
         <div className="flex-1 min-h-0 overflow-hidden">
           <ActiveHoldScreen
-            hold={currentHold}
+            hold={displayedHold}
+            reviewMode={isReviewing}
             onComplete={handleCompleteHold}
             onPause={handlePause}
             onTakePhoto={handleTakePhoto}
             onClockStart={handleClockStart}
             onClockComplete={handleClockComplete}
+            clockStarted={
+              !isReviewing &&
+              ((displayedHold.started_at != null && !displayedHold.completed) ||
+                optimisticStartHoldId === displayedHold.id)
+            }
             onWindCorrectionChange={handleWindCorrectionChange}
+            onElevationCorrectionChange={handleElevationCorrectionChange}
             onAddHold={handleAddHold}
             onTakeSubHoldPhoto={handleTakeSubHoldPhoto}
-            initialElapsedTime={initialElapsedTime}
+            initialElapsedTime={isReviewing ? 0 : initialElapsedTime}
             isFinfelt={session.competition_type === 'finfelt'}
             isLastHold={session.current_hold_index >= holds.length - 1}
-            hasPhoto={currentHoldHasPhoto}
+            hasPhoto={isReviewing ? false : currentHoldHasPhoto}
             previousHoldWindClicks={
-              session.current_hold_index > 0
-                ? holds[session.current_hold_index - 1]?.wind_correction_clicks ?? null
+              displayedIndex > 0
+                ? holds[displayedIndex - 1]?.wind_correction_clicks ?? null
                 : null
             }
           />
         </div>
 
-        {showResetReminder && (
+        {showResetReminder && !showReshootConfirm && (
           <ResetReminder
             onConfirm={isLastHoldReset ? handleLastHoldConfirm : handleNextHold}
             onAddHold={handleAddHold}
-            previousClicks={currentHold?.recommended_clicks}
+            onReshoot={postHold ? handlePostHoldReshoot : undefined}
+            disabled={finishingMatch}
+            previousClicks={currentHold ? effectiveElevation(currentHold) : undefined}
             previousWindClicks={currentHold?.wind_correction_clicks}
             nextWindClicks={
               !isLastHoldReset && session
@@ -808,6 +964,16 @@ export function MatchActive() {
                 : null
             }
             isLastHold={isLastHoldReset}
+          />
+        )}
+
+        {postHold && !showResetReminder && !showReshootConfirm && (
+          <PostHoldActions
+            isLast={postHold.isLast}
+            onNext={postHold.isLast ? handleLastHoldConfirm : handleNextHold}
+            onReshoot={handlePostHoldReshoot}
+            onAddHold={postHold.isLast ? handleAddHold : undefined}
+            disabled={finishingMatch}
           />
         )}
 
@@ -872,7 +1038,9 @@ export function MatchActive() {
         />
       </div>
 
-      {showReshootConfirm && currentHold && (
+      {showReshootConfirm && reshootSourceId && (() => {
+        const srcNumber = getLogicalHoldNumber(holds.find(h => h.id === reshootSourceId), holds);
+        return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
             <div className="flex items-center justify-center mb-4">
@@ -881,14 +1049,17 @@ export function MatchActive() {
               </div>
             </div>
             <h3 className="text-lg font-bold text-slate-900 text-center mb-2">
-              Opprett omskyting av hold {session ? session.current_hold_index + 1 : ''}?
+              Opprett omskyting av hold {srcNumber}?
             </h3>
             <p className="text-sm text-slate-600 text-center mb-6">
               Et nytt hold opprettes som kopi. Originalt hold beholdes. Du velger selv hvilket forsøk som teller.
             </p>
             <div className="flex gap-3">
               <button
-                onClick={() => setShowReshootConfirm(false)}
+                onClick={() => {
+                  setShowReshootConfirm(false);
+                  setReshootSourceId(null);
+                }}
                 disabled={reshootBusy}
                 className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl transition disabled:opacity-50"
               >
@@ -904,9 +1075,12 @@ export function MatchActive() {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
-      {showReshootChoice && (
+      {showReshootChoice && (() => {
+        const choiceHoldNumber = getLogicalHoldNumber(holds.find(h => h.id === showReshootChoice.originalHoldId), holds);
+        return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
             <div className="flex items-center justify-center mb-4">
@@ -926,19 +1100,20 @@ export function MatchActive() {
                 disabled={choiceBusy}
                 className="w-full py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold rounded-xl transition disabled:opacity-50 text-left"
               >
-                Behold originalt resultat (hold {showReshootChoice.originalIndex + 1})
+                Behold originalt resultat (Hold {choiceHoldNumber})
               </button>
               <button
                 onClick={() => handleReshootChoice('reshoot')}
                 disabled={choiceBusy}
                 className="w-full py-3 px-4 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl transition disabled:opacity-50 text-left"
               >
-                Bruk omskyting som tellende (hold {showReshootChoice.reshootIndex + 1})
+                Bruk omskyting som tellende (Hold {choiceHoldNumber})
               </button>
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {showEditMeta && session && (
         <EditMetadataModal

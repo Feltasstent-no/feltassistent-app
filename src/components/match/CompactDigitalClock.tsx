@@ -7,6 +7,7 @@ interface CompactDigitalClockProps {
   onComplete: () => void;
   onForceComplete?: () => void;
   isPaused?: boolean;
+  started?: boolean;
   initialElapsedTime?: number;
 }
 
@@ -78,6 +79,7 @@ export function CompactDigitalClock({
   onComplete,
   onForceComplete,
   isPaused = false,
+  started = false,
   initialElapsedTime = 0,
 }: CompactDigitalClockProps) {
   const safePrepTime = prepTime ?? 15;
@@ -113,7 +115,7 @@ export function CompactDigitalClock({
   }, [safePrepTime, safeShootTime, initialElapsedTime]);
 
   useEffect(() => {
-    if (state.phase === 'idle' && !isPaused && startedAtRef.current === null) {
+    if (state.phase === 'idle' && started && !isPaused && startedAtRef.current === null) {
       const now = Date.now();
       startedAtRef.current = now;
       setState(deriveState(now, safePrepTime, safeShootTime, now));
@@ -129,7 +131,7 @@ export function CompactDigitalClock({
       pausedAtRef.current = null;
       setState(deriveState(startedAtRef.current, safePrepTime, safeShootTime, Date.now()));
     }
-  }, [isPaused, state.phase, safePrepTime, safeShootTime]);
+  }, [isPaused, started, state.phase, safePrepTime, safeShootTime]);
 
   useEffect(() => {
     if (state.phase === 'done' && !hasCalledComplete.current) {

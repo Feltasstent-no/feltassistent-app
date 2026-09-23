@@ -8,6 +8,7 @@ import {
   updateSubHold,
   syncCompositeHoldShotCount,
   getSubHolds,
+  effectiveElevation,
   type MatchHold,
   type MatchSubHold,
 } from '../../lib/match-service';
@@ -15,6 +16,9 @@ import { supabase } from '../../lib/supabase';
 import type { FieldFigure, ClickTableRow } from '../../types/database';
 import { ShotCountInput } from '../inputs/ShotCountInput';
 import { ShootingTimeInput } from '../inputs/ShootingTimeInput';
+import { NumericTextInput } from '../inputs/NumericTextInput';
+import { requiredInputClass, RequiredFieldError } from '../inputs/required-field';
+import { isDistanceMissing, isShootingTimeMissing } from '../../lib/match-service';
 
 interface ConfigureHoldEditorProps {
   hold: MatchHold;
@@ -111,6 +115,7 @@ export function ConfigureHoldEditor({
     if (savingCompositeRef.current) return;
     if (subHolds.length < 2) return;
     if (!subHolds.every(sh => sh.fieldFigureId && sh.distanceM > 0)) return;
+    if (isShootingTimeMissing(hold.shooting_time_seconds)) return;
 
     savingCompositeRef.current = true;
     setSavingComposite(true);
@@ -193,7 +198,10 @@ export function ConfigureHoldEditor({
     onSubHoldsChanged(hold.id, false);
   };
 
-  const compositeValid = subHolds.length >= 2 && subHolds.every(sh => sh.fieldFigureId && sh.distanceM > 0);
+  const compositeValid =
+    subHolds.length >= 2 &&
+    subHolds.every(sh => sh.fieldFigureId && sh.distanceM > 0) &&
+    !isShootingTimeMissing(hold.shooting_time_seconds);
   const compositeShotTotal = subHolds.reduce((sum, sh) => sum + sh.shotCount, 0);
 
   if (isComposite) {
@@ -225,7 +233,7 @@ export function ConfigureHoldEditor({
           value={String(hold.shooting_time_seconds)}
           onChange={(v) => {
             const parsed = parseInt(v);
-            onUpdate(hold.id, { shooting_time_seconds: parsed || 60 });
+            onUpdate(hold.id, { shooting_time_seconds: Number.isNaN(parsed) ? 0 : parsed });
           }}
           suffix="- samlet for alle delhold"
         />
@@ -290,19 +298,14 @@ export function ConfigureHoldEditor({
         <div className="space-y-4 mb-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Avstand (meter)</label>
-            <input
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              value={hold.distance_m || 100}
-              onChange={(e) => {
-                const v = e.target.value.replace(/[^0-9]/g, '');
-                onUpdate(hold.id, { distance_m: v ? parseInt(v) : 100 });
-              }}
-              onFocus={(e) => e.target.select()}
-              className="w-full px-4 py-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+            <NumericTextInput
+              value={hold.distance_m ?? 100}
+              onCommit={(v) => onUpdate(hold.id, { distance_m: v ?? 100 })}
+              ariaLabel="Avstand i meter"
+              className={requiredInputClass(isDistanceMissing(hold.distance_m))}
               placeholder="100"
             />
+            <RequiredFieldError show={isDistanceMissing(hold.distance_m)} message="Mangler avstand" />
           </div>
           <div className="py-4 px-4 bg-blue-50 rounded-lg border border-blue-200">
             <p className="text-sm text-blue-900 font-medium mb-1">Knepp brukes ikke i finfelt</p>
@@ -313,32 +316,33 @@ export function ConfigureHoldEditor({
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Avstand (meter)</label>
-            <input
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              value={hold.distance_m || ''}
-              onChange={(e) => {
-                const v = e.target.value.replace(/[^0-9]/g, '');
-                onUpdate(hold.id, { distance_m: v ? parseInt(v) : null });
-              }}
-              onFocus={(e) => e.target.select()}
-              className="w-full px-4 py-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+            <NumericTextInput
+              value={hold.distance_m ?? null}
+              onCommit={(v) => onUpdate(hold.id, { distance_m: v })}
+              ariaLabel="Avstand i meter"
+              className={requiredInputClass(isDistanceMissing(hold.distance_m))}
               placeholder="Avstand..."
             />
+            <RequiredFieldError show={isDistanceMissing(hold.distance_m)} message="Mangler avstand" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Knepp opp</label>
-            <input
-              type="text"
-              inputMode="numeric"
-              pattern="-?[0-9]*"
-              value={hold.recommended_clicks ?? ''}
-              onChange={(e) => {
-                const v = e.target.value.replace(/[^0-9-]/g, '');
-                onUpdate(hold.id, { recommended_clicks: v ? parseInt(v) : 0 });
-              }}
-              onFocus={(e) => e.target.select()}
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-slate-700">Valgt knepp opp</label>
+              {hold.elevation_correction_clicks !== null && hold.elevation_correction_clicks !== undefined && (
+                <button
+                  type="button"
+                  onClick={() => onUpdate(hold.id, { elevation_correction_clicks: null })}
+                  className="text-xs font-semibold text-emerald-700 hover:text-emerald-800"
+                >
+                  Bruk anbefalt{hold.recommended_clicks != null ? ` (${hold.recommended_clicks})` : ''}
+                </button>
+              )}
+            </div>
+            <NumericTextInput
+              value={effectiveElevation(hold) ?? null}
+              onCommit={(v) => onUpdate(hold.id, { elevation_correction_clicks: v ?? 0 })}
+              allowNegative
+              ariaLabel="Valgt knepp opp"
               className="w-full px-4 py-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               placeholder="Knepp..."
             />
@@ -355,7 +359,7 @@ export function ConfigureHoldEditor({
         value={String(hold.shooting_time_seconds)}
         onChange={(v) => {
           const parsed = parseInt(v);
-          onUpdate(hold.id, { shooting_time_seconds: parsed || 60 });
+          onUpdate(hold.id, { shooting_time_seconds: Number.isNaN(parsed) ? 0 : parsed });
         }}
       />
 

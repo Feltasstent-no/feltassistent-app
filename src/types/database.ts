@@ -457,6 +457,7 @@ export interface MatchHold {
   field_figure_id: string | null;
   distance_m: number | null;
   recommended_clicks: number | null;
+  elevation_correction_clicks: number | null;
   wind_direction: string | null;
   wind_speed_ms: number | null;
   recommended_wind_clicks: number | null;

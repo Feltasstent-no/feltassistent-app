@@ -13,7 +13,8 @@ import {
   updateMatchAmmoDeduction,
   getEffectiveShotCount,
   getSubHoldsForSession,
-  getAllSubHoldImagesForSession,
+  effectiveElevation,
+  getLogicalHoldNumber,
 } from '../lib/match-service';
 import { getWindDirectionLabel } from '../components/WindCompassInput';
 import { getAutoDeductInventory, deductAmmoFromInventory } from '../lib/ammo-inventory-service';
@@ -21,11 +22,12 @@ import { supabase } from '../lib/supabase';
 import {
   ArrowLeft, CheckCircle, Clock, Wind, Camera,
   Trophy, X, Save, CreditCard as Edit3, Package, Check, Minus, Pencil, Target, ImageOff,
-  Layers, ChevronDown, ChevronUp, RotateCw,
+  Layers, ChevronRight, RotateCw,
 } from 'lucide-react';
 import { BulletIcon } from '../components/BulletIcon';
 import { FieldFigureSvg } from '../components/FieldFigureSvg';
 import { EditMetadataModal } from '../components/EditMetadataModal';
+import { CompletedHoldDetail } from '../components/match/CompletedHoldDetail';
 import { getFieldTypeDisplayName } from '../lib/display-names';
 
 import type { MatchSession, MatchHoldWithFigure } from '../lib/match-service';
@@ -66,15 +68,7 @@ export function MatchSummary() {
   const [showEditMeta, setShowEditMeta] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
-  const [expandedComposite, setExpandedComposite] = useState<Set<string>>(new Set());
-  const [subHoldImages, setSubHoldImages] = useState<Array<{
-    subHoldId: string;
-    holdOrderIndex: number;
-    subHoldOrderIndex: number;
-    imageUrl: string;
-    figureName: string;
-    distanceM: number;
-  }>>([]);
+  const [detailHold, setDetailHold] = useState<MatchHoldWithFigure | null>(null);
 
   const [ammoDeductionState, setAmmoDeductionState] = useState<
     'idle' | 'pending' | 'adjusting' | 'done'
@@ -92,13 +86,12 @@ export function MatchSummary() {
   const fetchData = async () => {
     if (!id || !user) return;
 
-    const [sessionData, holdsData, statsData, imagesData, subHoldsMap, subImagesData] = await Promise.all([
+    const [sessionData, holdsData, statsData, imagesData, subHoldsMap] = await Promise.all([
       getMatchSession(id),
       getMatchHolds(id),
       getMatchStats(id),
       getMatchHoldImages(id),
       getSubHoldsForSession(id),
-      getAllSubHoldImagesForSession(id),
     ]);
 
     const holdsWithSubs = holdsData.map(h => ({
@@ -110,7 +103,6 @@ export function MatchSummary() {
     setHolds(holdsWithSubs);
     setStats(statsData);
     setHoldImages(imagesData);
-    setSubHoldImages(subImagesData);
 
     if (sessionData) {
       setTotalHits(sessionData.total_hits != null ? String(sessionData.total_hits) : '');
@@ -416,6 +408,13 @@ export function MatchSummary() {
   const alreadyDeducted = session.ammo_deducted_count != null;
   const needsCorrectionDeduct = alreadyDeducted && effectiveShots > (session.ammo_deducted_count ?? 0);
 
+  const holdLabel = (holdId: string): string => {
+    const h = holds.find(x => x.id === holdId);
+    if (!h) return 'Hold';
+    const n = getLogicalHoldNumber(h, holds);
+    return h.reshoot_of_hold_id ? `Omskyting av Hold ${n}` : `Hold ${n}`;
+  };
+
   return (
     <Layout>
       <div className="max-w-2xl mx-auto pb-32 md:pb-8">
@@ -699,167 +698,88 @@ export function MatchSummary() {
         <div className="bg-white border border-slate-200 rounded-xl p-5 mb-6">
           <h2 className="text-base font-bold text-slate-900 mb-3">Holdoversikt</h2>
           <div className="space-y-2">
-            {holds.map((hold, index) => {
+            {holds.map((hold) => {
               const isComp = hold.is_composite && hold.sub_holds && hold.sub_holds.length > 0;
-              const isExpanded = expandedComposite.has(hold.id);
               const isReshoot = !!hold.reshoot_of_hold_id;
-              const reshootOrigIndex = isReshoot
-                ? holds.findIndex(h => h.id === hold.reshoot_of_hold_id)
-                : -1;
               const supersededByReshoot = !isReshoot && holds.some(h => h.reshoot_of_hold_id === hold.id);
               const counts = hold.counts_for_score !== false;
               const dimmed = (isReshoot || supersededByReshoot) && !counts;
+              const logicalNo = getLogicalHoldNumber(hold, holds);
 
               return (
-                <div key={hold.id}>
-                  <div
-                    className={`flex items-center justify-between p-3 bg-slate-50 rounded-lg ${isComp ? 'cursor-pointer hover:bg-slate-100 transition' : ''} ${dimmed ? 'opacity-60' : ''}`}
-                    onClick={isComp ? () => {
-                      setExpandedComposite(prev => {
-                        const next = new Set(prev);
-                        if (next.has(hold.id)) next.delete(hold.id);
-                        else next.add(hold.id);
-                        return next;
-                      });
-                    } : undefined}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div className="relative flex-shrink-0">
-                        <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden">
-                          {isComp ? (
-                            <Layers className="w-5 h-5 text-amber-600" />
-                          ) : hold.field_figure ? (
-                            <FieldFigureSvg
-                              svgData={hold.field_figure.svg_data}
-                              imageUrl={hold.field_figure.image_url}
-                              size="xs"
-                              fallbackText={hold.field_figure.short_code || hold.field_figure.code}
-                            />
-                          ) : (
-                            <Target className="w-5 h-5 text-slate-400" />
-                          )}
-                        </div>
-                        <div className={`absolute -top-1 -left-1 w-4 h-4 rounded-full flex items-center justify-center ring-2 ring-white ${isComp ? 'bg-amber-500' : 'bg-emerald-500'}`}>
-                          <span className="text-[9px] font-bold text-white leading-none">{index + 1}</span>
-                        </div>
+                <button
+                  key={hold.id}
+                  onClick={() => setDetailHold(hold)}
+                  className={`w-full flex items-center justify-between p-3 bg-slate-50 rounded-lg cursor-pointer hover:bg-slate-100 transition text-left ${dimmed ? 'opacity-60' : ''}`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className="relative flex-shrink-0">
+                      <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden">
+                        {isComp ? (
+                          <Layers className="w-5 h-5 text-amber-600" />
+                        ) : hold.field_figure ? (
+                          <FieldFigureSvg
+                            svgData={hold.field_figure.svg_data}
+                            imageUrl={hold.field_figure.image_url}
+                            size="xs"
+                            fallbackText={hold.field_figure.short_code || hold.field_figure.code}
+                          />
+                        ) : (
+                          <Target className="w-5 h-5 text-slate-400" />
+                        )}
                       </div>
-                      <div>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <p className="font-semibold text-slate-900 text-sm">
-                            {isComp ? 'Sammensatt hold' : (hold.field_figure?.name || 'Ukjent figur')}
-                          </p>
-                          {isComp && (
-                            <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-md font-bold">
-                              {hold.sub_holds!.length} delhold
-                            </span>
-                          )}
-                          {isReshoot && (
-                            <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-md font-bold inline-flex items-center gap-1">
-                              <RotateCw className="w-2.5 h-2.5" />
-                              Omskyting av {reshootOrigIndex >= 0 ? reshootOrigIndex + 1 : '?'}
-                            </span>
-                          )}
-                          {(isReshoot || supersededByReshoot) && counts && (
-                            <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-md font-bold">
-                              Tellende
-                            </span>
-                          )}
-                          {(isReshoot || supersededByReshoot) && !counts && (
-                            <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded-md font-bold">
-                              Ikke tellende
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-slate-500">
-                          {!isComp && <span>{hold.distance_m || 0}m</span>}
-                          <span>{hold.shot_count} skudd</span>
-                          {!isComp && hold.recommended_clicks != null && hold.recommended_clicks !== 0 && (
-                            <span>+{hold.recommended_clicks} knepp</span>
-                          )}
-                          {!isComp && hold.wind_correction_clicks != null && hold.wind_correction_clicks !== 0 && (
-                            <span className="text-sky-600">
-                              vind {hold.wind_correction_clicks > 0 ? '+' : ''}{hold.wind_correction_clicks}
-                            </span>
-                          )}
-                        </div>
+                      <div className={`absolute -top-1 -left-1 w-4 h-4 rounded-full flex items-center justify-center ring-2 ring-white ${isComp ? 'bg-amber-500' : 'bg-emerald-500'}`}>
+                        <span className="text-[9px] font-bold text-white leading-none">{logicalNo}</span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {hold.completed && (
-                        <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />
-                      )}
-                      {isComp && (
-                        isExpanded
-                          ? <ChevronUp className="w-4 h-4 text-slate-400" />
-                          : <ChevronDown className="w-4 h-4 text-slate-400" />
-                      )}
+                    <div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="font-semibold text-slate-900 text-sm">
+                          {isComp ? 'Sammensatt hold' : (hold.field_figure?.name || 'Ukjent figur')}
+                        </p>
+                        {isComp && (
+                          <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-md font-bold">
+                            {hold.sub_holds!.length} delhold
+                          </span>
+                        )}
+                        {isReshoot && (
+                          <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-md font-bold inline-flex items-center gap-1">
+                            <RotateCw className="w-2.5 h-2.5" />
+                            Omskyting av Hold {logicalNo}
+                          </span>
+                        )}
+                        {(isReshoot || supersededByReshoot) && counts && (
+                          <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-md font-bold">
+                            Tellende
+                          </span>
+                        )}
+                        {(isReshoot || supersededByReshoot) && !counts && (
+                          <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded-md font-bold">
+                            Ikke tellende
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-slate-500">
+                        {!isComp && <span>{hold.distance_m || 0}m</span>}
+                        <span>{hold.shot_count} skudd</span>
+                        {!isComp && effectiveElevation(hold) != null && effectiveElevation(hold) !== 0 && (
+                          <span>{(effectiveElevation(hold) || 0) > 0 ? '+' : ''}{effectiveElevation(hold)} knepp</span>
+                        )}
+                        {!isComp && hold.wind_correction_clicks != null && hold.wind_correction_clicks !== 0 && (
+                          <span className="text-sky-600">
+                            vind {hold.wind_correction_clicks > 0 ? '+' : ''}{hold.wind_correction_clicks}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-
-                  {isComp && isExpanded && (
-                    <div className="ml-6 mt-1 space-y-1.5 mb-1">
-                      {hold.sub_holds!.map((sh, si) => {
-                        const fig = sh.field_figure;
-                        const shImages = subHoldImages.filter(img => img.subHoldId === sh.id);
-                        return (
-                          <div key={sh.id} className="bg-white border border-slate-200 rounded-lg p-2.5">
-                            <div className="flex items-center gap-2.5">
-                              <div className="w-8 h-8 rounded-md bg-slate-50 border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0">
-                                {fig ? (
-                                  <FieldFigureSvg
-                                    svgData={fig.svg_data}
-                                    imageUrl={fig.image_url}
-                                    size="xs"
-                                    fallbackText={fig.short_code || fig.code}
-                                  />
-                                ) : (
-                                  <span className="text-[10px] text-slate-400 font-bold">{si + 1}</span>
-                                )}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs font-bold text-slate-800 truncate">
-                                  {fig?.short_code || fig?.code || fig?.name || 'Ukjent'}
-                                </p>
-                                <div className="flex items-center gap-2 text-[10px] text-slate-500">
-                                  <span>{sh.distance_m || 0}m</span>
-                                  <span>{sh.shot_count} skudd</span>
-                                  {sh.elevation_clicks != null && sh.elevation_clicks !== 0 && (
-                                    <span className="text-emerald-600 font-semibold">
-                                      {sh.elevation_clicks > 0 ? '+' : ''}{sh.elevation_clicks}h
-                                    </span>
-                                  )}
-                                  {sh.wind_clicks != null && sh.wind_clicks !== 0 && (
-                                    <span className="text-sky-600 font-semibold">
-                                      {sh.wind_clicks > 0 ? '+' : ''}{sh.wind_clicks}v
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-
-                            {shImages.length > 0 && (
-                              <div className="mt-2 grid grid-cols-3 gap-1.5">
-                                {shImages.map((img, ii) => (
-                                  <button
-                                    key={ii}
-                                    onClick={() => setLightboxUrl(img.imageUrl)}
-                                    className="aspect-[4/3] rounded-md overflow-hidden border border-slate-200 hover:border-blue-400 transition"
-                                  >
-                                    <img
-                                      src={img.imageUrl}
-                                      alt={`Delhold ${si + 1}`}
-                                      className="w-full h-full object-cover"
-                                    />
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+                  <div className="flex items-center gap-2">
+                    {hold.completed && (
+                      <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                    )}
+                    <ChevronRight className="w-4 h-4 text-slate-400" />
+                  </div>
+                </button>
               );
             })}
           </div>
@@ -894,7 +814,7 @@ export function MatchSummary() {
                     ) : (
                       <img
                         src={img.imageUrl}
-                        alt={`Hold ${img.orderIndex + 1}`}
+                        alt={holdLabel(img.holdId)}
                         className="w-full h-full object-cover"
                         onError={() => {
                           setFailedImages(prev => new Set(prev).add(img.holdId));
@@ -903,7 +823,7 @@ export function MatchSummary() {
                     )}
                     <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-2">
                       <p className="text-white text-xs font-medium">
-                        Hold {img.orderIndex + 1} &middot; {img.distanceM}m
+                        {holdLabel(img.holdId)} &middot; {img.distanceM}m
                       </p>
                       <p className="text-white/70 text-[10px]">{img.figureName}</p>
                     </div>
@@ -922,7 +842,7 @@ export function MatchSummary() {
               {holds.filter(h => h.notes).map((hold) => (
                 <div key={hold.id} className="bg-slate-50 rounded-lg p-3">
                   <p className="text-xs font-semibold text-slate-500 mb-1">
-                    Hold {hold.order_index + 1} &middot; {hold.field_figure?.name || 'Ukjent'}
+                    {holdLabel(hold.id)} &middot; {hold.field_figure?.name || 'Ukjent'}
                   </p>
                   <p className="text-sm text-slate-700 whitespace-pre-wrap">{hold.notes}</p>
                 </div>
@@ -1126,6 +1046,16 @@ export function MatchSummary() {
             onClick={(e) => e.stopPropagation()}
           />
         </div>
+      )}
+
+      {detailHold && user && (
+        <CompletedHoldDetail
+          hold={detailHold}
+          holds={holds}
+          userId={user.id}
+          onClose={() => setDetailHold(null)}
+          onChanged={fetchData}
+        />
       )}
 
       {showEditMeta && session && (

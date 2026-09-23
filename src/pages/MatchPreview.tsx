@@ -8,7 +8,8 @@ import { supabase } from '../lib/supabase';
 import {
   getMatchSession,
   getMatchHolds,
-  updateMatchHold,
+  effectiveElevation,
+  getMissingHoldFields,
   getSubHoldsForSession,
   type MatchSession,
   type MatchHoldWithFigure,
@@ -16,11 +17,13 @@ import {
 } from '../lib/match-service';
 import {
   ArrowLeft, Play, Wind, Target, Focus,
-  RotateCcw, FileText, Zap, Pencil, X, Check, RotateCw,
+  RotateCcw, FileText, Zap, Pencil,
   Package, AlertTriangle, Layers, Shuffle,
 } from 'lucide-react';
 import { AmmoIcon } from '../components/AmmoIcon';
 import { PrepCountdown } from '../components/PrepCountdown';
+import { PreStartHoldEditor } from '../components/match/PreStartHoldEditor';
+import type { FieldFigure, ClickTableRow } from '../types/database';
 
 interface SessionMeta {
   weaponName: string | null;
@@ -31,14 +34,6 @@ interface SessionMeta {
   ballisticProfileName: string | null;
   ammoName: string | null;
   ammoStock: number | null;
-}
-
-interface EditFormData {
-  distance_m: number;
-  recommended_clicks: number | null;
-  wind_clicks: number;
-  shooting_time_seconds: number;
-  shot_count: number;
 }
 
 function formatClicks(value: number | null | undefined): string {
@@ -69,6 +64,8 @@ export function MatchPreview() {
     ammoStock: null,
   });
   const [subHoldsMap, setSubHoldsMap] = useState<Record<string, MatchSubHold[]>>({});
+  const [availableFigures, setAvailableFigures] = useState<FieldFigure[]>([]);
+  const [clickTableRows, setClickTableRows] = useState<ClickTableRow[]>([]);
   const [loading, setLoading] = useState(true);
   const keyboardOpen = useKeyboardVisible();
   const [editingHoldId, setEditingHoldId] = useState<string | null>(null);
@@ -100,6 +97,22 @@ export function MatchPreview() {
 
     const subHolds = await getSubHoldsForSession(id);
     setSubHoldsMap(subHolds);
+
+    const { data: figuresData } = await supabase
+      .from('field_figures')
+      .select('*')
+      .eq('is_active', true)
+      .order('order_index');
+    setAvailableFigures(figuresData || []);
+
+    if (sessionData.click_table_id) {
+      const { data: rowsData } = await supabase
+        .from('click_table_rows')
+        .select('*')
+        .eq('click_table_id', sessionData.click_table_id)
+        .order('distance_m');
+      setClickTableRows(rowsData || []);
+    }
 
     const metaResult: SessionMeta = {
       weaponName: null,
@@ -171,37 +184,18 @@ export function MatchPreview() {
     setLoading(false);
   };
 
-  const handleSaveHold = async (holdId: string, data: EditFormData) => {
-    await updateMatchHold({
-      holdId,
-      distanceM: data.distance_m,
-      recommendedClicks: data.recommended_clicks ?? undefined,
-      shootingTimeSeconds: data.shooting_time_seconds,
-      shotCount: data.shot_count,
-    });
+  const refreshHolds = async () => {
+    if (!id) return;
+    const [holdsData, subHolds] = await Promise.all([
+      getMatchHolds(id),
+      getSubHoldsForSession(id),
+    ]);
+    setHolds(holdsData);
+    setSubHoldsMap(subHolds);
+  };
 
-    await supabase
-      .from('match_holds')
-      .update({
-        recommended_wind_clicks: data.wind_clicks,
-        wind_correction_clicks: data.wind_clicks,
-      })
-      .eq('id', holdId);
-
-    setHolds(prev => prev.map(h =>
-      h.id === holdId
-        ? {
-            ...h,
-            distance_m: data.distance_m,
-            recommended_clicks: data.recommended_clicks,
-            recommended_wind_clicks: data.wind_clicks,
-            wind_correction_clicks: data.wind_clicks,
-            shooting_time_seconds: data.shooting_time_seconds,
-            shot_count: data.shot_count,
-          }
-        : h
-    ));
-
+  const handleHoldSaved = async () => {
+    await refreshHolds();
     setEditingHoldId(null);
   };
 
@@ -232,6 +226,14 @@ export function MatchPreview() {
   const isFinfelt = session.competition_type === 'finfelt';
   const isUnknownMode = session.distance_mode === 'ukjent';
   const notEnoughAmmo = meta.ammoStock != null && meta.ammoStock < totalShots;
+
+  const holdIssues = isUnknownMode
+    ? []
+    : holds
+        .map((h, i) => ({ index: i, missing: getMissingHoldFields(h, subHoldsMap[h.id]) }))
+        .filter(x => x.missing.length > 0);
+  const missingFieldCount = holdIssues.reduce((sum, x) => sum + x.missing.length, 0);
+  const canStart = holdIssues.length === 0;
   const matchDate = new Date(session.match_date || session.created_at);
   const dateStr = matchDate.toLocaleDateString('nb-NO', {
     day: 'numeric',
@@ -299,14 +301,18 @@ export function MatchPreview() {
                   isEditing={editingHoldId === hold.id}
                   onEdit={() => setEditingHoldId(hold.id)}
                   onCancel={() => setEditingHoldId(null)}
-                  onSave={(data) => handleSaveHold(hold.id, data)}
+                  onSaved={handleHoldSaved}
                   subHolds={subHoldsMap[hold.id]}
+                  sessionId={session.id}
+                  competitionType={session.competition_type}
+                  figures={availableFigures}
+                  clickTableRows={clickTableRows}
                 />
 
                 {index < holds.length - 1 && (
                   <ResetDivider
                     isFinfelt={isFinfelt}
-                    prevElevClicks={hold.recommended_clicks}
+                    prevElevClicks={effectiveElevation(hold)}
                     prevWindClicks={hold.recommended_wind_clicks ?? hold.wind_correction_clicks}
                     nextWindClicks={holds[index + 1]?.recommended_wind_clicks ?? holds[index + 1]?.wind_correction_clicks}
                   />
@@ -316,7 +322,7 @@ export function MatchPreview() {
 
             {!isFinfelt && holds.length > 0 && (
               <FinalResetReminder
-                lastClicks={holds[holds.length - 1]?.recommended_clicks}
+                lastClicks={holds[holds.length - 1] ? effectiveElevation(holds[holds.length - 1]) : undefined}
                 lastWindClicks={holds[holds.length - 1]?.wind_correction_clicks ?? holds[holds.length - 1]?.recommended_wind_clicks}
               />
             )}
@@ -337,6 +343,21 @@ export function MatchPreview() {
                 <span>Lite ammunisjon: {meta.ammoStock} på lager, trenger {totalShots}</span>
               </div>
             )}
+            {!canStart && (
+              <div className="mb-2 bg-red-50 border border-red-300 rounded-lg px-3 py-2.5 text-sm text-red-800">
+                <div className="flex items-center gap-2 font-semibold">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                  <span>Kan ikke starte &ndash; {missingFieldCount} felt mangler</span>
+                </div>
+                <ul className="mt-1.5 space-y-0.5 pl-6 list-disc">
+                  {holdIssues.map(issue => (
+                    <li key={issue.index}>
+                      Hold {issue.index + 1}: {issue.missing.join(', ')}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <div className="flex flex-col-reverse sm:flex-row gap-3">
               <button
                 type="button"
@@ -347,8 +368,9 @@ export function MatchPreview() {
               </button>
               <button
                 type="button"
-                onClick={() => navigate(`/match/${id}`)}
-                className="w-full sm:flex-1 flex items-center justify-center gap-2.5 py-3.5 text-lg font-bold rounded-xl transition shadow-lg active:scale-[0.98] bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={() => canStart && navigate(`/match/${id}`)}
+                disabled={!canStart}
+                className="w-full sm:flex-1 flex items-center justify-center gap-2.5 py-3.5 text-lg font-bold rounded-xl transition shadow-lg active:scale-[0.98] bg-emerald-600 hover:bg-emerald-700 text-white disabled:bg-slate-300 disabled:cursor-not-allowed disabled:shadow-none disabled:active:scale-100"
               >
                 <Play className="w-5 h-5" />
                 Bekreft og start
@@ -513,8 +535,12 @@ function HoldCard({
   isEditing,
   onEdit,
   onCancel,
-  onSave,
+  onSaved,
   subHolds,
+  sessionId,
+  competitionType,
+  figures,
+  clickTableRows,
 }: {
   hold: MatchHoldWithFigure;
   index: number;
@@ -522,31 +548,48 @@ function HoldCard({
   isEditing: boolean;
   onEdit: () => void;
   onCancel: () => void;
-  onSave: (data: EditFormData) => void;
+  onSaved: () => Promise<void> | void;
   subHolds?: MatchSubHold[];
+  sessionId: string;
+  competitionType: 'grovfelt' | 'finfelt';
+  figures: FieldFigure[];
+  clickTableRows: ClickTableRow[];
 }) {
   const figure = hold.field_figure;
-  const elevClicks = formatClicks(hold.recommended_clicks);
+  const elevClicks = formatClicks(effectiveElevation(hold));
   const windVal = hold.recommended_wind_clicks ?? hold.wind_correction_clicks;
   const windClicks = formatClicks(windVal);
   const hasWindValue = windVal != null && windVal !== 0;
   const isOutOfRange = (hold.distance_m || 0) < 100 || (hold.distance_m || 0) > 600;
   const isComposite = hold.is_composite && subHolds && subHolds.length > 0;
 
+  const missing = getMissingHoldFields(hold, subHolds);
+  const missingDistance = missing.includes('Avstand');
+  const missingTime = missing.includes('Skytetid');
+  const hasMissing = missing.length > 0;
+  const cardClass = !isEditing && hasMissing
+    ? 'bg-red-50 border-2 border-red-300 rounded-xl overflow-hidden'
+    : 'bg-white border border-slate-200 rounded-xl overflow-hidden';
+
   return (
-    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+    <div className={cardClass}>
       <div className="flex items-stretch">
-        <div className="w-14 sm:w-16 bg-slate-50 border-r border-slate-200 flex flex-col items-center justify-center flex-shrink-0 py-3">
+        <div className={`w-14 sm:w-16 border-r flex flex-col items-center justify-center flex-shrink-0 py-3 ${!isEditing && hasMissing ? 'bg-red-100 border-red-200' : 'bg-slate-50 border-slate-200'}`}>
           <span className="text-[10px] font-semibold uppercase text-slate-400 leading-none">Hold</span>
           <span className="text-2xl font-bold text-slate-800 leading-none mt-0.5">{index + 1}</span>
         </div>
 
         <div className="flex-1 min-w-0 p-3 sm:p-4">
           {isEditing ? (
-            <HoldEditForm
+            <PreStartHoldEditor
               hold={hold}
+              sessionId={sessionId}
+              competitionType={competitionType}
+              figures={figures}
+              clickTableRows={clickTableRows}
+              subHolds={subHolds || []}
+              onSaved={onSaved}
               onCancel={onCancel}
-              onSave={onSave}
             />
           ) : (
             <>
@@ -560,7 +603,11 @@ function HoldCard({
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-slate-500">{formatTime(hold.shooting_time_seconds)} samlet</span>
+                      {missingTime ? (
+                        <span className="text-xs text-red-600 font-semibold">Mangler skytetid</span>
+                      ) : (
+                        <span className="text-xs text-slate-500">{formatTime(hold.shooting_time_seconds)} samlet</span>
+                      )}
                       <button
                         onClick={onEdit}
                         className="p-1.5 rounded-lg text-blue-600 hover:text-blue-700 hover:bg-slate-100 transition flex-shrink-0"
@@ -571,8 +618,10 @@ function HoldCard({
                     </div>
                   </div>
                   <div className="space-y-1.5">
-                    {subHolds.map((sh, si) => (
-                      <div key={sh.id} className="flex items-center gap-2 bg-slate-50 rounded-lg px-3 py-2">
+                    {subHolds.map((sh, si) => {
+                      const subMissingDistance = !sh.distance_m || sh.distance_m <= 0;
+                      return (
+                      <div key={sh.id} className={`flex items-center gap-2 rounded-lg px-3 py-2 ${subMissingDistance ? 'bg-red-50 border border-red-300' : 'bg-slate-50'}`}>
                         <span className="text-xs font-bold text-slate-500 w-5">{si + 1}.</span>
                         {sh.field_figure && (
                           <div className="w-8 h-8 flex-shrink-0 bg-white rounded border border-slate-200 p-0.5 flex items-center justify-center">
@@ -583,9 +632,13 @@ function HoldCard({
                           <p className="text-sm font-medium text-slate-800 truncate">
                             {sh.field_figure?.name || 'Ukjent'}
                           </p>
-                          <p className="text-xs text-slate-500">
-                            {sh.distance_m}m - {sh.shot_count} skudd
-                          </p>
+                          {subMissingDistance ? (
+                            <p className="text-xs text-red-600 font-semibold">Mangler avstand</p>
+                          ) : (
+                            <p className="text-xs text-slate-500">
+                              {sh.distance_m}m - {sh.shot_count} skudd
+                            </p>
+                          )}
                         </div>
                         {!isFinfelt && sh.elevation_clicks != null && (
                           <div className="text-right flex-shrink-0">
@@ -595,7 +648,8 @@ function HoldCard({
                           </div>
                         )}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               ) : (
@@ -628,11 +682,19 @@ function HoldCard({
                         </button>
                       </div>
                       <div className="flex items-center gap-1 mt-1 text-sm text-slate-500">
-                        <span className={isOutOfRange ? 'text-red-600 font-semibold' : ''}>{hold.distance_m || 0}m</span>
+                        {missingDistance ? (
+                          <span className="text-red-600 font-semibold">Mangler avstand</span>
+                        ) : (
+                          <span className={isOutOfRange ? 'text-red-600 font-semibold' : ''}>{hold.distance_m || 0}m</span>
+                        )}
                         <span className="text-slate-300">&middot;</span>
                         <span>{hold.shot_count} skudd</span>
                         <span className="text-slate-300">&middot;</span>
-                        <span>{formatTime(hold.shooting_time_seconds)}</span>
+                        {missingTime ? (
+                          <span className="text-red-600 font-semibold">Mangler skytetid</span>
+                        ) : (
+                          <span>{formatTime(hold.shooting_time_seconds)}</span>
+                        )}
                       </div>
                       {isOutOfRange && (
                         <p className="text-[10px] text-red-500 mt-0.5">Utenfor DFS-standard (100{'\u2013'}600m)</p>
@@ -674,125 +736,6 @@ function HoldCard({
           )}
         </div>
       </div>
-    </div>
-  );
-}
-
-function HoldEditForm({
-  hold,
-  onCancel,
-  onSave,
-}: {
-  hold: MatchHoldWithFigure;
-  onCancel: () => void;
-  onSave: (data: EditFormData) => void;
-}) {
-  const [form, setForm] = useState<EditFormData>({
-    distance_m: hold.distance_m || 0,
-    recommended_clicks: hold.recommended_clicks,
-    wind_clicks: hold.recommended_wind_clicks ?? hold.wind_correction_clicks ?? 0,
-    shooting_time_seconds: hold.shooting_time_seconds,
-    shot_count: hold.shot_count,
-  });
-  const [saving, setSaving] = useState(false);
-
-  const handleSave = async () => {
-    setSaving(true);
-    await onSave(form);
-    setSaving(false);
-  };
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between mb-1">
-        <p className="text-sm font-semibold text-slate-900">Rediger hold</p>
-        <button onClick={onCancel} className="p-1 rounded text-slate-400 hover:text-slate-600">
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <EditField
-          label="Avstand (m)"
-          value={form.distance_m}
-          onChange={v => setForm(f => ({ ...f, distance_m: v }))}
-        />
-        <EditField
-          label="Antall skudd"
-          value={form.shot_count}
-          onChange={v => setForm(f => ({ ...f, shot_count: v }))}
-        />
-        <EditField
-          label="Høydeknepp"
-          value={form.recommended_clicks ?? 0}
-          onChange={v => setForm(f => ({ ...f, recommended_clicks: v }))}
-          allowNegative
-        />
-        <EditField
-          label="Vindknepp"
-          value={form.wind_clicks}
-          onChange={v => setForm(f => ({ ...f, wind_clicks: v }))}
-          allowNegative
-        />
-        <EditField
-          label="Skytetid (sek)"
-          value={form.shooting_time_seconds}
-          onChange={v => setForm(f => ({ ...f, shooting_time_seconds: v }))}
-        />
-      </div>
-
-      <div className="flex items-center gap-2 pt-1">
-        <button
-          onClick={onCancel}
-          className="flex-1 py-2 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition"
-        >
-          Avbryt
-        </button>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition disabled:opacity-50"
-        >
-          <Check className="w-3.5 h-3.5" />
-          {saving ? 'Lagrer...' : 'Lagre'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function EditField({
-  label,
-  value,
-  onChange,
-  allowNegative = false,
-}: {
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-  allowNegative?: boolean;
-}) {
-  const [str, setStr] = useState(String(value));
-
-  useEffect(() => {
-    setStr(String(value));
-  }, [value]);
-
-  return (
-    <div>
-      <label className="block text-[10px] font-semibold uppercase text-slate-500 tracking-wide mb-1">
-        {label}
-      </label>
-      <input
-        type="number"
-        value={str}
-        onChange={e => {
-          setStr(e.target.value);
-          const v = parseFloat(e.target.value);
-          if (!isNaN(v) && (allowNegative || v >= 0)) onChange(v);
-        }}
-        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 tabular-nums"
-      />
     </div>
   );
 }

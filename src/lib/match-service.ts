@@ -37,6 +37,7 @@ export interface MatchHold {
   field_figure_id: string | null;
   distance_m: number | null;
   recommended_clicks: number | null;
+  elevation_correction_clicks: number | null;
   recommended_wind_clicks: number;
   shooting_time_seconds: number;
   shot_count: number;
@@ -71,6 +72,64 @@ export interface MatchSubHold {
   notes: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export function effectiveElevation(hold: {
+  elevation_correction_clicks?: number | null;
+  recommended_clicks?: number | null;
+}): number | null {
+  return hold.elevation_correction_clicks ?? hold.recommended_clicks ?? null;
+}
+
+export function isDistanceMissing(distanceM: number | null | undefined): boolean {
+  return !distanceM || distanceM <= 0;
+}
+
+export function isShootingTimeMissing(seconds: number | null | undefined): boolean {
+  return !seconds || seconds <= 0;
+}
+
+export function getMissingHoldFields(
+  hold: MatchHoldWithFigure,
+  subHolds?: MatchSubHold[] | null
+): string[] {
+  const missing: string[] = [];
+  const isComposite = hold.is_composite && subHolds && subHolds.length > 0;
+
+  if (isComposite) {
+    if (subHolds!.some(sh => !sh.field_figure_id)) missing.push('Figur');
+    if (subHolds!.some(sh => isDistanceMissing(sh.distance_m))) missing.push('Avstand');
+  } else {
+    if (!hold.field_figure_id) missing.push('Figur');
+    if (isDistanceMissing(hold.distance_m)) missing.push('Avstand');
+  }
+
+  if (isShootingTimeMissing(hold.shooting_time_seconds)) missing.push('Skytetid');
+
+  return missing;
+}
+
+type HoldNumberingInfo = Pick<MatchHold, 'id' | 'order_index' | 'reshoot_of_hold_id'>;
+
+export function getOrdinaryHolds<T extends HoldNumberingInfo>(holds: T[]): T[] {
+  return holds
+    .filter(h => !h.reshoot_of_hold_id)
+    .sort((a, b) => a.order_index - b.order_index);
+}
+
+export function getOrdinaryHoldCount(holds: HoldNumberingInfo[]): number {
+  return getOrdinaryHolds(holds).length;
+}
+
+export function getLogicalHoldNumber(
+  hold: HoldNumberingInfo | null | undefined,
+  holds: HoldNumberingInfo[]
+): number {
+  if (!hold) return 0;
+  const ordinary = getOrdinaryHolds(holds);
+  const targetId = hold.reshoot_of_hold_id ?? hold.id;
+  const idx = ordinary.findIndex(h => h.id === targetId);
+  return idx >= 0 ? idx + 1 : ordinary.length;
 }
 
 export interface MatchSubHoldImage {
@@ -362,6 +421,86 @@ export async function uploadMonitorPhoto(
   return { url: storagePath, error: null };
 }
 
+function isExternalUrl(value: string | null | undefined): boolean {
+  return !!value && (value.startsWith('http://') || value.startsWith('https://'));
+}
+
+// Safe add/replace of a hold's single monitor image. Uploads the new file to a
+// fresh path first, then repoints the row. The old storage object is removed
+// only after the DB update succeeds, so a failure never leaves the hold without
+// a usable image.
+export async function replaceHoldMonitorImage(
+  holdId: string,
+  userId: string,
+  imageBlob: Blob
+): Promise<{ url: string | null; error: any }> {
+  const { data: existing } = await supabase
+    .from('match_holds')
+    .select('monitor_image_url')
+    .eq('id', holdId)
+    .maybeSingle();
+  const oldPath = existing?.monitor_image_url as string | undefined;
+
+  const storagePath = `${userId}/${holdId}_${Date.now()}.jpg`;
+  const uploadBlob = imageBlob.type === 'image/jpeg'
+    ? imageBlob
+    : new Blob([imageBlob], { type: 'image/jpeg' });
+
+  const { error: uploadError } = await supabase.storage
+    .from('monitor-photos')
+    .upload(storagePath, uploadBlob, { contentType: 'image/jpeg', upsert: true });
+  if (uploadError) return { url: null, error: uploadError };
+
+  const { error: dbError } = await supabase
+    .from('match_holds')
+    .update({ monitor_image_url: storagePath })
+    .eq('id', holdId);
+  if (dbError) {
+    await supabase.storage.from('monitor-photos').remove([storagePath]);
+    return { url: null, error: dbError };
+  }
+
+  if (oldPath && oldPath !== storagePath && !isExternalUrl(oldPath)) {
+    await supabase.storage.from('monitor-photos').remove([oldPath]);
+  }
+
+  return { url: storagePath, error: null };
+}
+
+// Clears a hold's monitor image. The DB reference is cleared first so we never
+// point at a deleted file; a storage-delete failure afterwards is reported but
+// the DB stays cleared (no dangling reference is restored).
+export async function clearHoldMonitorImage(holdId: string): Promise<{ error: any }> {
+  const { data: existing, error: readError } = await supabase
+    .from('match_holds')
+    .select('monitor_image_url')
+    .eq('id', holdId)
+    .maybeSingle();
+  if (readError) return { error: readError };
+
+  const oldPath = existing?.monitor_image_url as string | undefined;
+
+  const { error: dbError } = await supabase
+    .from('match_holds')
+    .update({ monitor_image_url: null })
+    .eq('id', holdId);
+  if (dbError) return { error: dbError };
+
+  if (oldPath && !isExternalUrl(oldPath)) {
+    const { error: storageError } = await supabase.storage
+      .from('monitor-photos')
+      .remove([oldPath]);
+    if (storageError) return { error: storageError };
+  }
+
+  return { error: null };
+}
+
+export async function resolveMonitorImageUrl(storedValue: string): Promise<string> {
+  const [url] = await resolveMonitorImageUrls([storedValue]);
+  return url;
+}
+
 export async function getMatchHistory(userId: string, limit: number = 20): Promise<MatchSession[]> {
   const { data } = await supabase
     .from('match_sessions')
@@ -413,10 +552,11 @@ export async function getMatchStats(sessionId: string): Promise<{
 export async function updateMatchHold(params: {
   holdId: string;
   fieldFigureId?: string;
-  distanceM?: number;
-  shootingTimeSeconds?: number;
+  distanceM?: number | null;
+  shootingTimeSeconds?: number | null;
   shotCount?: number;
   recommendedClicks?: number;
+  elevationCorrectionClicks?: number | null;
   notes?: string;
 }): Promise<{ error: any }> {
   const updateData: any = {};
@@ -426,6 +566,7 @@ export async function updateMatchHold(params: {
   if (params.shootingTimeSeconds !== undefined) updateData.shooting_time_seconds = params.shootingTimeSeconds;
   if (params.shotCount !== undefined) updateData.shot_count = params.shotCount;
   if (params.recommendedClicks !== undefined) updateData.recommended_clicks = params.recommendedClicks;
+  if (params.elevationCorrectionClicks !== undefined) updateData.elevation_correction_clicks = params.elevationCorrectionClicks;
   if (params.notes !== undefined) updateData.notes = params.notes;
 
   const { error } = await resilientUpdate({
@@ -522,6 +663,7 @@ export async function createReshootHold(originalHoldId: string): Promise<{ hold:
       field_figure_id: original.field_figure_id,
       distance_m: original.distance_m,
       recommended_clicks: original.recommended_clicks,
+      elevation_correction_clicks: original.elevation_correction_clicks,
       recommended_wind_clicks: original.recommended_wind_clicks,
       shooting_time_seconds: original.shooting_time_seconds,
       shot_count: original.shot_count,
@@ -665,7 +807,6 @@ export async function startMatchSession(sessionId: string): Promise<{ error: any
           .update({
             recommended_clicks: recommendedClicks,
             recommended_wind_clicks: recommendedWindClicks,
-            wind_correction_clicks: recommendedWindClicks,
           })
           .eq('id', hold.id);
       }
@@ -711,7 +852,6 @@ export async function recalculateHoldClicks(
     .update({
       recommended_clicks: recommendedClicks,
       recommended_wind_clicks: recommendedWindClicks,
-      wind_correction_clicks: recommendedWindClicks,
     })
     .eq('id', holdId);
 
@@ -722,6 +862,18 @@ export async function updateHoldWindCorrection(holdId: string, windClicks: numbe
   const { error } = await supabase
     .from('match_holds')
     .update({ wind_correction_clicks: windClicks })
+    .eq('id', holdId);
+
+  return { error };
+}
+
+export async function updateHoldElevationCorrection(
+  holdId: string,
+  elevationClicks: number | null
+): Promise<{ error: any }> {
+  const { error } = await supabase
+    .from('match_holds')
+    .update({ elevation_correction_clicks: elevationClicks })
     .eq('id', holdId);
 
   return { error };

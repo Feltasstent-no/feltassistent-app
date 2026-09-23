@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Layers } from 'lucide-react';
+import { X, Layers, Minus, Plus } from 'lucide-react';
 import { CompactFigureSelector } from '../CompactFigureSelector';
 import { SubHoldEditor, type SubHoldFormData } from './SubHoldEditor';
 import { getFieldFigures } from '../../lib/field-assistant';
@@ -205,7 +205,11 @@ export function AddHoldModal({
                     type="number"
                     value={distance}
                     onChange={(e) => setDistance(Math.max(0, parseInt(e.target.value) || 0))}
-                    className="flex-1 text-center text-xl font-bold border-2 border-slate-300 rounded-lg py-2 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none"
+                    className={`flex-1 text-center text-xl font-bold border-2 rounded-lg py-2 outline-none transition ${
+                      distance <= 0
+                        ? 'bg-red-50 border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500'
+                        : 'border-slate-300 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500'
+                    }`}
                   />
                   <button
                     onClick={() => setDistance(distance + 50)}
@@ -214,6 +218,9 @@ export function AddHoldModal({
                     <Plus className="w-4 h-4 text-slate-600" />
                   </button>
                 </div>
+                {distance <= 0 && (
+                  <p className="text-xs text-red-600 font-medium mt-1">Mangler avstand</p>
+                )}
               </div>
 
               <ShotCountInput value={shotCount} onChange={setShotCount} />

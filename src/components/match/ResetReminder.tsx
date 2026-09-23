@@ -1,8 +1,10 @@
-import { RotateCcw, ArrowUp, Wind, PlusCircle } from 'lucide-react';
+import { RotateCcw, RotateCw, ArrowUp, Wind, PlusCircle } from 'lucide-react';
 
 interface ResetReminderProps {
   onConfirm: () => void;
   onAddHold?: () => void;
+  onReshoot?: () => void;
+  disabled?: boolean;
   previousClicks?: number | null;
   previousWindClicks?: number | null;
   nextWindClicks?: number | null;
@@ -12,6 +14,8 @@ interface ResetReminderProps {
 export function ResetReminder({
   onConfirm,
   onAddHold,
+  onReshoot,
+  disabled = false,
   previousClicks,
   previousWindClicks,
   nextWindClicks,
@@ -167,15 +171,28 @@ export function ResetReminder({
 
         <button
           onClick={onConfirm}
-          className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xl font-bold rounded-xl transition shadow-lg"
+          disabled={disabled}
+          className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xl font-bold rounded-xl transition shadow-lg"
         >
           {isLastHold ? 'Fullfør stevne' : 'Bekreftet -- Neste hold'}
         </button>
 
+        {onReshoot && (
+          <button
+            onClick={onReshoot}
+            disabled={disabled}
+            className="w-full mt-3 py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition flex items-center justify-center gap-2"
+          >
+            <RotateCw className="w-5 h-5" />
+            {isLastHold ? 'Omskyting siste hold' : 'Omskyting'}
+          </button>
+        )}
+
         {isLastHold && onAddHold && (
           <button
             onClick={onAddHold}
-            className="w-full mt-3 py-3 bg-white hover:bg-slate-50 text-slate-700 font-semibold rounded-xl transition border-2 border-slate-300 flex items-center justify-center gap-2"
+            disabled={disabled}
+            className="w-full mt-3 py-3 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 font-semibold rounded-xl transition border-2 border-slate-300 flex items-center justify-center gap-2"
           >
             <PlusCircle className="w-5 h-5 text-emerald-600" />
             Legg til ekstra hold

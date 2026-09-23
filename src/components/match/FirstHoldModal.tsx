@@ -2,6 +2,7 @@ import { Crosshair, Wind, Clock, Target, ArrowRight, X, Layers } from 'lucide-re
 import { FieldFigure } from '../FieldFigure';
 import { FieldFigureSvg } from '../FieldFigureSvg';
 import type { MatchHoldWithFigure } from '../../lib/match-service';
+import { effectiveElevation } from '../../lib/match-service';
 
 interface FirstHoldModalProps {
   hold: MatchHoldWithFigure;
@@ -13,7 +14,7 @@ interface FirstHoldModalProps {
 
 export function FirstHoldModal({ hold, holdIndex, isFinfelt, onConfirm, onCancel }: FirstHoldModalProps) {
   const distanceM = hold.distance_m || 0;
-  const heightClicks = hold.recommended_clicks || 0;
+  const heightClicks = effectiveElevation(hold) || 0;
   const windClicks = hold.recommended_wind_clicks || 0;
   const shootTime = hold.shooting_time_seconds || 60;
   const hasWind = !isFinfelt && windClicks !== 0;

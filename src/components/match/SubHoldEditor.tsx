@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Minus, Plus, Trash2, GripVertical, ArrowUp, Wind } from 'lucide-react';
 import { CompactFigureSelector } from '../CompactFigureSelector';
+import { NumericTextInput } from '../inputs/NumericTextInput';
 import type { FieldFigure } from '../../types/database';
 
 export interface SubHoldFormData {
@@ -161,11 +162,15 @@ function SubHoldRow({
                 >
                   <Minus className="w-3 h-3 text-slate-600" />
                 </button>
-                <input
-                  type="number"
-                  value={subHold.distanceM}
-                  onChange={(e) => onUpdate({ ...subHold, distanceM: Math.max(0, parseInt(e.target.value) || 0) })}
-                  className="flex-1 text-center text-base font-bold border border-slate-300 rounded-md py-1.5 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none min-w-0"
+                <NumericTextInput
+                  value={subHold.distanceM || null}
+                  onCommit={(v) => onUpdate({ ...subHold, distanceM: v ?? 0 })}
+                  ariaLabel="Avstand i meter"
+                  className={`flex-1 text-center text-base font-bold border rounded-md py-1.5 outline-none min-w-0 transition ${
+                    subHold.distanceM <= 0
+                      ? 'bg-red-50 border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500'
+                      : 'border-slate-300 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500'
+                  }`}
                 />
                 <button
                   type="button"
@@ -175,6 +180,9 @@ function SubHoldRow({
                   <Plus className="w-3 h-3 text-slate-600" />
                 </button>
               </div>
+              {subHold.distanceM <= 0 && (
+                <p className="text-[10px] text-red-600 font-medium mt-1">Mangler avstand</p>
+              )}
             </div>
 
             <div>

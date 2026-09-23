@@ -4,6 +4,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { FieldFigurePreview } from '../components/FieldFigurePreview';
 import { ConfigureHoldEditor } from '../components/match/ConfigureHoldEditor';
+import { NumericTextInput } from '../components/inputs/NumericTextInput';
+import { RequiredFieldError } from '../components/inputs/required-field';
 import { ArrowLeft, Play, Check, AlertCircle, Package, AlertTriangle, Layers, Shuffle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import {
@@ -13,10 +15,13 @@ import {
   updateMatchShooterClass,
   updateMatchAmmoSelection,
   startMatchSession,
-  isMatchReadyToStart,
   getSubHoldsForSession,
+  effectiveElevation,
+  getMissingHoldFields,
+  isShootingTimeMissing,
   type MatchSession,
   type MatchHold,
+  type MatchHoldWithFigure,
   type MatchSubHold,
 } from '../lib/match-service';
 import { getAmmoInventoryForUser } from '../lib/ammo-inventory-service';
@@ -36,7 +41,6 @@ export function MatchConfigure() {
   const [shooterClasses, setShooterClasses] = useState<ShooterClass[]>([]);
   const [selectedShooterClassId, setSelectedShooterClassId] = useState<string>('');
   const [editingHoldId, setEditingHoldId] = useState<string | null>(null);
-  const [isReady, setIsReady] = useState(false);
   const [starting, setStarting] = useState(false);
   const keyboardOpen = useKeyboardVisible();
   const [clickTableRows, setClickTableRows] = useState<ClickTableRow[]>([]);
@@ -49,12 +53,6 @@ export function MatchConfigure() {
       fetchData();
     }
   }, [id]);
-
-  useEffect(() => {
-    if (id) {
-      checkReadyState();
-    }
-  }, [holds, id]);
 
   const fetchData = async () => {
     if (!id) return;
@@ -162,12 +160,6 @@ export function MatchConfigure() {
     setLoading(false);
   };
 
-  const checkReadyState = async () => {
-    if (!id) return;
-    const ready = await isMatchReadyToStart(id);
-    setIsReady(ready);
-  };
-
   const getRecommendedClicksForDistance = (distanceM: number): number | null => {
     if (clickTableRows.length === 0 || !distanceM) return null;
 
@@ -221,10 +213,11 @@ export function MatchConfigure() {
     const { error } = await updateMatchHold({
       holdId,
       fieldFigureId: updates.field_figure_id || undefined,
-      distanceM: updates.distance_m || undefined,
-      shootingTimeSeconds: updates.shooting_time_seconds || undefined,
+      distanceM: updates.distance_m !== undefined ? updates.distance_m : undefined,
+      shootingTimeSeconds: updates.shooting_time_seconds !== undefined ? updates.shooting_time_seconds : undefined,
       shotCount: updates.shot_count || undefined,
       recommendedClicks: updates.recommended_clicks !== undefined ? updates.recommended_clicks : undefined,
+      elevationCorrectionClicks: updates.elevation_correction_clicks !== undefined ? updates.elevation_correction_clicks : undefined,
       notes: updates.notes || undefined,
     });
 
@@ -266,7 +259,7 @@ export function MatchConfigure() {
   const isUnknownMode = session?.distance_mode === 'ukjent';
 
   const handleStartMatch = async () => {
-    if (!id || (!isReady && !isUnknownMode)) return;
+    if (!id || (!isReadyClient && !isUnknownMode)) return;
 
     setStarting(true);
     const { error } = await startMatchSession(id);
@@ -279,13 +272,16 @@ export function MatchConfigure() {
     }
   };
 
-  const isHoldComplete = (hold: MatchHold) => {
-    return (
-      hold.field_figure_id !== null &&
-      hold.distance_m !== null &&
-      hold.distance_m > 0
-    );
-  };
+  const holdMissingFields = (hold: MatchHold) =>
+    getMissingHoldFields(hold as MatchHoldWithFigure, subHoldsMap[hold.id]);
+
+  const isHoldComplete = (hold: MatchHold) => holdMissingFields(hold).length === 0;
+
+  const holdIssues = holds
+    .map((hold, index) => ({ number: index + 1, missing: holdMissingFields(hold) }))
+    .filter((issue) => issue.missing.length > 0);
+  const totalMissingFields = holdIssues.reduce((sum, issue) => sum + issue.missing.length, 0);
+  const isReadyClient = holdIssues.length === 0;
 
   const completedCount = holds.filter(isHoldComplete).length;
   const totalCount = holds.length;
@@ -346,7 +342,7 @@ export function MatchConfigure() {
                   {completedCount} av {totalCount} hold
                 </p>
               </div>
-              {isReady ? (
+              {isReadyClient ? (
                 <div className="flex items-center gap-2 text-emerald-600">
                   <Check className="w-5 h-5" />
                   <span className="font-medium">Klar til start</span>
@@ -528,14 +524,17 @@ export function MatchConfigure() {
                                 </p>
                                 <p className="text-sm text-slate-600 break-words">
                                   {hold.distance_m}m
-                                  {hold.recommended_clicks !== null && hold.recommended_clicks !== undefined && (
-                                    <>
-                                      {' · '}
-                                      <span className="font-medium text-emerald-700">
-                                        {hold.recommended_clicks > 0 ? '+' : ''}{hold.recommended_clicks} knepp
-                                      </span>
-                                    </>
-                                  )}
+                                  {(() => {
+                                    const eff = effectiveElevation(hold);
+                                    return eff !== null && eff !== undefined ? (
+                                      <>
+                                        {' · '}
+                                        <span className="font-medium text-emerald-700">
+                                          {eff > 0 ? '+' : ''}{eff} knepp
+                                        </span>
+                                      </>
+                                    ) : null;
+                                  })()}
                                   {' · '}
                                   {hold.shot_count} skudd
                                 </p>
@@ -543,23 +542,27 @@ export function MatchConfigure() {
                             )}
                             <div className="flex items-center gap-2 mt-2">
                               <label className="text-xs text-slate-500">Skytetid:</label>
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                pattern="[0-9]*"
+                              <NumericTextInput
                                 value={hold.shooting_time_seconds}
-                                onClick={(e) => e.stopPropagation()}
-                                onChange={(e) => {
-                                  const v = e.target.value.replace(/[^0-9]/g, '');
+                                onCommit={(v) =>
                                   handleUpdateHold(hold.id, {
-                                    shooting_time_seconds: v ? parseInt(v) : 60,
-                                  });
-                                }}
-                                onFocus={(e) => e.target.select()}
-                                className="w-20 px-2 py-1 text-sm bg-white border border-slate-300 rounded focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                                    shooting_time_seconds: v && v > 0 ? v : 0,
+                                  })
+                                }
+                                onClick={(e) => e.stopPropagation()}
+                                ariaLabel="Skytetid i sekunder"
+                                className={`w-24 px-2 py-1 rounded focus:ring-2 focus:border-transparent ${
+                                  isShootingTimeMissing(hold.shooting_time_seconds)
+                                    ? 'bg-red-50 border border-red-400 focus:ring-red-500'
+                                    : 'bg-white border border-slate-300 focus:ring-emerald-500'
+                                }`}
                               />
                               <span className="text-xs text-slate-500">sek</span>
                             </div>
+                            <RequiredFieldError
+                              show={isShootingTimeMissing(hold.shooting_time_seconds)}
+                              message="Mangler skytetid"
+                            />
                             {hold.notes && (
                               <p className="text-sm text-slate-500 mt-1">{hold.notes}</p>
                             )}
@@ -595,9 +598,9 @@ export function MatchConfigure() {
         >
           <button
             onClick={handleStartMatch}
-            disabled={(!isReady && !isUnknownMode) || starting}
+            disabled={(!isReadyClient && !isUnknownMode) || starting}
             className={`w-full flex items-center justify-center gap-2 px-6 py-4 rounded-lg font-semibold text-lg transition-colors ${
-              (isReady || isUnknownMode) && !starting
+              (isReadyClient || isUnknownMode) && !starting
                 ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
                 : 'bg-slate-200 text-slate-400 cursor-not-allowed'
             }`}
@@ -605,10 +608,19 @@ export function MatchConfigure() {
             <Play className="w-5 h-5" />
             {starting ? 'Starter...' : 'Start stevne'}
           </button>
-          {!isReady && !isUnknownMode && (
-            <p className="text-center text-sm text-slate-600 mt-3">
-              Fyll ut alle hold før du starter stevnet
-            </p>
+          {!isReadyClient && !isUnknownMode && (
+            <div className="mt-3">
+              <p className="text-center text-sm font-semibold text-red-600">
+                Kan ikke starte – {totalMissingFields} felt mangler
+              </p>
+              <ul className="mt-1 space-y-0.5">
+                {holdIssues.map((issue) => (
+                  <li key={issue.number} className="text-center text-sm text-red-600">
+                    Hold {issue.number}: {issue.missing.join(', ')}
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
       </div>

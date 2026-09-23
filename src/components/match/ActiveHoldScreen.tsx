@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { Camera, Play, CheckCircle, Pause, AlertCircle, Wind, Minus, Plus, PlusCircle, Layers, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Camera, Play, CheckCircle, Pause, AlertCircle, Wind, Minus, Plus, PlusCircle, Layers, ChevronLeft, ChevronRight, ArrowUpDown } from 'lucide-react';
 import { FieldFigure } from '../FieldFigure';
 import { FieldFigureSvg } from '../FieldFigureSvg';
 import { CompactDigitalClock } from './CompactDigitalClock';
@@ -12,7 +12,9 @@ interface ActiveHoldScreenProps {
   onTakePhoto: () => void;
   onClockStart?: () => void;
   onClockComplete?: () => void;
+  clockStarted?: boolean;
   onWindCorrectionChange?: (holdId: string, clicks: number) => void;
+  onElevationCorrectionChange?: (holdId: string, clicks: number | null) => void;
   onAddHold?: () => void;
   onTakeSubHoldPhoto?: (subHoldId: string) => void;
   initialElapsedTime?: number;
@@ -20,6 +22,7 @@ interface ActiveHoldScreenProps {
   isLastHold?: boolean;
   previousHoldWindClicks?: number | null;
   hasPhoto?: boolean;
+  reviewMode?: boolean;
 }
 
 function SubHoldIndicator({
@@ -150,7 +153,9 @@ export function ActiveHoldScreen({
   onTakePhoto,
   onClockStart,
   onClockComplete: onClockCompleteProp,
+  clockStarted = false,
   onWindCorrectionChange,
+  onElevationCorrectionChange,
   onAddHold,
   onTakeSubHoldPhoto,
   initialElapsedTime = 0,
@@ -158,32 +163,30 @@ export function ActiveHoldScreen({
   isLastHold = false,
   previousHoldWindClicks,
   hasPhoto = false,
+  reviewMode = false,
 }: ActiveHoldScreenProps) {
   const isComposite = hold.is_composite && hold.sub_holds && hold.sub_holds.length > 0;
   const subHolds = hold.sub_holds || [];
 
-  const shouldAutoResume = initialElapsedTime > 0 && !isComposite;
-  const [clockStarted, setClockStarted] = useState(shouldAutoResume);
   const [clockFinished, setClockFinished] = useState(false);
   const [windClicks, setWindClicks] = useState(hold.wind_correction_clicks || 0);
+  const [elevCorrection, setElevCorrection] = useState<number | null>(
+    hold.elevation_correction_clicks ?? null
+  );
   const [activeSubHoldIndex, setActiveSubHoldIndex] = useState(0);
-  const prevHoldIdRef = useRef(hold.id);
 
   useEffect(() => {
     setWindClicks(hold.wind_correction_clicks || 0);
   }, [hold.id, hold.wind_correction_clicks]);
 
   useEffect(() => {
-    if (prevHoldIdRef.current !== hold.id) {
-      prevHoldIdRef.current = hold.id;
-      const compositeNow = hold.is_composite && hold.sub_holds && hold.sub_holds.length > 0;
-      setClockStarted(initialElapsedTime > 0 && !compositeNow);
-      setClockFinished(false);
-      setActiveSubHoldIndex(0);
-    } else if (initialElapsedTime > 0 && !clockStarted && !isComposite) {
-      setClockStarted(true);
-    }
-  }, [hold.id, initialElapsedTime, hold.is_composite, hold.sub_holds, clockStarted, isComposite]);
+    setElevCorrection(hold.elevation_correction_clicks ?? null);
+  }, [hold.id, hold.elevation_correction_clicks]);
+
+  useEffect(() => {
+    setClockFinished(false);
+    setActiveSubHoldIndex(0);
+  }, [hold.id]);
 
   useEffect(() => {
     if (initialElapsedTime > 0 && clockStarted && !clockFinished) {
@@ -195,7 +198,6 @@ export function ActiveHoldScreen({
   }, [initialElapsedTime, clockStarted, clockFinished, hold.field_figure?.prep_time_seconds, hold.shooting_time_seconds]);
 
   const handleStartClock = () => {
-    setClockStarted(true);
     onClockStart?.();
   };
 
@@ -214,6 +216,23 @@ export function ActiveHoldScreen({
   const windDiffers = hasWindRecommendation && windClicks !== (hold.recommended_wind_clicks || 0);
   const distanceM = hold.distance_m || 0;
   const isOutOfRange = distanceM < 100 || distanceM > 600;
+
+  const recommendedElev = hold.recommended_clicks ?? 0;
+  const effectiveElev = elevCorrection ?? recommendedElev;
+  const followingRecommendedElev = elevCorrection === null;
+  const readyEditable = !reviewMode && hold.started_at == null && !hold.completed;
+  const showElevControl = !isFinfelt && !isComposite && readyEditable;
+
+  const handleElevChange = (delta: number) => {
+    const newValue = effectiveElev + delta;
+    setElevCorrection(newValue);
+    onElevationCorrectionChange?.(hold.id, newValue);
+  };
+
+  const handleUseRecommendedElev = () => {
+    setElevCorrection(null);
+    onElevationCorrectionChange?.(hold.id, null);
+  };
 
   const prevWind = previousHoldWindClicks || 0;
   const currentRecommendedWind = hold.recommended_wind_clicks || 0;
@@ -267,7 +286,7 @@ export function ActiveHoldScreen({
                 <div className="bg-emerald-50 border-2 border-emerald-600 rounded-lg p-2 text-center">
                   <p className="text-xs text-emerald-700 font-semibold mb-1">Høyde</p>
                   <p className="text-xl font-bold text-emerald-600">
-                    {(hold.recommended_clicks || 0) > 0 ? '+' : ''}{hold.recommended_clicks || 0}
+                    {effectiveElev > 0 ? '+' : ''}{effectiveElev}
                   </p>
                 </div>
                 <div className="bg-white rounded-lg border-2 border-slate-200 p-2 text-center">
@@ -291,7 +310,99 @@ export function ActiveHoldScreen({
           </div>
         )}
 
-        {!isFinfelt && hasWindRecommendation && (
+        {showElevControl && (
+          <div className="w-full max-w-md mx-auto flex-shrink-0">
+            <div className="bg-emerald-50 border border-emerald-300 rounded-lg px-3 py-2 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <ArrowUpDown className="w-4 h-4 text-emerald-700 shrink-0" />
+                <div className="min-w-0 leading-tight">
+                  <p className="text-xs font-semibold text-emerald-700">Høyde</p>
+                  <p className="text-[10px] text-emerald-600">
+                    Anbefalt {recommendedElev > 0 ? '+' : ''}{recommendedElev}
+                    {!followingRecommendedElev && (
+                      <button
+                        onClick={handleUseRecommendedElev}
+                        className="ml-1 underline hover:text-emerald-800"
+                      >
+                        Bruk anbefalt
+                      </button>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => handleElevChange(-1)}
+                  className="w-9 h-9 rounded-lg bg-white border-2 border-emerald-300 hover:bg-emerald-100 flex items-center justify-center transition"
+                >
+                  <Minus className="w-4 h-4 text-emerald-700" />
+                </button>
+                <div className="min-w-[44px] text-center">
+                  <span className="text-xl font-bold text-emerald-800">
+                    {effectiveElev > 0 ? '+' : ''}{effectiveElev}
+                  </span>
+                </div>
+                <button
+                  onClick={() => handleElevChange(1)}
+                  className="w-9 h-9 rounded-lg bg-white border-2 border-emerald-300 hover:bg-emerald-100 flex items-center justify-center transition"
+                >
+                  <Plus className="w-4 h-4 text-emerald-700" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!isFinfelt && hasWindRecommendation && readyEditable && (
+          <div className="w-full max-w-md mx-auto flex-shrink-0">
+            <div className="bg-sky-50 border border-sky-300 rounded-lg px-3 py-2 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Wind className="w-4 h-4 text-sky-700 shrink-0" />
+                <div className="min-w-0 leading-tight">
+                  <p className="text-xs font-semibold text-sky-700">Vind</p>
+                  <p className="text-[10px] text-sky-600">
+                    Anbefalt {Math.abs(hold.recommended_wind_clicks || 0)}
+                    {(hold.recommended_wind_clicks || 0) > 0 ? ' høyre' : (hold.recommended_wind_clicks || 0) < 0 ? ' venstre' : ''}
+                    {windDiffers && (
+                      <button
+                        onClick={() => {
+                          const rec = hold.recommended_wind_clicks || 0;
+                          setWindClicks(rec);
+                          onWindCorrectionChange?.(hold.id, rec);
+                        }}
+                        className="ml-1 underline hover:text-sky-800"
+                      >
+                        Bruk anbefalt
+                      </button>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => handleWindChange(-1)}
+                  className="w-9 h-9 rounded-lg bg-white border-2 border-sky-300 hover:bg-sky-100 flex items-center justify-center transition"
+                >
+                  <Minus className="w-4 h-4 text-sky-700" />
+                </button>
+                <div className="min-w-[64px] text-center leading-tight">
+                  <span className="text-xl font-bold text-sky-800">{Math.abs(windClicks)}</span>
+                  <span className="text-[10px] font-medium text-sky-600 ml-0.5">
+                    {windClicks > 0 ? 'høyre' : windClicks < 0 ? 'venstre' : ''}
+                  </span>
+                </div>
+                <button
+                  onClick={() => handleWindChange(1)}
+                  className="w-9 h-9 rounded-lg bg-white border-2 border-sky-300 hover:bg-sky-100 flex items-center justify-center transition"
+                >
+                  <Plus className="w-4 h-4 text-sky-700" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!isFinfelt && hasWindRecommendation && !readyEditable && (
           <div className="w-full max-w-md mx-auto flex-shrink-0">
             <div className="bg-sky-50 border-2 border-sky-300 rounded-lg p-3">
               <div className="flex items-center gap-1.5 mb-2">
@@ -304,7 +415,7 @@ export function ActiveHoldScreen({
                   Anbefalt: {Math.abs(hold.recommended_wind_clicks || 0)} knepp
                   {(hold.recommended_wind_clicks || 0) > 0 ? ' høyre' : (hold.recommended_wind_clicks || 0) < 0 ? ' venstre' : ''}
                 </span>
-                {windDiffers && (
+                {windDiffers && !reviewMode && (
                   <button
                     onClick={() => {
                       const rec = hold.recommended_wind_clicks || 0;
@@ -329,7 +440,8 @@ export function ActiveHoldScreen({
               <div className="flex items-center justify-center gap-3">
                 <button
                   onClick={() => handleWindChange(-1)}
-                  className="w-9 h-9 rounded-lg bg-white border-2 border-sky-300 hover:bg-sky-100 flex items-center justify-center transition"
+                  disabled={reviewMode}
+                  className="w-9 h-9 rounded-lg bg-white border-2 border-sky-300 hover:bg-sky-100 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition"
                 >
                   <Minus className="w-4 h-4 text-sky-700" />
                 </button>
@@ -343,7 +455,8 @@ export function ActiveHoldScreen({
                 </div>
                 <button
                   onClick={() => handleWindChange(1)}
-                  className="w-9 h-9 rounded-lg bg-white border-2 border-sky-300 hover:bg-sky-100 flex items-center justify-center transition"
+                  disabled={reviewMode}
+                  className="w-9 h-9 rounded-lg bg-white border-2 border-sky-300 hover:bg-sky-100 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition"
                 >
                   <Plus className="w-4 h-4 text-sky-700" />
                 </button>
@@ -352,7 +465,7 @@ export function ActiveHoldScreen({
           </div>
         )}
 
-        {hold.field_figure && (
+        {hold.field_figure && !reviewMode && (
           <div className="w-full max-w-md mx-auto flex-shrink-0">
             <CompactDigitalClock
               key={hold.id}
@@ -361,6 +474,7 @@ export function ActiveHoldScreen({
               onComplete={handleClockComplete}
               onForceComplete={handleClockComplete}
               isPaused={!clockStarted}
+              started={clockStarted}
               initialElapsedTime={initialElapsedTime}
             />
           </div>
@@ -368,7 +482,12 @@ export function ActiveHoldScreen({
       </div>
 
       <div className="border-t border-slate-200 bg-white p-4 space-y-2 flex-shrink-0">
-        {!clockStarted ? (
+        {reviewMode ? (
+          <div className="text-center py-1.5">
+            <p className="text-sm font-semibold text-slate-500">Tidligere hold - kun visning</p>
+            <p className="text-xs text-slate-400 mt-0.5">Bruk knappene over for a bla eller ga tilbake til aktivt hold</p>
+          </div>
+        ) : !clockStarted ? (
           <>
             <button
               onClick={handleStartClock}
