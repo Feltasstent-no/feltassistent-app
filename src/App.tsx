@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ActiveSetupProvider } from './contexts/ActiveSetupContext';
 import { OnboardingProvider } from './contexts/OnboardingContext';
+import { NavGuardProvider } from './contexts/NavGuardContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { ScrollToTop } from './components/ScrollToTop';
 import { Login } from './pages/Login';
@@ -60,6 +61,7 @@ function App() {
         <SyncStatusIndicator />
         <OnboardingProvider>
           <ActiveSetupProvider>
+            <NavGuardProvider>
             <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
@@ -436,6 +438,7 @@ function App() {
 
             <Route path="/" element={<Navigate to="/match" replace />} />
             </Routes>
+            </NavGuardProvider>
           </ActiveSetupProvider>
         </OnboardingProvider>
       </BrowserRouter>

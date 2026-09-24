@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useOnboarding } from '../contexts/OnboardingContext';
+import { useNavGuard } from '../contexts/NavGuardContext';
 import { supabase } from '../lib/supabase';
 import { Home, User, BookOpen, Clock, Settings, LogOut, Crosshair, ListOrdered, Activity, Shield, Sun, Moon, Palette, Target } from 'lucide-react';
 import { InitialsAvatar } from './InitialsAvatar';
@@ -19,7 +20,14 @@ export function Layout({ children }: LayoutProps) {
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
   const { userMode } = useOnboarding();
+  const { requestLeave, runPauseIfActive } = useNavGuard();
   const [profileName, setProfileName] = useState<string | null>(null);
+
+  const handleGuardedNav = (destination: string) => (e: React.MouseEvent) => {
+    if (requestLeave(destination)) {
+      e.preventDefault();
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -34,6 +42,7 @@ export function Layout({ children }: LayoutProps) {
   }, [user]);
 
   const handleSignOut = async () => {
+    await runPauseIfActive();
     await signOut();
     navigate('/login');
   };
@@ -70,7 +79,7 @@ export function Layout({ children }: LayoutProps) {
       >
         <div className="px-4 sm:px-6 lg:px-8 md:ml-64">
           <div className="flex items-center justify-between h-16">
-            <Link to="/match" className="flex items-center space-x-2.5">
+            <Link to="/match" onClick={handleGuardedNav('/match')} className="flex items-center space-x-2.5">
               <img
                 src={theme === 'light' ? '/logo/fa-header.png' : '/logo/fa-header-dark.png'}
                 alt="Feltassistent"
@@ -121,12 +130,14 @@ export function Layout({ children }: LayoutProps) {
               </div>
               <Link
                 to="/settings"
+                onClick={handleGuardedNav('/settings')}
                 className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition"
               >
                 <Settings className="w-5 h-5" />
               </Link>
               <Link
                 to="/profile"
+                onClick={handleGuardedNav('/profile')}
                 className="hover:opacity-80 transition"
               >
                 <InitialsAvatar name={profileName} size="sm" />
@@ -155,6 +166,7 @@ export function Layout({ children }: LayoutProps) {
               <Link
                 key={item.path}
                 to={item.path}
+                onClick={handleGuardedNav(item.path)}
                 className={`flex flex-col items-center justify-center py-2 px-1 min-w-0 flex-1 rounded-lg transition active:scale-95 ${
                   isActive
                     ? 'bg-emerald-50 text-emerald-600'
@@ -178,6 +190,7 @@ export function Layout({ children }: LayoutProps) {
               <Link
                 key={item.path}
                 to={item.path}
+                onClick={handleGuardedNav(item.path)}
                 className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition ${
                   isActive
                     ? 'bg-emerald-50 text-emerald-600'

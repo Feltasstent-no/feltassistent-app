@@ -879,6 +879,51 @@ export async function updateHoldElevationCorrection(
   return { error };
 }
 
+export async function correctCompletedHold(
+  holdId: string,
+  sessionId: string,
+  updates: { field_figure_id?: string | null; distance_m?: number | null; notes?: string | null }
+): Promise<{ error: any }> {
+  const payload: Record<string, any> = {};
+  if (updates.field_figure_id !== undefined) payload.field_figure_id = updates.field_figure_id;
+  if (updates.distance_m !== undefined) payload.distance_m = updates.distance_m;
+  if (updates.notes !== undefined) payload.notes = updates.notes;
+
+  if (Object.keys(payload).length === 0) return { error: null };
+
+  const { error } = await supabase
+    .from('match_holds')
+    .update(payload)
+    .eq('id', holdId);
+
+  if (error) return { error };
+
+  if (updates.distance_m != null && updates.distance_m > 0) {
+    await recalculateHoldClicks(sessionId, holdId, updates.distance_m);
+  }
+
+  return { error: null };
+}
+
+export async function correctCompletedSubHold(
+  subHoldId: string,
+  updates: { field_figure_id?: string | null; distance_m?: number | null; notes?: string | null }
+): Promise<{ error: any }> {
+  const payload: Record<string, any> = {};
+  if (updates.field_figure_id !== undefined) payload.field_figure_id = updates.field_figure_id;
+  if (updates.distance_m !== undefined) payload.distance_m = updates.distance_m;
+  if (updates.notes !== undefined) payload.notes = updates.notes;
+
+  if (Object.keys(payload).length === 0) return { error: null };
+
+  const { error } = await supabase
+    .from('match_sub_holds')
+    .update(payload)
+    .eq('id', subHoldId);
+
+  return { error };
+}
+
 export async function updateMatchShooterClass(sessionId: string, shooterClassId: string): Promise<{ error: any }> {
   const { error } = await supabase
     .from('match_sessions')

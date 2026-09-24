@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useKeyboardVisible } from '../hooks/useKeyboardVisible';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
@@ -69,10 +69,31 @@ export function MatchPreview() {
   const [loading, setLoading] = useState(true);
   const keyboardOpen = useKeyboardVisible();
   const [editingHoldId, setEditingHoldId] = useState<string | null>(null);
+  const actionPanelRef = useRef<HTMLDivElement>(null);
+  const [actionPanelHeight, setActionPanelHeight] = useState(0);
+  const [isDesktop, setIsDesktop] = useState(false);
 
   useEffect(() => {
     if (id && user) fetchData();
   }, [id, user]);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const update = () => setIsDesktop(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+
+  useEffect(() => {
+    const el = actionPanelRef.current;
+    if (!el) return;
+    const update = () => setActionPanelHeight(el.offsetHeight);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [loading, keyboardOpen]);
 
   const fetchData = async () => {
     if (!id || !user) return;
@@ -243,7 +264,14 @@ export function MatchPreview() {
 
   return (
     <Layout>
-      <div className="max-w-3xl mx-auto pb-56 md:pb-8">
+      <div
+        className="max-w-3xl mx-auto md:pb-8"
+        style={
+          isDesktop
+            ? undefined
+            : { paddingBottom: `calc(${actionPanelHeight}px + 80px + env(safe-area-inset-bottom, 0px) + 24px)` }
+        }
+      >
         <button
           type="button"
           onClick={() => navigate(`/match/${id}/configure`)}
@@ -330,6 +358,7 @@ export function MatchPreview() {
         )}
 
         <div
+          ref={actionPanelRef}
           className="fixed left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-slate-200 z-50 md:static md:bg-transparent md:border-0 md:mt-8 md:z-auto md:bottom-0"
           style={{ bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))', display: keyboardOpen ? 'none' : undefined }}
         >

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  X, Camera, RefreshCw, Trash2, RotateCw, ImageOff, Loader2, Layers,
+  X, Camera, RefreshCw, Trash2, RotateCw, ImageOff, Loader2, Layers, Pencil,
 } from 'lucide-react';
+import { CompletedHoldCorrection } from './CompletedHoldCorrection';
 import {
   replaceHoldMonitorImage,
   clearHoldMonitorImage,
@@ -21,6 +22,7 @@ interface CompletedHoldDetailProps {
   hold: MatchHoldWithFigure;
   holds: MatchHoldWithFigure[];
   userId: string;
+  sessionId: string;
   onClose: () => void;
   onChanged: () => void;
 }
@@ -31,7 +33,8 @@ type ConfirmTarget =
   | { kind: 'sub'; subId: string; imageId: string }
   | null;
 
-export function CompletedHoldDetail({ hold, holds, userId, onClose, onChanged }: CompletedHoldDetailProps) {
+export function CompletedHoldDetail({ hold, holds, userId, sessionId, onClose, onChanged }: CompletedHoldDetailProps) {
+  const [showCorrection, setShowCorrection] = useState(false);
   const [holdImageUrl, setHoldImageUrl] = useState<string | null>(null);
   const [imageFailed, setImageFailed] = useState(false);
   const [subImages, setSubImages] = useState<Record<string, MatchSubHoldImage[]>>({});
@@ -378,6 +381,19 @@ export function CompletedHoldDetail({ hold, holds, userId, onClose, onChanged }:
             </div>
           )}
 
+          {/* Correction entry point */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowCorrection(true)}
+              disabled={!!busy}
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 disabled:opacity-50 text-slate-700 font-semibold rounded-lg transition text-sm"
+            >
+              <Pencil className="w-4 h-4" />
+              Korriger registrering
+            </button>
+          </div>
+
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 font-medium">
               {error}
@@ -409,6 +425,16 @@ export function CompletedHoldDetail({ hold, holds, userId, onClose, onChanged }:
             onClick={(e) => e.stopPropagation()}
           />
         </div>
+      )}
+
+      {showCorrection && (
+        <CompletedHoldCorrection
+          hold={hold}
+          holds={holds}
+          sessionId={sessionId}
+          onSaved={() => { setShowCorrection(false); onChanged(); }}
+          onCancel={() => setShowCorrection(false)}
+        />
       )}
 
       <ConfirmDialog

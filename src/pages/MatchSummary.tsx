@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
+import { useAppBack } from '../lib/use-app-back';
 import { useAuth } from '../contexts/AuthContext';
 import {
   getMatchSession,
@@ -44,6 +45,7 @@ export function MatchSummary() {
   const { id } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const goBack = useAppBack('/match');
   const [session, setSession] = useState<MatchSession | null>(null);
   const [holds, setHolds] = useState<MatchHoldWithFigure[]>([]);
   const [holdImages, setHoldImages] = useState<HoldImage[]>([]);
@@ -419,7 +421,7 @@ export function MatchSummary() {
     <Layout>
       <div className="max-w-2xl mx-auto pb-32 md:pb-8">
         <button
-          onClick={() => navigate('/match')}
+          onClick={goBack}
           className="flex items-center space-x-2 text-slate-600 hover:text-slate-900 mb-6 transition"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -1053,6 +1055,7 @@ export function MatchSummary() {
           hold={detailHold}
           holds={holds}
           userId={user.id}
+          sessionId={session.id}
           onClose={() => setDetailHold(null)}
           onChanged={fetchData}
         />

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
+import { useAppBack } from '../lib/use-app-back';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Discipline, ShooterClass } from '../types/database';
@@ -18,6 +19,7 @@ interface SimpleWeapon {
 
 export function NewTraining() {
   const navigate = useNavigate();
+  const goBack = useAppBack('/training');
   const { user } = useAuth();
   const [disciplines, setDisciplines] = useState<Discipline[]>([]);
   const [shooterClasses, setShooterClasses] = useState<ShooterClass[]>([]);
@@ -238,7 +240,7 @@ export function NewTraining() {
       <div className="max-w-3xl pb-20 md:pb-8">
         <div className="mb-8">
           <button
-            onClick={() => navigate(-1)}
+            onClick={goBack}
             className="flex items-center space-x-2 text-slate-600 hover:text-slate-900 mb-4"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -545,7 +547,7 @@ export function NewTraining() {
           <div className="flex space-x-4">
             <button
               type="button"
-              onClick={() => navigate(-1)}
+              onClick={goBack}
               className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-3 px-6 rounded-lg transition"
             >
               Avbryt

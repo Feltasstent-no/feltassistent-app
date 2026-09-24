@@ -127,7 +127,7 @@ export function MatchHistory() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <button
-                        onClick={() => navigate(route)}
+                        onClick={() => navigate(route, route.endsWith('/summary') ? { state: { from: '/match/history' } } : undefined)}
                         className="flex-1 text-left hover:opacity-80 transition min-w-0"
                       >
                         <div className="flex items-center gap-2 mb-1.5 flex-wrap">

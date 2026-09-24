@@ -9,8 +9,10 @@ import { EditHoldModal } from '../components/match/EditHoldModal';
 import { AddHoldModal } from '../components/match/AddHoldModal';
 import { FirstHoldModal } from '../components/match/FirstHoldModal';
 import { PostHoldActions } from '../components/match/PostHoldActions';
+import { LeaveMatchDialog } from '../components/match/LeaveMatchDialog';
 import { MatchUnknownHoldSetup, type UnknownHoldConfirmConfig } from '../components/match/MatchUnknownHoldSetup';
 import { useBlockNavigation } from '../lib/use-block-navigation';
+import { useNavGuard } from '../contexts/NavGuardContext';
 import { useWakeLock } from '../lib/use-wake-lock';
 import { getAssistanceMode, type AssistanceMode } from '../lib/user-preferences';
 import {
@@ -55,6 +57,13 @@ export function MatchActive() {
   const { id } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { registerGuard } = useNavGuard();
+  const [showLeaveDialog, setShowLeaveDialog] = useState(false);
+  const [leaveBusy, setLeaveBusy] = useState(false);
+  const pendingDestRef = useRef<string>('/match');
+  const leaveBusyRef = useRef(false);
+  const guardActiveRef = useRef(false);
+  const sessionRef = useRef<MatchSession | null>(null);
   const [session, setSession] = useState<MatchSession | null>(null);
   const [holds, setHolds] = useState<MatchHoldWithFigure[]>([]);
   const [currentHold, setCurrentHold] = useState<MatchHoldWithFigure | null>(null);
@@ -119,6 +128,54 @@ export function MatchActive() {
     'Du er midt i et hold. Klokken vil starte på nytt hvis du forlater.'
   );
 
+  const decisionPending = !!postHold || showResetReminder || !!showReshootChoice;
+  const guardActive =
+    !!session && session.status !== 'completed' && (clockStarted || decisionPending);
+
+  guardActiveRef.current = guardActive;
+  sessionRef.current = session;
+
+  useEffect(() => {
+    registerGuard({
+      isActive: () => guardActiveRef.current,
+      confirmLeave: (destination: string) => {
+        pendingDestRef.current = destination;
+        setShowLeaveDialog(true);
+      },
+      pauseNow: async () => {
+        const active = sessionRef.current;
+        if (active && active.status !== 'completed') {
+          setOptimisticStartHoldId(null);
+          await pauseMatchSession(active.id);
+        }
+      },
+    });
+    return () => registerGuard(null);
+  }, [registerGuard]);
+
+  const handleLeaveStay = () => {
+    setShowLeaveDialog(false);
+  };
+
+  const handleLeaveConfirm = async () => {
+    if (leaveBusyRef.current) return;
+    leaveBusyRef.current = true;
+    setLeaveBusy(true);
+    const destination = pendingDestRef.current || '/match';
+    try {
+      const active = sessionRef.current;
+      if (active && active.status !== 'completed') {
+        setOptimisticStartHoldId(null);
+        await pauseMatchSession(active.id);
+      }
+      navigate(destination);
+    } finally {
+      setShowLeaveDialog(false);
+      setLeaveBusy(false);
+      leaveBusyRef.current = false;
+    }
+  };
+
   useWakeLock(!loading && !!session && session.status !== 'completed');
 
   useEffect(() => {
@@ -178,6 +235,21 @@ export function MatchActive() {
       }
 
       setCurrentHold(current);
+
+      if (
+        current &&
+        current.completed &&
+        !current.reshoot_of_hold_id &&
+        sessionData.status !== 'completed'
+      ) {
+        const nextIndex = findNextOrdinaryIndex(sessionData.current_hold_index, holdsWithSubs);
+        const isLast = nextIndex === -1;
+        const isFinfelt = sessionData.competition_type === 'finfelt';
+        const showReset = assistMode !== 'minimal' && !isFinfelt;
+        setPostHold({ completedHoldId: current.id, isLast, nextIndex });
+        setIsLastHoldReset(isLast);
+        setShowResetReminder(showReset);
+      }
 
       if (isUnknown && current && !current.field_figure_id && !current.started_at) {
         setShowUnknownSetup(true);
@@ -485,14 +557,10 @@ export function MatchActive() {
     });
   };
 
-  const handlePause = async () => {
+  const handlePause = () => {
     if (!session) return;
-
-    if (confirm('Pause stevnet? Du kan fortsette senere.')) {
-      setOptimisticStartHoldId(null);
-      await pauseMatchSession(session.id);
-      navigate('/match');
-    }
+    pendingDestRef.current = '/match';
+    setShowLeaveDialog(true);
   };
 
 
@@ -1130,6 +1198,14 @@ export function MatchActive() {
             setSession({ ...session, match_name: name, notes: notes || undefined });
           }}
           onClose={() => setShowEditMeta(false)}
+        />
+      )}
+
+      {showLeaveDialog && (
+        <LeaveMatchDialog
+          onStay={handleLeaveStay}
+          onLeave={handleLeaveConfirm}
+          disabled={leaveBusy}
         />
       )}
     </Layout>
