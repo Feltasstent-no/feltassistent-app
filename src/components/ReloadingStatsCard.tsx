@@ -31,7 +31,7 @@ export function ReloadingStatsCard() {
   if (loading || !stats) return null;
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 mt-4">
+    <div className="bg-white rounded-xl border border-slate-200 mt-4 mb-6">
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full px-4 py-3 flex items-center justify-between gap-3"

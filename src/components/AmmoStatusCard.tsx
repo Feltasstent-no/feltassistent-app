@@ -119,7 +119,7 @@ export function AmmoStatusCard() {
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold text-slate-900">Ammunisjon</h2>
             <button
-              onClick={() => navigate('/weapons')}
+              onClick={() => navigate('/ammo', { state: { from: '/match' } })}
               className="text-emerald-600 hover:text-emerald-700 font-medium text-sm"
             >
               Administrer
@@ -127,7 +127,7 @@ export function AmmoStatusCard() {
           </div>
         </div>
         <button
-          onClick={() => navigate('/weapons')}
+          onClick={() => navigate('/ammo', { state: { from: '/match' } })}
           className="w-full p-6 hover:bg-amber-50/30 transition text-left group"
         >
           <div className="flex items-center gap-3">
@@ -170,7 +170,7 @@ export function AmmoStatusCard() {
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold text-slate-900">Ammunisjon</h2>
             <button
-              onClick={() => navigate('/weapons')}
+              onClick={() => navigate(`/ammo?weapon=${weaponId}&inventory=${inventory.id}`, { state: { from: '/match' } })}
               className="text-emerald-600 hover:text-emerald-700 font-medium text-sm"
             >
               Administrer
