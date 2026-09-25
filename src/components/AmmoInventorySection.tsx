@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
   Package, Plus, Minus, PlusCircle, X, Pencil, Trash2,
-  ChevronDown, ChevronUp, History, Star, Target, Crosshair, TreePine, Loader2,
+  ChevronDown, ChevronUp, History, Star, Target, Crosshair, TreePine, Loader2, Beaker, ArrowRight,
 } from 'lucide-react';
 import type { AmmoInventory, AmmunitionBatch, Weapon, WeaponBarrel } from '../types/database';
 import {
@@ -27,6 +28,9 @@ import { BatchModal } from './BatchModal';
 interface AmmoInventorySectionProps {
   weapon: Weapon;
   barrels: WeaponBarrel[];
+  onStockChange?: (trackedStockTotal: number) => void;
+  defaultExpanded?: boolean;
+  initialInventoryId?: string | null;
 }
 
 const USAGE_TYPE_LABELS: Record<string, string> = {
@@ -53,10 +57,16 @@ const DEFAULT_CONTEXTS: { key: 'felt' | 'bane' | 'trening'; label: string; icon:
 
 
 
-export function AmmoInventorySection({ weapon, barrels }: AmmoInventorySectionProps) {
+export function AmmoInventorySection({ weapon, barrels, onStockChange, defaultExpanded = false, initialInventoryId = null }: AmmoInventorySectionProps) {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const fromPath = location.pathname + location.search;
+  const highlightRef = useRef<HTMLDivElement | null>(null);
+  const hasHighlightedRef = useRef(false);
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [items, setItems] = useState<AmmoInventory[]>([]);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [showNewForm, setShowNewForm] = useState(false);
   const [editingItem, setEditingItem] = useState<AmmoInventory | null>(null);
   const [adjustingItem, setAdjustingItem] = useState<string | null>(null);
@@ -98,9 +108,35 @@ export function AmmoInventorySection({ weapon, barrels }: AmmoInventorySectionPr
     fetchInventory();
   }, [weapon.id]);
 
+  useEffect(() => {
+    hasHighlightedRef.current = false;
+    setHighlightedId(null);
+  }, [weapon.id, initialInventoryId]);
+
+  useEffect(() => {
+    if (!initialInventoryId || hasHighlightedRef.current) return;
+    if (!items.some(i => i.id === initialInventoryId)) return;
+    hasHighlightedRef.current = true;
+    setExpanded(true);
+    setHighlightedId(initialInventoryId);
+    const raf = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [items, initialInventoryId]);
+
+  const openReloadingLogForBatch = (batchId: string) => {
+    navigate(`/reloading-log?batch=${batchId}`, { state: { from: fromPath } });
+  };
+
   const fetchInventory = async () => {
     const data = await getAmmoInventoryForWeapon(weapon.id);
     setItems(data);
+    onStockChange?.(
+      data.filter(i => i.track_stock).reduce((sum, i) => sum + i.stock_quantity, 0)
+    );
     if (data.length > 0) {
       const ids = data.map(i => i.id);
       const batches = await getBatchesForAmmoIds(ids);
@@ -606,8 +642,12 @@ export function AmmoInventorySection({ weapon, barrels }: AmmoInventorySectionPr
               return (
                 <div
                   key={item.id}
-                  className={`p-3 rounded-lg border ${
-                    item.is_current_active
+                  ref={item.id === initialInventoryId ? highlightRef : undefined}
+                  style={{ scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + 5rem)' }}
+                  className={`p-3 rounded-lg border transition ${
+                    highlightedId === item.id
+                      ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-300'
+                      : item.is_current_active
                       ? 'bg-emerald-50/50 border-emerald-300'
                       : 'bg-slate-50 border-slate-200'
                   }`}
@@ -882,41 +922,65 @@ export function AmmoInventorySection({ weapon, barrels }: AmmoInventorySectionPr
 
                     return (
                       <div className="mt-2 pt-2 border-t border-slate-200/70">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setBatchOpenIds(prev => {
-                              const next = new Set(prev);
-                              if (next.has(item.id)) next.delete(item.id);
-                              else next.add(item.id);
-                              return next;
-                            });
-                          }}
-                          className="w-full flex items-center justify-between gap-2 group"
-                        >
-                          <div className="min-w-0 text-left">
-                            <p className="text-[11px] font-medium text-slate-700 truncate">
-                              {batchCount === 1 ? summary.title : `Batcher (${batchCount})`}
-                            </p>
-                            <p className="text-[10px] text-slate-400 truncate">
-                              {batchCount === 1 ? summary.subtitle : summary.title + (batchCount > 2 ? ` +${batchCount - 1} til` : ` + 1 til`)}
-                            </p>
-                          </div>
-                          {isOpen ? (
-                            <ChevronUp className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                          ) : (
-                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                          )}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBatchOpenIds(prev => {
+                                const next = new Set(prev);
+                                if (next.has(item.id)) next.delete(item.id);
+                                else next.add(item.id);
+                                return next;
+                              });
+                            }}
+                            className="flex-1 min-w-0 flex items-center justify-between gap-2 group"
+                          >
+                            <div className="min-w-0 text-left flex items-center gap-1.5">
+                              <Beaker className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+                              <div className="min-w-0">
+                                <p className="text-[11px] font-medium text-slate-700 truncate">
+                                  {batchCount === 1 ? 'Laddebok \u00B7 1 batch' : `Laddebok \u00B7 ${batchCount} batcher`}
+                                </p>
+                                <p className="text-[10px] text-slate-400 truncate">
+                                  {batchCount === 1 ? summary.subtitle : summary.title + (batchCount > 2 ? ` +${batchCount - 1} til` : ` + 1 til`)}
+                                </p>
+                              </div>
+                            </div>
+                            {isOpen ? (
+                              <ChevronUp className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                            ) : (
+                              <ChevronDown className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openReloadingLogForBatch(firstBatch.id)}
+                            className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2 py-1 rounded transition flex-shrink-0"
+                          >
+                            Åpne laddebok
+                            <ArrowRight className="w-3 h-3" />
+                          </button>
+                        </div>
                         {isOpen && (
                           <div className="mt-2 space-y-2">
                             {batches.map((batch) => (
-                              <BatchInfoDisplay
-                                key={batch.id}
-                                batch={batch}
-                                onEdit={() => setBatchModal({ ammoId: item.id, ammoName: item.name, batch })}
-                                onCopy={() => setBatchModal({ ammoId: item.id, ammoName: item.name, batch: null, copyFrom: batch })}
-                              />
+                              <div key={batch.id} className="space-y-1">
+                                <BatchInfoDisplay
+                                  batch={batch}
+                                  onEdit={() => setBatchModal({ ammoId: item.id, ammoName: item.name, batch })}
+                                  onCopy={() => setBatchModal({ ammoId: item.id, ammoName: item.name, batch: null, copyFrom: batch })}
+                                />
+                                <div className="flex justify-end">
+                                  <button
+                                    type="button"
+                                    onClick={() => openReloadingLogForBatch(batch.id)}
+                                    className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2 py-1 rounded transition"
+                                  >
+                                    Se laddedata
+                                    <ArrowRight className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </div>
                             ))}
                             <button
                               type="button"

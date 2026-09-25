@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
+import { useAppBack } from '../lib/use-app-back';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useActiveSetup } from '../contexts/ActiveSetupContext';
 import { useOnboarding } from '../contexts/OnboardingContext';
 import { Weapon, WeaponBarrel } from '../types/database';
-import { Plus, Crosshair, Trash2, Save, X, Calendar, CreditCard as Edit, PlusCircle, ChevronDown, ChevronUp, History, Pencil, AlertTriangle, Info, ArrowRight, Loader2, Check } from 'lucide-react';
+import { Plus, Crosshair, Trash2, Save, X, Calendar, CreditCard as Edit, PlusCircle, ChevronDown, ChevronUp, History, Pencil, AlertTriangle, Info, ArrowRight, ArrowLeft, Loader2, Check } from 'lucide-react';
 import { getBarrelHealthStatus, getBarrelLifespanLimit } from '../lib/barrel-lifespan';
 import { logWeaponShots } from '../lib/weapon-shot-service';
 import { AmmoInventorySection } from '../components/AmmoInventorySection';
@@ -28,6 +29,10 @@ export function Weapons() {
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const goBack = useAppBack('/skudd-og-ammo');
+  const section = new URLSearchParams(location.search).get('section');
+  const shotsSectionRef = useRef<HTMLDivElement | null>(null);
+  const ammoSectionRef = useRef<HTMLDivElement | null>(null);
   const { activeSetup, setWeapon, updateActiveSetup } = useActiveSetup();
   const { state: onboardingState } = useOnboarding();
   const [weapons, setWeapons] = useState<Weapon[]>([]);
@@ -96,6 +101,23 @@ export function Weapons() {
       resetWeaponForm();
     }
   }, [onboardingStep, loading]);
+
+  const hasScrolledToSectionRef = useRef(false);
+  useEffect(() => {
+    if (loading || !section || showNewWeapon || !selectedWeapon) return;
+    if (hasScrolledToSectionRef.current) return;
+
+    const target = section === 'ammo' ? ammoSectionRef.current : shotsSectionRef.current;
+    if (!target) return;
+
+    hasScrolledToSectionRef.current = true;
+    const raf = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [loading, section, showNewWeapon, selectedWeapon]);
 
   const finishOnboardingAndRoute = () => {
     setOnboardingStep(null);
@@ -672,9 +694,21 @@ export function Weapons() {
     <Layout>
       <div className="pb-20 md:pb-8">
         <div className="mb-8 flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Mine våpen</h1>
-            <p className="text-slate-600 mt-1 text-sm sm:text-base">Administrer dine våpen og løp</p>
+          <div className="min-w-0 flex items-center gap-2">
+            {section && (
+              <button
+                type="button"
+                onClick={goBack}
+                aria-label="Tilbake til Skudd & ammo"
+                className="flex items-center justify-center w-11 h-11 -ml-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition flex-shrink-0"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+            )}
+            <div className="min-w-0">
+              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Mine våpen</h1>
+              <p className="text-slate-600 mt-1 text-sm sm:text-base">Administrer dine våpen og løp</p>
+            </div>
           </div>
           <button
             onClick={() => {
@@ -903,7 +937,11 @@ export function Weapons() {
                 </div>
               ) : selectedWeapon ? (
                 <div className="space-y-6">
-                  <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6">
+                  <div
+                    ref={shotsSectionRef}
+                    className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6"
+                    style={{ scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + 5rem)' }}
+                  >
                     <div className="flex items-center justify-between mb-6">
                       <div>
                         <h2 className="text-xl font-bold text-slate-900">
@@ -1614,7 +1652,12 @@ export function Weapons() {
                     </div>
                   </div>
 
-                  <AmmoInventorySection weapon={selectedWeapon} barrels={barrels} />
+                  <div
+                    ref={ammoSectionRef}
+                    style={{ scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + 5rem)' }}
+                  >
+                    <AmmoInventorySection weapon={selectedWeapon} barrels={barrels} />
+                  </div>
 
                   {shotLogs.length > 0 && (
                     <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6">

@@ -1,6 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ChevronDown, ChevronUp, Beaker, Pencil, Copy, Crosshair, ArrowRight } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, ChevronDown, ChevronUp, Beaker, Pencil, Copy, Package, ArrowRight } from 'lucide-react';
+import { useAppBack } from '../lib/use-app-back';
+import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import {
   getReloadingStats,
@@ -49,12 +51,29 @@ function BatchCard({
   batch,
   onEdit,
   onCopy,
+  onSeeStock,
+  deepLinked = false,
 }: {
   batch: ReloadingLogBatch;
   onEdit: () => void;
   onCopy: () => void;
+  onSeeStock?: () => void;
+  deepLinked?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(deepLinked);
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const hasScrolledRef = useRef(false);
+
+  useEffect(() => {
+    if (!deepLinked || hasScrolledRef.current) return;
+    hasScrolledRef.current = true;
+    setExpanded(true);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    });
+  }, [deepLinked]);
 
   const ammo = batch.ammo_inventory;
   const caliber = ammo?.caliber;
@@ -81,7 +100,13 @@ function BatchCard({
   }
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <div
+      ref={cardRef}
+      style={{ scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + 5rem)' }}
+      className={`bg-white rounded-xl border overflow-hidden transition ${
+        deepLinked ? 'border-amber-400 ring-2 ring-amber-300' : 'border-slate-200'
+      }`}
+    >
       <div className="px-4 py-3">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
@@ -155,6 +180,17 @@ function BatchCard({
           <BatchInfoDisplay batch={batch as AmmunitionBatch} />
         </div>
       )}
+
+      {onSeeStock && batch.ammo_inventory_id && ammo?.weapon_id && (
+        <button
+          onClick={onSeeStock}
+          className="w-full flex items-center justify-center gap-1 px-3 py-2 text-[11px] font-medium text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 transition border-t border-slate-100"
+        >
+          <Package className="w-3.5 h-3.5" />
+          Se lagerstatus
+          <ArrowRight className="w-3.5 h-3.5" />
+        </button>
+      )}
     </div>
   );
 }
@@ -162,6 +198,10 @@ function BatchCard({
 export function ReloadingLog() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const deepLinkBatchId = searchParams.get('batch');
+  const goBack = useAppBack('/skudd-og-ammo');
   const [stats, setStats] = useState<ReloadingStats | null>(null);
   const [batches, setBatches] = useState<ReloadingLogBatch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -237,33 +277,35 @@ export function ReloadingLog() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-      </div>
+      <Layout>
+        <div className="flex items-center justify-center py-16">
+          <div className="w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+        </div>
+      </Layout>
     );
   }
 
   const isEmpty = batches.length === 0;
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <div className="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div className="max-w-lg mx-auto px-4 py-3 flex items-center gap-3">
+    <Layout>
+      <div className="max-w-lg mx-auto">
+        <div className="flex items-center gap-3 mb-4">
           <button
-            onClick={() => navigate('/match')}
-            className="p-1.5 -ml-1.5 rounded-lg hover:bg-slate-100 transition"
+            type="button"
+            onClick={goBack}
+            aria-label="Tilbake"
+            className="flex items-center justify-center w-11 h-11 -ml-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition"
           >
-            <ArrowLeft className="w-5 h-5 text-slate-700" />
+            <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-base font-semibold text-slate-900">Laddebok</h1>
-            <p className="text-[11px] text-slate-500">Historikk over registrerte ladebatcher</p>
+            <h1 className="text-2xl font-bold text-slate-900 leading-tight">Laddebok</h1>
+            <p className="text-sm text-slate-600">Historikk over registrerte ladebatcher</p>
           </div>
         </div>
-      </div>
 
-      <div className="max-w-lg mx-auto px-4 py-4 space-y-4">
+        <div className="space-y-4">
         {/* Stats */}
         {stats && (
           <div className="bg-white rounded-xl border border-slate-200 p-4">
@@ -357,6 +399,7 @@ export function ReloadingLog() {
               <BatchCard
                 key={batch.id}
                 batch={batch}
+                deepLinked={deepLinkBatchId != null && batch.id === deepLinkBatchId}
                 onEdit={() =>
                   setBatchModal({
                     ammoId: batch.ammo_inventory_id,
@@ -372,6 +415,15 @@ export function ReloadingLog() {
                     copyFrom: batch as AmmunitionBatch,
                   })
                 }
+                onSeeStock={
+                  batch.ammo_inventory?.weapon_id
+                    ? () =>
+                        navigate(
+                          `/ammo?weapon=${batch.ammo_inventory!.weapon_id}&inventory=${batch.ammo_inventory_id}`,
+                          { state: { from: '/reloading-log' + location.search } }
+                        )
+                    : undefined
+                }
               />
             ))}
           </div>
@@ -382,18 +434,19 @@ export function ReloadingLog() {
             <p className="text-sm text-slate-500">Ingen batcher passer valgte filtre.</p>
           </div>
         )}
-      </div>
+        </div>
 
-      {batchModal && (
-        <BatchModal
-          ammoName={batchModal.ammoName}
-          batch={batchModal.batch}
-          copyFrom={batchModal.copyFrom}
-          onSave={handleBatchSave}
-          onClose={() => setBatchModal(null)}
-        />
-      )}
-    </div>
+        {batchModal && (
+          <BatchModal
+            ammoName={batchModal.ammoName}
+            batch={batchModal.batch}
+            copyFrom={batchModal.copyFrom}
+            onSave={handleBatchSave}
+            onClose={() => setBatchModal(null)}
+          />
+        )}
+      </div>
+    </Layout>
   );
 }
 

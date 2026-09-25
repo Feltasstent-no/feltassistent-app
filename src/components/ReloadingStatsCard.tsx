@@ -92,7 +92,7 @@ export function ReloadingStatsCard() {
 
           <div className="mt-3 pt-2 border-t border-slate-100">
             <button
-              onClick={(e) => { e.stopPropagation(); navigate('/reloading-log'); }}
+              onClick={(e) => { e.stopPropagation(); navigate('/reloading-log', { state: { from: '/match' } }); }}
               className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 hover:text-amber-700 transition"
             >
               Åpne laddebok

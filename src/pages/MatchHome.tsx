@@ -599,6 +599,23 @@ export function MatchHome() {
           </button>
 
           <button
+            onClick={() => navigate('/skudd-og-ammo', { state: { from: '/match' } })}
+            className="bg-white border-2 border-slate-200 hover:border-emerald-600 rounded-xl p-4 sm:p-6 transition group text-left"
+          >
+            <div className="flex items-center space-x-4">
+              <div className="w-14 h-14 bg-emerald-100 group-hover:bg-emerald-600 rounded-xl flex items-center justify-center transition">
+                <Target className="w-7 h-7 text-emerald-600 group-hover:text-white transition" strokeWidth={2.25} />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-xl font-bold text-slate-900 mb-1">Skudd & ammo</h3>
+                <p className="text-sm text-slate-600">
+                  Skuddteller, ammunisjon og laddebok
+                </p>
+              </div>
+            </div>
+          </button>
+
+          <button
             onClick={() => navigate('/match/history')}
             className="bg-white border-2 border-slate-200 hover:border-slate-600 rounded-xl p-4 sm:p-6 transition group text-left"
           >

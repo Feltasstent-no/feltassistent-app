@@ -32,6 +32,8 @@ import { CompetitionDetail } from './pages/CompetitionDetail';
 import CompetitionConfigure from './pages/CompetitionConfigure';
 import { Rifles } from './pages/Rifles';
 import { Weapons } from './pages/Weapons';
+import { ShotsAmmoHub } from './pages/ShotsAmmoHub';
+import { AmmoWorkspace } from './pages/AmmoWorkspace';
 import { Ballistics } from './pages/Ballistics';
 import { NewBallisticProfile } from './pages/NewBallisticProfile';
 import { EditBallisticProfile } from './pages/EditBallisticProfile';
@@ -279,6 +281,24 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Weapons />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/skudd-og-ammo"
+              element={
+                <ProtectedRoute>
+                  <ShotsAmmoHub />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/ammo"
+              element={
+                <ProtectedRoute>
+                  <AmmoWorkspace />
                 </ProtectedRoute>
               }
             />
