@@ -10,7 +10,6 @@ import { Weapon, WeaponBarrel } from '../types/database';
 import { Plus, Crosshair, Trash2, Save, X, Calendar, CreditCard as Edit, PlusCircle, ChevronDown, ChevronUp, History, Pencil, AlertTriangle, Info, ArrowRight, ArrowLeft, Loader2, Check } from 'lucide-react';
 import { getBarrelHealthStatus, getBarrelLifespanLimit } from '../lib/barrel-lifespan';
 import { logWeaponShots } from '../lib/weapon-shot-service';
-import { AmmoInventorySection } from '../components/AmmoInventorySection';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
 interface WeaponShotLog {
@@ -32,7 +31,6 @@ export function Weapons() {
   const goBack = useAppBack('/skudd-og-ammo');
   const section = new URLSearchParams(location.search).get('section');
   const shotsSectionRef = useRef<HTMLDivElement | null>(null);
-  const ammoSectionRef = useRef<HTMLDivElement | null>(null);
   const { activeSetup, setWeapon, updateActiveSetup } = useActiveSetup();
   const { state: onboardingState } = useOnboarding();
   const [weapons, setWeapons] = useState<Weapon[]>([]);
@@ -51,7 +49,7 @@ export function Weapons() {
     comment: '',
   });
   const [shotLogs, setShotLogs] = useState<WeaponShotLog[]>([]);
-  const [showShotHistory, setShowShotHistory] = useState(false);
+  const [showShotHistory, setShowShotHistory] = useState(true);
   const [editingShotLog, setEditingShotLog] = useState<WeaponShotLog | null>(null);
   const [editShotForm, setEditShotForm] = useState({
     shots_fired: '',
@@ -107,7 +105,7 @@ export function Weapons() {
     if (loading || !section || showNewWeapon || !selectedWeapon) return;
     if (hasScrolledToSectionRef.current) return;
 
-    const target = section === 'ammo' ? ammoSectionRef.current : shotsSectionRef.current;
+    const target = shotsSectionRef.current;
     if (!target) return;
 
     hasScrolledToSectionRef.current = true;
@@ -1650,13 +1648,6 @@ export function Weapons() {
                         );
                       })}
                     </div>
-                  </div>
-
-                  <div
-                    ref={ammoSectionRef}
-                    style={{ scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + 5rem)' }}
-                  >
-                    <AmmoInventorySection weapon={selectedWeapon} barrels={barrels} />
                   </div>
 
                   {shotLogs.length > 0 && (

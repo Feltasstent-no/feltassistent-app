@@ -289,7 +289,10 @@ export function ReloadingLog() {
 
   return (
     <Layout>
-      <div className="max-w-lg mx-auto">
+      <div
+        className="max-w-lg mx-auto"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      >
         <div className="flex items-center gap-3 mb-4">
           <button
             type="button"
